@@ -2,7 +2,11 @@
 
 **[▶ Run it in your browser](https://krishkalra19.github.io/vivarium/)**
 
-An agent-based ecosystem and evolution simulator that runs in the browser. No build step, no dependencies — open `index.html` and a rainforest starts running.
+An agent-based ecosystem and evolution simulator that runs in the browser. 
+
+
+
+No build step, no dependencies — open `index.html` and a rainforest starts running.
 
 Every animal is an individual with a heritable genome. Nothing is scripted: population cycles, predator–prey oscillation, niche partitioning and local extinctions all emerge from individual foraging, hunting, breeding and dying.
 
