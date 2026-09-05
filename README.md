@@ -1,13 +1,17 @@
 # Vivarium
 
+**[▶ Run it in your browser](https://krishkalra19.github.io/vivarium/)**
+
 An agent-based ecosystem and evolution simulator that runs in the browser. No build step, no dependencies — open `index.html` and a rainforest starts running.
 
 Every animal is an individual with a heritable genome. Nothing is scripted: population cycles, predator–prey oscillation, niche partitioning and local extinctions all emerge from individual foraging, hunting, breeding and dying.
 
 ## Running it
 
+The [hosted version](https://krishkalra19.github.io/vivarium/) needs nothing at all. To run it locally:
+
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/KrishKalra19/vivarium.git
 cd vivarium
 ```
 
