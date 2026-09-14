@@ -1,0 +1,1941 @@
+/* Vivarium: the open-ended ecosystem simulation, its charts and its Map/3D views. */
+(function(){
+  "use strict";
+
+  /* The biome definition lives in js/species.js so the Arena can share it. */
+  var JUNGLE = Ludus.biomes.jungle;
+
+  var BIOME = JUNGLE;
+  var SPECIES = BIOME.species;
+  var SPECIES_IDS = Object.keys(SPECIES);
+  var HERB_IDS = SPECIES_IDS.filter(function(id){ return SPECIES[id].role==='herbivore'; });
+  var PRED_IDS = SPECIES_IDS.filter(function(id){ return SPECIES[id].role==='predator'; });
+
+  /* Traits that evolve. Each is a multiplier band around the species baseline,
+     so a "fast agouti" is fast for an agouti, not fast for a jaguar. */
+  var TRAITS = ['mass','speed','sense','metab'];
+  var TRAIT_BAND = { mass:[0.55,1.7], speed:[0.6,1.5], sense:[0.55,1.6], metab:[0.7,1.35] };
+
+  var ENERGY_PER_MASS = 9;       // energy capacity per kg
+  var DRAIN_K = 0.22;            // metabolic constant, applied to mass^0.75 (Kleiber)
+  var INTAKE_K = 1.1;            // foraging rate constant, also mass^0.75
+  var KILL_YIELD = 0.75;         // fraction of prey body energy a predator gains
+
+  /* --------------------------- helpers --------------------------- */
+  function randRange(lo,hi){ return lo + Math.random()*(hi-lo); }
+  function clamp(v,lo,hi){ return v<lo?lo:(v>hi?hi:v); }
+  function triRand(){ return (Math.random()+Math.random()+Math.random()-1.5)/1.5; }
+  function pow75(m){ return Math.pow(m,0.75); }
+
+  function newGenome(){
+    return { mass:randRange(0.88,1.12), speed:randRange(0.88,1.12), sense:randRange(0.88,1.12), metab:randRange(0.92,1.08) };
+  }
+  function mutate(g, rate){
+    var out={};
+    for(var i=0;i<TRAITS.length;i++){
+      var k=TRAITS[i], band=TRAIT_BAND[k];
+      out[k]=clamp(g[k] + triRand()*rate*(band[1]-band[0]), band[0], band[1]);
+    }
+    return out;
+  }
+
+  /* --------------------------- state --------------------------- */
+  var world = { w:BIOME.world.w, h:BIOME.world.h };
+  var CELL = 20, cols=0, rows=0;
+  var foliage, fruit, fruitCap, nutrients;
+  var fruitPatches = [], terrainVersion = 0;
+
+  var animals = [];
+  var counts = {};
+  var idCounter = 1;
+  var maxGeneration = 0;
+  var simClock = 0;
+  var params = { mutationRate:0.07, growth:1.0, speed:1, paused:false };
+  var events = { droughtUntil:0, mastUntil:0 };
+  var selected = null;
+  var geneSpecies = 'agouti';
+
+  var HISTORY_CAP = 240;
+  var popHistory = {};   // id -> array
+  var vegHistory = { foliage:[], fruit:[] };
+  var traitHistory = {}; // id -> {mass:[],speed:[],sense:[]}
+  var sampleAccum = 0;
+
+  /* --------------------------- animals --------------------------- */
+  function bodyMass(sp, genome){ return sp.mass*genome.mass; }
+
+  function makeAnimal(id, genome, x, y, gen, energyFrac){
+    var sp = SPECIES[id];
+    var mass = bodyMass(sp, genome);
+    var maxEnergy = mass*ENERGY_PER_MASS;
+    return {
+      uid: idCounter++, sid:id, genome:genome,
+      x:x, y:y, vx:0, vy:0, heading:Math.random()*Math.PI*2,
+      mass:mass, maxEnergy:maxEnergy, energy:maxEnergy*(energyFrac==null?0.6:energyFrac),
+      speed: sp.speed*genome.speed,
+      sense: sp.sense*genome.sense,
+      drain: DRAIN_K*pow75(mass)*sp.metab*genome.metab,
+      intake: INTAKE_K*pow75(mass),
+      radius: 2.5*Math.pow(mass,1/3),
+      age:0, maxAge: sp.lifespan*randRange(0.85,1.15),
+      gen:gen||0, cooldown:randRange(0,sp.repro.cooldown*0.5),
+      huntCd:0, kills:0, dead:false,
+      // What the animal is doing, recorded for the cameras and captions; never read by the model.
+      state:'idle', target:null, lungeAt:-99, lastLunge:null, cause:null, killedBy:null,
+      ryaw:Math.random()*Math.PI*2, stride:Math.random(), alt:0
+    };
+  }
+
+  function spawn(id, x, y, gen, energyFrac, genome){
+    var a = makeAnimal(id, genome||newGenome(), x, y, gen||0, energyFrac);
+    animals.push(a);
+    counts[id] = (counts[id]||0)+1;
+    if(a.gen>maxGeneration) maxGeneration=a.gen;
+    return a;
+  }
+
+  /* --------------------------- terrain --------------------------- */
+  function buildTerrain(){
+    cols = Math.ceil(world.w/CELL);
+    rows = Math.ceil(world.h/CELL);
+    var n = cols*rows;
+    foliage = new Float32Array(n);
+    fruit = new Float32Array(n);
+    fruitCap = new Float32Array(n);
+    nutrients = new Float32Array(n);
+    for(var i=0;i<n;i++) foliage[i] = randRange(0.45,0.8);
+
+    var P = BIOME.plants.fruit;
+    fruitPatches = [];
+    terrainVersion++;
+    for(var p=0;p<P.patches;p++){
+      var px = Math.random()*world.w, py = Math.random()*world.h;
+      var pr = P.patchRadius*randRange(0.6,1.3);
+      fruitPatches.push({ x:px, y:py, r:pr });
+      var cx0 = Math.max(0,Math.floor((px-pr)/CELL)), cx1 = Math.min(cols-1,Math.ceil((px+pr)/CELL));
+      var cy0 = Math.max(0,Math.floor((py-pr)/CELL)), cy1 = Math.min(rows-1,Math.ceil((py+pr)/CELL));
+      for(var gy=cy0; gy<=cy1; gy++){
+        for(var gx=cx0; gx<=cx1; gx++){
+          var wx=(gx+0.5)*CELL, wy=(gy+0.5)*CELL;
+          var d=Math.sqrt((wx-px)*(wx-px)+(wy-py)*(wy-py));
+          if(d>pr) continue;
+          var v = (1-d/pr);
+          var idx = gy*cols+gx;
+          if(v>fruitCap[idx]) fruitCap[idx]=v;
+        }
+      }
+    }
+    for(var j=0;j<n;j++) fruit[j] = fruitCap[j]*randRange(0.3,0.8);
+  }
+
+  function cellAt(x,y){
+    var cx = clamp(Math.floor(x/CELL),0,cols-1);
+    var cy = clamp(Math.floor(y/CELL),0,rows-1);
+    return cy*cols+cx;
+  }
+
+  function growthMultiplier(){
+    var m = params.growth;
+    if(simClock < events.droughtUntil) m *= 0.2;
+    return m;
+  }
+
+  function growPlants(dt){
+    var gm = growthMultiplier();
+    var fo = BIOME.plants.foliage.regrow*gm*dt;
+    var fm = BIOME.plants.fruit.regrow*gm*(simClock<events.mastUntil?4:1)*dt;
+    if(fo<=0 && fm<=0) return;
+    for(var i=0;i<foliage.length;i++){
+      var nut = 1 + nutrients[i]*0.9;
+      var f = foliage[i];
+      if(f<1) foliage[i] = f + fo*nut*(1-f);
+      var capv = fruitCap[i];
+      if(capv>0){
+        var fr = fruit[i];
+        if(fr<capv) fruit[i] = fr + fm*nut*(capv-fr);
+      }
+      if(nutrients[i]>0) nutrients[i] = Math.max(0, nutrients[i]-0.02*dt);
+    }
+  }
+
+  /* --------------------------- spatial hash --------------------------- */
+  var HASH = 120, hcols=0, hrows=0, buckets=[];
+  function initHash(){
+    hcols = Math.ceil(world.w/HASH); hrows = Math.ceil(world.h/HASH);
+    buckets = new Array(hcols*hrows);
+    for(var i=0;i<buckets.length;i++) buckets[i]=[];
+  }
+  function rebuildHash(){
+    for(var i=0;i<buckets.length;i++) buckets[i].length=0;
+    for(var j=0;j<animals.length;j++){
+      var a=animals[j];
+      var hx=clamp(Math.floor(a.x/HASH),0,hcols-1), hy=clamp(Math.floor(a.y/HASH),0,hrows-1);
+      buckets[hy*hcols+hx].push(a);
+    }
+  }
+  function forNear(x,y,r,fn){
+    var hx0=clamp(Math.floor((x-r)/HASH),0,hcols-1), hx1=clamp(Math.floor((x+r)/HASH),0,hcols-1);
+    var hy0=clamp(Math.floor((y-r)/HASH),0,hrows-1), hy1=clamp(Math.floor((y+r)/HASH),0,hrows-1);
+    for(var hy=hy0;hy<=hy1;hy++){
+      for(var hx=hx0;hx<=hx1;hx++){
+        var b=buckets[hy*hcols+hx];
+        for(var i=0;i<b.length;i++) fn(b[i]);
+      }
+    }
+  }
+
+  function nearestThreat(a){
+    var range=a.sense*SPECIES[a.sid].panic, best=null, bestD=range*range;
+    forNear(a.x,a.y,range,function(o){
+      if(o.dead || SPECIES[o.sid].role!=='predator') return;
+      var sp=SPECIES[o.sid];
+      if(a.mass > sp.maxPreyMass) return;
+      var dx=o.x-a.x, dy=o.y-a.y, d=dx*dx+dy*dy;
+      if(d<bestD){ bestD=d; best=o; }
+    });
+    return best;
+  }
+
+  /* Predators weigh how catchable a target is, not just how close it is —
+     which is why jaguars mostly take capybara and leave adult tapir alone. */
+  function nearestPrey(a){
+    var sp=SPECIES[a.sid];
+    var range=a.sense, best=null, bestScore=0;
+    forNear(a.x,a.y,range,function(o){
+      if(o.dead || sp.prey.indexOf(o.sid)<0) return;
+      if(o.mass > sp.maxPreyMass) return;
+      var dx=o.x-a.x, dy=o.y-a.y, d2=dx*dx+dy*dy;
+      if(d2>range*range) return;
+      var edge = clamp(0.42*Math.pow(a.mass/o.mass, 0.75), 0.08, 1.2);
+      var odds = edge * (a.speed/(a.speed+o.speed));
+      // odds squared: a low-percentage target also means a long, costly engagement
+      var score = odds*odds*(o.maxEnergy*KILL_YIELD)/(Math.sqrt(d2)+60);
+      if(score>bestScore){ bestScore=score; best=o; }
+    });
+    return best;
+  }
+
+  function herdVector(a, out){
+    var sp=SPECIES[a.sid];
+    var r=110, cx=0, cy=0, sx=0, sy=0, n=0;
+    forNear(a.x,a.y,r,function(o){
+      if(o===a || o.dead || o.sid!==a.sid) return;
+      var dx=o.x-a.x, dy=o.y-a.y, d2=dx*dx+dy*dy;
+      if(d2>r*r) return;
+      n++; cx+=o.x; cy+=o.y;
+      if(d2 < 900 && d2>0.01){ var d=Math.sqrt(d2); sx-=dx/d; sy-=dy/d; }
+    });
+    if(n===0){ out.x=0; out.y=0; return false; }
+    cx=cx/n-a.x; cy=cy/n-a.y;
+    var cl=Math.sqrt(cx*cx+cy*cy)||1;
+    out.x = (cx/cl)*sp.herd + sx*0.5;
+    out.y = (cy/cl)*sp.herd + sy*0.5;
+    return true;
+  }
+
+  /* --------------------------- movement --------------------------- */
+  function steer(a, dvx, dvy, k, dt){
+    var f=Math.min(1,k*dt);
+    a.vx += (dvx-a.vx)*f; a.vy += (dvy-a.vy)*f;
+  }
+  function seek(a, tx, ty, factor, dt){
+    var dx=tx-a.x, dy=ty-a.y, d=Math.sqrt(dx*dx+dy*dy)||1;
+    steer(a, (dx/d)*a.speed*factor, (dy/d)*a.speed*factor, 6, dt);
+  }
+  function flee(a, fx, fy, dt){
+    var dx=a.x-fx, dy=a.y-fy, d=Math.sqrt(dx*dx+dy*dy)||1;
+    steer(a, (dx/d)*a.speed, (dy/d)*a.speed, 8, dt);
+  }
+  function wander(a, dt, factor){
+    a.heading += (Math.random()-0.5)*2.6*dt;
+    steer(a, Math.cos(a.heading)*a.speed*factor, Math.sin(a.heading)*a.speed*factor, 2.5, dt);
+  }
+  function move(a, dt){
+    a.x += a.vx*dt; a.y += a.vy*dt;
+    if(a.x<0){ a.x=0; a.vx=-a.vx*0.5; }
+    if(a.x>world.w){ a.x=world.w; a.vx=-a.vx*0.5; }
+    if(a.y<0){ a.y=0; a.vy=-a.vy*0.5; }
+    if(a.y>world.h){ a.y=world.h; a.vy=-a.vy*0.5; }
+  }
+
+  var deathLog = {};
+  function die(a, cause, killer){
+    if(a.dead) return;
+    a.dead = true;
+    a.cause = cause||'other';
+    if(killer){ a.killedBy = killer; onKill(killer, a); }
+    counts[a.sid] = Math.max(0, (counts[a.sid]||0)-1);
+    var k = a.sid+':'+(cause||'other');
+    deathLog[k] = (deathLog[k]||0)+1;
+    nutrients[cellAt(a.x,a.y)] += Math.min(3.5, a.mass*0.02);
+  }
+
+  /* Territory pressure: breeding stalls where conspecifics are already packed in,
+     so populations settle at a local carrying capacity instead of a global ceiling. */
+  function crowded(a, limit){
+    var n=0;
+    forNear(a.x, a.y, 95, function(o){
+      if(!o.dead && o.sid===a.sid) n++;
+    });
+    return n > limit;
+  }
+
+  function reproduce(a){
+    var sp=SPECIES[a.sid];
+    if(counts[a.sid] >= sp.cap) return;
+    if(sp.crowd && crowded(a, sp.crowd)){ a.cooldown = sp.repro.cooldown*0.4; return; }
+    var litter = sp.repro.litter;
+    var share = a.energy*0.34;
+    a.energy *= 0.42;
+    a.cooldown = sp.repro.cooldown;
+    for(var i=0;i<litter && counts[a.sid]+i<sp.cap;i++){
+      var child = spawn(a.sid, a.x+randRange(-14,14), a.y+randRange(-14,14), a.gen+1, 0, mutate(a.genome, params.mutationRate));
+      child.energy = share/litter;
+    }
+  }
+
+  var _herd = {x:0,y:0};
+
+  function updateHerbivore(a, dt){
+    var sp = SPECIES[a.sid];
+    var threat = nearestThreat(a);
+    a.target = threat;
+    a.state = threat ? 'flee' : 'forage';
+    if(threat){
+      flee(a, threat.x, threat.y, dt);
+    } else {
+      var idx = cellAt(a.x,a.y);
+      var here = foliage[idx]*sp.diet.foliage + fruit[idx]*sp.diet.fruit;
+      if(here < 0.35){
+        var best=null, bestScore=here, r=a.sense;
+        var cw=CELL, cx=clamp(Math.floor(a.x/cw),0,cols-1), cy=clamp(Math.floor(a.y/cw),0,rows-1);
+        var span=Math.max(1,Math.round(r/cw));
+        for(var oy=-span;oy<=span;oy+=2){
+          for(var ox=-span;ox<=span;ox+=2){
+            var gx=cx+ox, gy=cy+oy;
+            if(gx<0||gy<0||gx>=cols||gy>=rows) continue;
+            var k=gy*cols+gx;
+            var score = foliage[k]*sp.diet.foliage + fruit[k]*sp.diet.fruit;
+            if(score<=0.05) continue;
+            var wx=(gx+0.5)*cw, wy=(gy+0.5)*cw;
+            var dist=Math.sqrt((wx-a.x)*(wx-a.x)+(wy-a.y)*(wy-a.y));
+            if(dist>r) continue;
+            score -= dist*0.0016;
+            if(score>bestScore){ bestScore=score; best={x:wx,y:wy}; }
+          }
+        }
+        if(best) seek(a, best.x, best.y, 0.75, dt);
+        else wander(a, dt, 0.5);
+      } else {
+        wander(a, dt, 0.22);
+      }
+      if(sp.herd>0 && herdVector(a,_herd)){
+        steer(a, _herd.x*a.speed*0.5, _herd.y*a.speed*0.5, 2.2, dt);
+      }
+    }
+    move(a, dt);
+
+    var cell = cellAt(a.x,a.y);
+    var wantFoliage = foliage[cell]*sp.diet.foliage;
+    var wantFruit = fruit[cell]*sp.diet.fruit;
+    var avail = wantFoliage + wantFruit;
+    if(avail > 0.01){
+      // Holling type II: intake saturates, so thinning vegetation really does
+      // starve a herd instead of feeding it at full rate down to the last leaf.
+      var response = avail/(0.35+avail);
+      var gain = a.intake*response*dt;
+      var fPart = wantFoliage/avail;
+      var fEat = Math.min(foliage[cell], gain*fPart/BIOME.plants.foliage.energy);
+      var rEat = Math.min(fruit[cell], gain*(1-fPart)/BIOME.plants.fruit.energy);
+      foliage[cell] -= fEat; fruit[cell] -= rEat;
+      a.energy = Math.min(a.maxEnergy, a.energy + fEat*BIOME.plants.foliage.energy + rEat*BIOME.plants.fruit.energy);
+    }
+
+    var sp2 = Math.sqrt(a.vx*a.vx+a.vy*a.vy)/Math.max(1,a.speed);
+    a.energy -= (a.drain*(1+sp2*sp2*0.9))*dt;
+    a.age += dt;
+    a.cooldown = Math.max(0, a.cooldown-dt);
+    if(a.energy<=0){ die(a,'starved'); return; }
+    if(a.age>a.maxAge){ die(a,'age'); return; }
+    if(a.energy >= a.maxEnergy*sp.repro.threshold && a.cooldown<=0 && a.age>=sp.repro.minAge) reproduce(a);
+  }
+
+  function updatePredator(a, dt){
+    var sp = SPECIES[a.sid];
+    var prey = nearestPrey(a);
+    var lurking = false;
+
+    a.target = prey;
+    if(prey){
+      var dx=prey.x-a.x, dy=prey.y-a.y;
+      var dist=Math.sqrt(dx*dx+dy*dy);
+      if(sp.ambush && dist>sp.strikeRange){
+        lurking = true;
+        a.state = 'stalk';
+        steer(a, 0, 0, 3, dt);
+      } else {
+        a.state = 'chase';
+        seek(a, prey.x, prey.y, 1, dt);
+        var reach = a.radius + prey.radius + 3;
+        if(dist < reach && a.huntCd <= 0){
+          // One discrete lunge, then a recovery window. Most hunts fail.
+          a.huntCd = 2.5;
+          var massEdge = clamp(0.42*Math.pow(a.mass/prey.mass, 0.75), 0.08, 1.2);
+          var odds = sp.catchSkill * (a.speed/(a.speed+prey.speed)) * massEdge * 1.5;
+          var hit = Math.random() < odds;
+          a.lungeAt = simClock;
+          a.lastLunge = { hit:hit, sid:prey.sid, mass:prey.mass, t:simClock };
+          if(hit){
+            a.kills++;
+            a.energy = Math.min(a.maxEnergy, a.energy + prey.maxEnergy*KILL_YIELD);
+            die(prey,'predated',a);
+          } else {
+            a.energy -= a.drain*1.5;
+            onMiss(a, prey);
+          }
+        }
+      }
+    } else if(sp.ambush){
+      lurking = true;
+      a.state = 'lurk';
+      wander(a, dt, 0.12);
+    } else {
+      a.state = 'roam';
+      wander(a, dt, 0.45);
+    }
+    move(a, dt);
+
+    var spd = Math.sqrt(a.vx*a.vx+a.vy*a.vy)/Math.max(1,a.speed);
+    var drain = a.drain*(lurking?0.55:1)*(1+spd*spd*1.1);
+    a.energy -= drain*dt;
+    a.age += dt;
+    a.cooldown = Math.max(0, a.cooldown-dt);
+    a.huntCd = Math.max(0, a.huntCd-dt);
+    if(a.energy<=0){ die(a,'starved'); return; }
+    if(a.age>a.maxAge){ die(a,'age'); return; }
+    if(a.energy >= a.maxEnergy*sp.repro.threshold && a.cooldown<=0 && a.age>=sp.repro.minAge) reproduce(a);
+  }
+
+  /* Small, slow trickle of dispersers from the wider forest. Without it a
+     random trough at zero is permanent and the range goes silent forever. */
+  function immigration(dt){
+    for(var i=0;i<SPECIES_IDS.length;i++){
+      var id=SPECIES_IDS[i], sp=SPECIES[id];
+      if(counts[id] >= sp.floor) continue;
+      var needsPrey = sp.role==='predator';
+      if(needsPrey){
+        var preyTotal=0;
+        for(var p=0;p<sp.prey.length;p++) preyTotal += counts[sp.prey[p]]||0;
+        if(preyTotal < 25) continue;
+      }
+      if(Math.random() < 0.05*dt){
+        spawn(id, Math.random()*world.w, Math.random()*world.h, maxGeneration, 0.6);
+      }
+    }
+  }
+
+  function recount(){
+    for(var i=0;i<SPECIES_IDS.length;i++) counts[SPECIES_IDS[i]]=0;
+    for(var j=0;j<animals.length;j++) counts[animals[j].sid]++;
+  }
+
+  function step(dt){
+    simClock += dt;
+    growPlants(dt);
+    rebuildHash();
+    recount();
+    immigration(dt);
+    for(var i=0;i<animals.length;i++){
+      var a=animals[i];
+      if(a.dead) continue;
+      if(SPECIES[a.sid].role==='herbivore') updateHerbivore(a, dt);
+      else updatePredator(a, dt);
+    }
+    var alive=[];
+    for(var j=0;j<animals.length;j++) if(!animals[j].dead) alive.push(animals[j]);
+    animals = alive;
+    recount();
+
+    sampleAccum += dt;
+    if(sampleAccum >= 1){ sampleAccum = 0; sample(); }
+  }
+
+  function tick(dt){
+    if(params.paused) return;
+    step(dt*params.speed);
+  }
+
+  /* --------------------------- history --------------------------- */
+  function push(arr, v){ arr.push(v); if(arr.length>HISTORY_CAP) arr.shift(); }
+  function avgOf(id, fn){
+    var s=0,n=0;
+    for(var i=0;i<animals.length;i++){ if(animals[i].sid===id){ s+=fn(animals[i]); n++; } }
+    return n? s/n : 0;
+  }
+  function sample(){
+    for(var i=0;i<SPECIES_IDS.length;i++){
+      var id=SPECIES_IDS[i];
+      var ph=popHistory[id], prev=ph.length ? ph[ph.length-1] : null;
+      if(prev>0 && !counts[id]) logEvent({ sid:id, text:'Local extinction: no '+SPECIES[id].name.toLowerCase()+' left on the range.' });
+      if(prev===0 && counts[id]>0) logEvent({ sid:id, text:SPECIES[id].name+' recolonised the range from the wider forest.' });
+      push(popHistory[id], counts[id]||0);
+      var th=traitHistory[id];
+      push(th.mass, avgOf(id,function(a){return a.mass;}));
+      push(th.speed, avgOf(id,function(a){return a.speed;}));
+      push(th.sense, avgOf(id,function(a){return a.sense;}));
+    }
+    var fSum=0, rSum=0, rCells=0;
+    for(var k=0;k<foliage.length;k++){
+      fSum += foliage[k];
+      if(fruitCap[k]>0){ rSum += fruit[k]/fruitCap[k]; rCells++; }
+    }
+    push(vegHistory.foliage, fSum/foliage.length*100);
+    push(vegHistory.fruit, rCells? rSum/rCells*100 : 0);
+    renderCharts();
+    renderRoster();
+  }
+
+  function resetHistory(){
+    for(var i=0;i<SPECIES_IDS.length;i++){
+      popHistory[SPECIES_IDS[i]]=[];
+      traitHistory[SPECIES_IDS[i]]={ mass:[], speed:[], sense:[] };
+    }
+    vegHistory={ foliage:[], fruit:[] };
+  }
+
+  /* --------------------------- world setup --------------------------- */
+  function seedWorld(){
+    animals=[]; idCounter=1; maxGeneration=0; simClock=0; sampleAccum=0;
+    events.droughtUntil=0; events.mastUntil=0;
+    buildTerrain(); initHash(); resetHistory(); resetWatch();
+    for(var i=0;i<SPECIES_IDS.length;i++){
+      var id=SPECIES_IDS[i], sp=SPECIES[id];
+      for(var j=0;j<sp.start;j++){
+        spawn(id, Math.random()*world.w, Math.random()*world.h, 0, randRange(0.45,0.8));
+      }
+    }
+    recount();
+    selected = animals.find(function(a){ return a.sid==='jaguar'; }) || animals[0];
+    sample();
+  }
+
+  /* --------------------------- rendering --------------------------- */
+  var canvas = document.getElementById('world');
+  var ctx = canvas.getContext('2d');
+  var camera = { x:0, y:0, zoom:1 };
+  var view = { w:0, h:0, dpr:1 };
+  var theme = {};
+
+  function readTheme(){
+    var cs = getComputedStyle(document.documentElement);
+    theme.canopy = cs.getPropertyValue('--canopy').trim();
+    theme.fruit = cs.getPropertyValue('--fruit').trim();
+    theme.soil = cs.getPropertyValue('--soil').trim();
+    theme.surface2 = cs.getPropertyValue('--surface-2').trim();
+    theme.accent = cs.getPropertyValue('--accent').trim();
+    theme.danger = cs.getPropertyValue('--danger').trim();
+    theme.ink = cs.getPropertyValue('--ink').trim();
+    theme.inkDim = cs.getPropertyValue('--ink-dim').trim();
+    theme.line = cs.getPropertyValue('--line').trim();
+    theme.canopyRGB = hexToRgb(theme.canopy);
+    theme.fruitRGB = hexToRgb(theme.fruit);
+    theme.soilRGB = hexToRgb(theme.soil);
+  }
+  function hexToRgb(hex){
+    hex=hex.replace('#','');
+    if(hex.length===3) hex=hex.split('').map(function(c){return c+c;}).join('');
+    return { r:parseInt(hex.substr(0,2),16), g:parseInt(hex.substr(2,2),16), b:parseInt(hex.substr(4,2),16) };
+  }
+
+  var plantCanvas = document.createElement('canvas');
+  var pctx = plantCanvas.getContext('2d');
+  var plantImg = null, plantTimer = 0;
+
+  function repaintPlants(){
+    if(!plantImg || plantCanvas.width!==cols || plantCanvas.height!==rows){
+      plantCanvas.width=cols; plantCanvas.height=rows;
+      plantImg = pctx.createImageData(cols, rows);
+    }
+    var d = plantImg.data;
+    var C=theme.canopyRGB, F=theme.fruitRGB, S=theme.soilRGB;
+    for(var i=0;i<foliage.length;i++){
+      var f = foliage[i], fr = fruit[i];
+      var r = S.r + (C.r-S.r)*f, g = S.g + (C.g-S.g)*f, b = S.b + (C.b-S.b)*f;
+      if(fr>0.02){
+        var t = Math.min(1, fr*1.15);
+        r += (F.r-r)*t*0.92; g += (F.g-g)*t*0.92; b += (F.b-b)*t*0.92;
+      }
+      var o=i*4;
+      d[o]=r; d[o+1]=g; d[o+2]=b; d[o+3]=255;
+    }
+    pctx.putImageData(plantImg,0,0);
+  }
+
+  function resizeView(){
+    var rect = canvas.getBoundingClientRect();
+    view.dpr = Math.min(2, window.devicePixelRatio||1);
+    view.w = Math.max(200, Math.round(rect.width));
+    view.h = Math.max(150, Math.round(rect.height));
+    canvas.width = Math.round(view.w*view.dpr);
+    canvas.height = Math.round(view.h*view.dpr);
+  }
+  function fitView(){
+    camera.zoom = Math.min(view.w/world.w, view.h/world.h);
+    camera.x = (world.w - view.w/camera.zoom)/2;
+    camera.y = (world.h - view.h/camera.zoom)/2;
+  }
+  /* Open close enough that animals read as animals; the whole range is a click away. */
+  function defaultView(){
+    camera.zoom = clamp(view.w/(world.w*0.42), Math.min(view.w/world.w, view.h/world.h), 4);
+    camera.x = (world.w - view.w/camera.zoom)/2;
+    camera.y = (world.h - view.h/camera.zoom)/2;
+    clampCamera();
+  }
+  function clampCamera(){
+    var vw = view.w/camera.zoom, vh = view.h/camera.zoom;
+    if(vw >= world.w) camera.x = (world.w-vw)/2;
+    else camera.x = clamp(camera.x, 0, world.w-vw);
+    if(vh >= world.h) camera.y = (world.h-vh)/2;
+    else camera.y = clamp(camera.y, 0, world.h-vh);
+  }
+  function screenToWorld(sx, sy){
+    return { x: sx/camera.zoom + camera.x, y: sy/camera.zoom + camera.y };
+  }
+
+  function draw(){
+    var z = camera.zoom, dpr = view.dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle = theme.surface2;
+    ctx.fillRect(0,0,view.w,view.h);
+    ctx.save();
+    ctx.scale(z,z);
+    ctx.translate(-camera.x, -camera.y);
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(plantCanvas, 0, 0, world.w, world.h);
+
+    var vx0 = camera.x-40, vy0 = camera.y-40;
+    var vx1 = camera.x + view.w/z + 40, vy1 = camera.y + view.h/z + 40;
+    var showDetail = z > 0.55;
+
+    for(var c=0;c<carcasses.length;c++){
+      var cc=carcasses[c], fade=1-(simClock-cc.t)/CARCASS_LIFE;
+      if(fade<=0 || cc.x<vx0||cc.x>vx1||cc.y<vy0||cc.y>vy1) continue;
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(88,30,20,'+(0.55*fade)+')';
+      ctx.arc(cc.x, cc.y, cc.r*1.1, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    var watched = follow.a;
+    if(watched && watched.target && !watched.target.dead){
+      ctx.save();
+      ctx.setLineDash([6/z, 5/z]);
+      ctx.strokeStyle = SPECIES[watched.sid].role==='predator' ? theme.danger : theme.accent;
+      ctx.lineWidth = 1.5/z;
+      ctx.beginPath();
+      ctx.moveTo(watched.x, watched.y);
+      ctx.lineTo(watched.target.x, watched.target.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    for(var i=0;i<animals.length;i++){
+      var a = animals[i];
+      if(a.x<vx0||a.x>vx1||a.y<vy0||a.y>vy1) continue;
+      var sp = SPECIES[a.sid];
+      var r = Math.max(1.7, a.radius);
+      if(simClock - a.lungeAt < 0.3) r *= 1.35;
+      ctx.beginPath();
+      ctx.fillStyle = sp.color;
+      ctx.arc(a.x, a.y, r, 0, Math.PI*2);
+      ctx.fill();
+      if(z > 1.1){
+        var vl = Math.sqrt(a.vx*a.vx+a.vy*a.vy);
+        if(vl > 4){
+          ctx.beginPath();
+          ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+          ctx.lineWidth = Math.max(0.8, r*0.28);
+          ctx.moveTo(a.x + a.vx/vl*r*0.35, a.y + a.vy/vl*r*0.35);
+          ctx.lineTo(a.x + a.vx/vl*r*1.3, a.y + a.vy/vl*r*1.3);
+          ctx.stroke();
+        }
+      }
+      if(sp.role==='predator' && showDetail){
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+        ctx.lineWidth = Math.max(0.6, r*0.22);
+        ctx.arc(a.x, a.y, r*1.35, 0, Math.PI*2);
+        ctx.stroke();
+      }
+      if(selected===a || watched===a){
+        ctx.beginPath();
+        ctx.strokeStyle = theme.accent;
+        ctx.lineWidth = 2/z;
+        ctx.arc(a.x, a.y, r+6/z, 0, Math.PI*2);
+        ctx.stroke();
+      }
+      if(watched && watched.target===a){
+        ctx.beginPath();
+        ctx.strokeStyle = theme.danger;
+        ctx.lineWidth = 2/z;
+        ctx.arc(a.x, a.y, r+5/z, 0, Math.PI*2);
+        ctx.stroke();
+      }
+    }
+
+    var nowR = nowReal();
+    for(var b=0;b<bursts.length;b++){
+      var bu=bursts[b], k=(nowR-bu.t0)/0.9;
+      if(k<0 || k>1) continue;
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(214,64,44,'+(1-k)+')';
+      ctx.lineWidth = 2.5/z;
+      ctx.arc(bu.x, bu.y, bu.r + k*38, 0, Math.PI*2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* --------------------------- charts --------------------------- */
+  function drawChart(el, series, floor){
+    var rect = el.getBoundingClientRect();
+    var dpr = Math.min(2, window.devicePixelRatio||1);
+    var w = Math.max(10,rect.width), h = Math.max(10,rect.height);
+    el.width=Math.round(w*dpr); el.height=Math.round(h*dpr);
+    var c = el.getContext('2d');
+    c.setTransform(dpr,0,0,dpr,0,0);
+    c.clearRect(0,0,w,h);
+
+    var max = floor||1, any=false;
+    for(var s=0;s<series.length;s++){
+      var d=series[s].data;
+      if(d.length>1) any=true;
+      for(var i=0;i<d.length;i++) if(d[i]>max) max=d[i];
+    }
+    if(!any) return;
+    max *= 1.15;
+
+    c.strokeStyle = theme.line; c.lineWidth = 1;
+    for(var g=1;g<3;g++){
+      var gy = h - h*g/3;
+      c.beginPath(); c.moveTo(0,gy); c.lineTo(w,gy); c.stroke();
+    }
+
+    var stepX = w/(HISTORY_CAP-1);
+    for(var si=0; si<series.length; si++){
+      var data = series[si].data;
+      if(data.length<2) continue;
+      var off = HISTORY_CAP-data.length;
+      if(series.length===1){
+        c.beginPath();
+        for(var p=0;p<data.length;p++){
+          var px=(off+p)*stepX, py=h-(data[p]/max)*h;
+          if(p===0) c.moveTo(px,py); else c.lineTo(px,py);
+        }
+        c.lineTo((off+data.length-1)*stepX, h);
+        c.lineTo(off*stepX, h);
+        c.closePath();
+        c.save(); c.globalAlpha=0.14; c.fillStyle=series[si].color; c.fill(); c.restore();
+      }
+      c.beginPath();
+      for(var q=0;q<data.length;q++){
+        var qx=(off+q)*stepX, qy=h-(data[q]/max)*h;
+        if(q===0) c.moveTo(qx,qy); else c.lineTo(qx,qy);
+      }
+      c.strokeStyle = series[si].color; c.lineWidth = 1.7; c.stroke();
+      c.beginPath();
+      c.fillStyle = series[si].color;
+      c.arc((off+data.length-1)*stepX, h-(data[data.length-1]/max)*h, 2.4, 0, Math.PI*2);
+      c.fill();
+    }
+  }
+
+  var el = {
+    chartHerb:document.getElementById('chartHerb'),
+    chartPred:document.getElementById('chartPred'),
+    chartVeg:document.getElementById('chartVeg'),
+    chartMass:document.getElementById('chartMass'),
+    chartSpeed:document.getElementById('chartSpeed'),
+    chartSense:document.getElementById('chartSense')
+  };
+
+  function seriesFor(ids){
+    return ids.map(function(id){ return { data:popHistory[id], color:SPECIES[id].color }; });
+  }
+
+  function renderCharts(){
+    drawChart(el.chartHerb, seriesFor(HERB_IDS), 20);
+    drawChart(el.chartPred, seriesFor(PRED_IDS), 10);
+    drawChart(el.chartVeg, [
+      { data:vegHistory.foliage, color:theme.canopy },
+      { data:vegHistory.fruit, color:theme.fruit }
+    ], 40);
+    var f = vegHistory.foliage;
+    document.getElementById('vVeg').textContent = f.length? Math.round(f[f.length-1])+'%' : '—';
+
+    var th = traitHistory[geneSpecies], col = SPECIES[geneSpecies].color;
+    drawChart(el.chartMass, [{data:th.mass, color:col}], SPECIES[geneSpecies].mass*0.5);
+    drawChart(el.chartSpeed, [{data:th.speed, color:col}], SPECIES[geneSpecies].speed*0.5);
+    drawChart(el.chartSense, [{data:th.sense, color:col}], SPECIES[geneSpecies].sense*0.5);
+    var last = function(arr){ return arr.length? arr[arr.length-1] : null; };
+    var m=last(th.mass), s=last(th.speed), n=last(th.sense);
+    document.getElementById('vMass').textContent = m? m.toFixed(1)+' kg' : '—';
+    document.getElementById('vSpeed').textContent = s? Math.round(s)+' px/s' : '—';
+    document.getElementById('vSense').textContent = n? Math.round(n)+' px' : '—';
+  }
+
+  /* --------------------------- roster + UI --------------------------- */
+  function renderRoster(){
+    var host = document.getElementById('roster');
+    if(!host.childElementCount){
+      SPECIES_IDS.forEach(function(id){
+        var sp=SPECIES[id];
+        var b=document.createElement('button');
+        b.className='chip'; b.dataset.sid=id;
+        b.innerHTML = '<span class="swatch" style="background:'+sp.color+'"></span>'+
+          '<span class="nm">'+sp.name+'<br><span class="role">'+sp.role+'</span></span>'+
+          '<span class="ct">0</span>';
+        b.addEventListener('click', function(){
+          geneSpecies = id;
+          updateGeneSeg();
+          document.querySelector('.tab[data-tab="genetics"]').click();
+        });
+        host.appendChild(b);
+      });
+    }
+    Array.prototype.forEach.call(host.children, function(node){
+      var id=node.dataset.sid, n=counts[id]||0;
+      node.querySelector('.ct').textContent = n;
+      node.classList.toggle('dim', n===0);
+    });
+  }
+
+  function buildLegends(){
+    function fill(hostId, ids){
+      document.getElementById(hostId).innerHTML = ids.map(function(id){
+        return '<span><i style="background:'+SPECIES[id].color+'"></i>'+SPECIES[id].name+'</span>';
+      }).join('');
+    }
+    fill('legendHerb', HERB_IDS);
+    fill('legendPred', PRED_IDS);
+  }
+
+  function updateGeneSeg(){
+    var host=document.getElementById('geneSeg');
+    if(!host.childElementCount){
+      SPECIES_IDS.forEach(function(id){
+        var b=document.createElement('button');
+        b.textContent=SPECIES[id].name.split(' ')[0];
+        b.dataset.sid=id;
+        b.addEventListener('click', function(){ geneSpecies=id; updateGeneSeg(); renderCharts(); });
+        host.appendChild(b);
+      });
+    }
+    Array.prototype.forEach.call(host.children, function(n){
+      n.classList.toggle('active', n.dataset.sid===geneSpecies);
+    });
+  }
+
+  function fillSelects(){
+    var opts = SPECIES_IDS.map(function(id){ return '<option value="'+id+'">'+SPECIES[id].name+'</option>'; }).join('');
+    document.getElementById('introSelect').innerHTML = opts;
+    document.getElementById('cullSelect').innerHTML = opts;
+  }
+
+  function renderSpecimen(){
+    var card = document.getElementById('specimenCard');
+    if(!selected){ card.innerHTML='<p class="hint">Click an animal in the range to inspect its genome.</p>'; return; }
+    var a=selected, sp=SPECIES[a.sid];
+    var html='';
+    html += '<div class="spec-top"><span class="spec-name" style="color:'+sp.color+'">'+sp.name+'</span>'+
+            '<span class="badge">gen '+a.gen+' · #'+a.uid+'</span></div>';
+    if(a.dead) html += '<span class="pill dead">† deceased — last recorded state</span>';
+    html += '<div class="note">'+(sp.role==='predator'
+      ? 'Hunts '+sp.prey.map(function(p){return SPECIES[p].name.toLowerCase();}).join(', ')+'.'
+      : 'Browses '+(sp.diet.fruit>=sp.diet.foliage?'fruit, then foliage':'foliage, then fruit')+'.')+'</div>';
+
+    function bar(name, val, frac, color, unit){
+      return '<div class="bar-row"><div class="top"><span class="nm">'+name+'</span>'+
+        '<span class="num">'+val+(unit||'')+'</span></div>'+
+        '<div class="track"><div class="fill" style="width:'+clamp(frac*100,0,100)+'%;background:'+color+'"></div></div></div>';
+    }
+    html += bar('Energy', Math.round(a.energy)+' / '+Math.round(a.maxEnergy), a.energy/a.maxEnergy, 'var(--canopy)');
+    html += bar('Age', a.age.toFixed(0)+' / '+a.maxAge.toFixed(0)+'s', a.age/a.maxAge, 'var(--accent)');
+    html += bar('Body mass', a.mass.toFixed(1), (a.genome.mass-TRAIT_BAND.mass[0])/(TRAIT_BAND.mass[1]-TRAIT_BAND.mass[0]), sp.color, ' kg');
+    html += bar('Speed', Math.round(a.speed), (a.genome.speed-TRAIT_BAND.speed[0])/(TRAIT_BAND.speed[1]-TRAIT_BAND.speed[0]), sp.color, ' px/s');
+    html += bar('Sense range', Math.round(a.sense), (a.genome.sense-TRAIT_BAND.sense[0])/(TRAIT_BAND.sense[1]-TRAIT_BAND.sense[0]), sp.color, ' px');
+    html += bar('Metabolism', a.genome.metab.toFixed(2), (a.genome.metab-TRAIT_BAND.metab[0])/(TRAIT_BAND.metab[1]-TRAIT_BAND.metab[0]), sp.color, '×');
+    if(sp.role==='predator') html += '<div class="note">Successful hunts: '+a.kills+'</div>';
+    card.innerHTML = html;
+  }
+
+  function fmtTime(t){
+    var m=Math.floor(t/60), s=Math.floor(t%60);
+    return (m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+  }
+  function renderHeader(){
+    document.getElementById('statPop').textContent = animals.length;
+    var alive=0;
+    for(var i=0;i<SPECIES_IDS.length;i++) if(counts[SPECIES_IDS[i]]>0) alive++;
+    document.getElementById('statSpecies').textContent = alive+'/'+SPECIES_IDS.length;
+    document.getElementById('statGen').textContent = maxGeneration;
+    document.getElementById('statTime').textContent = fmtTime(simClock);
+  }
+  function renderStatus(){
+    var parts=[];
+    if(simClock<events.droughtUntil) parts.push('drought — '+Math.ceil(events.droughtUntil-simClock)+'s');
+    if(simClock<events.mastUntil) parts.push('mast fruiting — '+Math.ceil(events.mastUntil-simClock)+'s');
+    document.getElementById('statusLine').textContent = parts.join(' · ');
+  }
+
+  /* --------------------------- interventions --------------------------- */
+  function wildfire(){
+    var fx=Math.random()*world.w, fy=Math.random()*world.h, fr=Math.min(world.w,world.h)*0.28;
+    for(var gy=0; gy<rows; gy++){
+      for(var gx=0; gx<cols; gx++){
+        var wx=(gx+0.5)*CELL, wy=(gy+0.5)*CELL;
+        var d=Math.sqrt((wx-fx)*(wx-fx)+(wy-fy)*(wy-fy));
+        if(d>fr) continue;
+        var k=gy*cols+gx, sev=1-d/fr;
+        foliage[k] *= (1-sev*0.95);
+        fruit[k] *= (1-sev*0.95);
+        nutrients[k] += sev*1.6;
+      }
+    }
+    for(var i=0;i<animals.length;i++){
+      var a=animals[i];
+      var d2=Math.sqrt((a.x-fx)*(a.x-fx)+(a.y-fy)*(a.y-fy));
+      if(d2<fr && Math.random() < 0.5*(1-d2/fr)) die(a);
+    }
+    animals = animals.filter(function(a){ return !a.dead; });
+    recount();
+  }
+
+  function poach(){
+    for(var i=0;i<animals.length;i++){
+      var a=animals[i];
+      if(a.mass>=45 && Math.random()<0.45) die(a);
+    }
+    animals = animals.filter(function(a){ return !a.dead; });
+    recount();
+  }
+
+  function disease(id){
+    for(var i=0;i<animals.length;i++){
+      var a=animals[i];
+      if(a.sid===id && Math.random()<0.6) die(a);
+    }
+    animals = animals.filter(function(a){ return !a.dead; });
+    recount();
+  }
+
+  document.querySelectorAll('[data-event]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var e=btn.getAttribute('data-event');
+      if(e==='drought') events.droughtUntil = simClock+40;
+      else if(e==='mast') events.mastUntil = simClock+40;
+      else if(e==='fire') wildfire();
+      else if(e==='poach') poach();
+      else if(e==='reset'){ seedWorld(); defaultView(); repaintPlants(); }
+    });
+  });
+
+  document.getElementById('introBtn').addEventListener('click', function(){
+    var id = document.getElementById('introSelect').value;
+    var sp = SPECIES[id];
+    var n = Math.max(4, Math.round(sp.start*0.25));
+    for(var i=0;i<n && (counts[id]||0)<sp.cap;i++){
+      spawn(id, Math.random()*world.w, Math.random()*world.h, maxGeneration, 0.65);
+      recount();
+    }
+  });
+  document.getElementById('cullBtn').addEventListener('click', function(){
+    disease(document.getElementById('cullSelect').value);
+  });
+
+  /* --------------------------- input --------------------------- */
+  var mutSlider=document.getElementById('mutSlider'), mutVal=document.getElementById('mutVal');
+  mutSlider.addEventListener('input', function(){
+    params.mutationRate = mutSlider.value/100;
+    mutVal.textContent = mutSlider.value+'%';
+  });
+  var growSlider=document.getElementById('growSlider'), growVal=document.getElementById('growVal');
+  growSlider.addEventListener('input', function(){
+    params.growth = growSlider.value/100;
+    growVal.textContent = params.growth.toFixed(2)+'×';
+  });
+  document.getElementById('pauseBtn').addEventListener('click', function(){
+    params.paused = !params.paused;
+    this.textContent = params.paused ? 'Resume' : 'Pause';
+  });
+  document.querySelectorAll('#speedSeg button').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('#speedSeg button').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      params.speed = parseFloat(b.getAttribute('data-speed'));
+    });
+  });
+  document.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+      tab.classList.add('active');
+      var name=tab.getAttribute('data-tab');
+      document.querySelectorAll('.panel').forEach(function(p){
+        p.hidden = p.getAttribute('data-panel')!==name;
+      });
+      if(name==='specimen') renderSpecimen();
+      if(name==='census'||name==='genetics') renderCharts();
+      if(name==='log') renderLog();
+    });
+  });
+
+  document.getElementById('zoomIn').addEventListener('click', function(){
+    if(viewMode==='3d') R3.zoom(1/1.35); else zoomAt(view.w/2, view.h/2, 1.4);
+  });
+  document.getElementById('zoomOut').addEventListener('click', function(){
+    if(viewMode==='3d') R3.zoom(1.35); else zoomAt(view.w/2, view.h/2, 1/1.4);
+  });
+  document.getElementById('zoomFit').addEventListener('click', function(){
+    stopWatching(); renderCaption();
+    if(viewMode==='3d') R3.overview(); else fitView();
+  });
+
+  function zoomAt(sx, sy, factor){
+    var before = screenToWorld(sx, sy);
+    var minZoom = Math.min(view.w/world.w, view.h/world.h);
+    camera.zoom = clamp(camera.zoom*factor, minZoom, 4);
+    var after = screenToWorld(sx, sy);
+    camera.x += before.x-after.x;
+    camera.y += before.y-after.y;
+    clampCamera();
+  }
+
+  var dragging=false, dragMoved=false, lastX=0, lastY=0;
+  canvas.addEventListener('mousedown', function(e){
+    dragging=true; dragMoved=false;
+    lastX=e.clientX; lastY=e.clientY;
+    canvas.classList.add('dragging');
+  });
+  window.addEventListener('mousemove', function(e){
+    if(!dragging) return;
+    var dx=e.clientX-lastX, dy=e.clientY-lastY;
+    if(Math.abs(dx)+Math.abs(dy)>3){
+      dragMoved=true;
+      if(follow.a || follow.site){ stopWatching(); renderCaption(); }
+    }
+    camera.x -= dx/camera.zoom; camera.y -= dy/camera.zoom;
+    lastX=e.clientX; lastY=e.clientY;
+    clampCamera();
+  });
+  window.addEventListener('mouseup', function(){
+    dragging=false;
+    canvas.classList.remove('dragging');
+  });
+  canvas.addEventListener('wheel', function(e){
+    e.preventDefault();
+    var rect=canvas.getBoundingClientRect();
+    zoomAt(e.clientX-rect.left, e.clientY-rect.top, e.deltaY<0?1.16:1/1.16);
+  }, {passive:false});
+
+  canvas.addEventListener('click', function(e){
+    if(dragMoved) return;
+    var rect=canvas.getBoundingClientRect();
+    var p=screenToWorld(e.clientX-rect.left, e.clientY-rect.top);
+    var best=null, bestD=Infinity;
+    var pickR = 18/camera.zoom;
+    for(var i=0;i<animals.length;i++){
+      var a=animals[i];
+      var dx=a.x-p.x, dy=a.y-p.y, d=dx*dx+dy*dy;
+      var r=Math.max(a.radius+pickR*0.5, pickR);
+      if(d<r*r && d<bestD){ bestD=d; best=a; }
+    }
+    if(best) pickAnimal(best);
+  });
+
+  if(window.matchMedia){
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(){
+      readTheme(); repaintPlants(); renderCharts();
+    });
+  }
+  window.addEventListener('resize', function(){
+    if(viewMode==='3d'){ R3.resize(); return; }
+    var z=camera.zoom;
+    resizeView();
+    camera.zoom=z; clampCamera();
+  });
+
+  /* --------------------------- watching: field log, follow cam, nature cam --------------------------- */
+  var CARCASS_LIFE = 25;
+  var carcasses = [], bursts = [], feed = [], eventSeq = 0, logDirty = true;
+  var viewMode = '2d';
+  var follow = { a:null, last:null, auto:false, patrol:false, filter:'any', site:null, siteUntil:0, holdUntil:0, zoomTo:0 };
+  var HUNT_WEIGHT = { jaguar:3, anaconda:2.4, harpy:1.9, ocelot:1.3 };
+  var directorTimer = 0;
+
+  function nowReal(){ return performance.now()/1000; }
+  function article(word){ return (/^[aeiou]/i.test(word) ? 'an ' : 'a ') + word; }
+  function lower(sid){ return SPECIES[sid].name.toLowerCase(); }
+
+  var lastLogged = {};
+  function throttled(key, gap){
+    if(simClock - (lastLogged[key]==null ? -1e9 : lastLogged[key]) < gap) return true;
+    lastLogged[key] = simClock;
+    return false;
+  }
+
+  function resetWatch(){
+    carcasses = []; bursts = []; feed = []; logDirty = true; lastLogged = {};
+    follow.a = null; follow.last = null; follow.site = null;
+  }
+
+  function logEvent(e){
+    e.id = ++eventSeq;
+    e.t = simClock;
+    feed.unshift(e);
+    if(feed.length > 60) feed.pop();
+    logDirty = true;
+  }
+
+  function onKill(pred, prey){
+    carcasses.push({ x:prey.x, y:prey.y, r:prey.radius, t:simClock });
+    if(carcasses.length > 300) carcasses.shift();
+    if(follow.a===pred || follow.a===prey){
+      bursts.push({ x:prey.x, y:prey.y, r:prey.radius, t0:nowReal() });
+      if(bursts.length > 12) bursts.shift();
+    }
+    // Only kills of large prey are logged, at most one every few seconds; at full
+    // population small-prey kills happen several times a second and would bury everything.
+    if(prey.mass >= 40 && !throttled('kill', 3)){
+      logEvent({ sid:pred.sid, pred:pred, x:prey.x, y:prey.y,
+        text:SPECIES[pred.sid].name+' #'+pred.uid+' took '+article(lower(prey.sid))+' ('+prey.mass.toFixed(0)+' kg)' });
+    }
+    if(follow.a===pred) follow.holdUntil = nowReal() + 4.5;
+  }
+
+  function onMiss(pred, prey){
+    if(prey.mass >= 150 && !throttled('miss', 6)){
+      logEvent({ sid:prey.sid, pred:pred, x:prey.x, y:prey.y,
+        text:SPECIES[prey.sid].name+' ('+prey.mass.toFixed(0)+' kg) shook off '+SPECIES[pred.sid].name+' #'+pred.uid });
+    }
+  }
+
+  function followAnimal(a, auto){
+    if(follow.a !== a){
+      if(viewMode==='3d') R3.approach();
+      else follow.zoomTo = Math.max(camera.zoom, 2.2);
+    }
+    follow.a = a; follow.last = a; follow.site = null; follow.patrol = false;
+    follow.holdUntil = auto ? nowReal() + 5 : 0;
+  }
+
+  function setNatureCam(on){
+    follow.auto = on;
+    var b = document.getElementById('camBtn');
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if(on) directorPick(true);
+  }
+
+  function stopWatching(){
+    follow.a = null; follow.site = null; follow.last = null;
+    setNatureCam(false);
+  }
+
+  function pickAnimal(a){
+    selected = a;
+    if(follow.auto) setNatureCam(false);
+    followAnimal(a, false);
+    renderSpecimen();
+    renderCaption();
+    document.querySelector('.tab[data-tab="specimen"]').click();
+  }
+
+  function huntScore(a){
+    var t = a.target;
+    if(!t || t.dead || (a.state!=='chase' && a.state!=='stalk')) return 0;
+    var dx=t.x-a.x, dy=t.y-a.y, d=Math.sqrt(dx*dx+dy*dy);
+    return (HUNT_WEIGHT[a.sid]||1) * (0.7 + Math.min(t.mass,120)/80) * (1 + 80/(d+25));
+  }
+
+  /* The nature cam scores every live hunt (bigger predator, bigger prey and a closer
+     strike all rank higher) and stays with one until it resolves. With nothing
+     happening it rides along with a patrolling cat and cuts away when a hunt starts. */
+  function directorPick(force){
+    var best=null, bestS=0, patrol=[];
+    for(var i=0;i<animals.length;i++){
+      var a=animals[i];
+      if(a.dead || SPECIES[a.sid].role!=='predator') continue;
+      if(follow.filter!=='any' && a.sid!==follow.filter) continue;
+      var s = huntScore(a);
+      if(s){
+        if(a===follow.a) s *= 1.6;
+        if(s>bestS){ bestS=s; best=a; }
+      } else patrol.push(a);
+    }
+    if(best){ followAnimal(best, true); return true; }
+    if(!force || !patrol.length) return false;
+    var cats = patrol.filter(function(a){ return a.sid==='jaguar'; });
+    var pool = cats.length ? cats : patrol;
+    followAnimal(pool[Math.floor(Math.random()*pool.length)], true);
+    follow.patrol = true;
+    follow.holdUntil = nowReal() + 8;
+    return true;
+  }
+
+  function watchTick(dt){
+    var t = nowReal();
+    if(follow.a && follow.a.dead){
+      follow.site = { x:follow.a.x, y:follow.a.y };
+      follow.siteUntil = t + 3.5;
+      follow.a = null;
+    }
+    if(!follow.auto){
+      if(follow.site && t > follow.siteUntil){ follow.site = null; follow.last = null; }
+      return;
+    }
+    directorTimer += dt;
+    if(directorTimer < 0.4) return;
+    directorTimer = 0;
+    if(follow.site && t < follow.siteUntil) return;
+    var cur = follow.a;
+    if(cur && huntScore(cur) > 0){ follow.patrol = false; return; }
+    if(cur && t < follow.holdUntil){
+      if(follow.patrol) directorPick(false);
+      return;
+    }
+    if(!directorPick(true) && follow.site){ follow.site = null; follow.last = null; }
+  }
+
+  function captionFor(a){
+    var sp = SPECIES[a.sid];
+    if(a.dead){
+      if(a.cause==='predated' && a.killedBy) return { text:'was taken by '+article(lower(a.killedBy.sid)), hit:true };
+      if(a.cause==='starved') return { text:'starved', hit:true };
+      if(a.cause==='age') return { text:'died of old age', hit:false };
+      return { text:'is gone', hit:true };
+    }
+    if(sp.role==='predator'){
+      var L = a.lastLunge, t = a.target;
+      if(L && L.hit && simClock - L.t < 4) return { text:'made a kill: '+article(lower(L.sid))+' ('+L.mass.toFixed(0)+' kg)', hit:true };
+      if(L && !L.hit && simClock - L.t < 1.6) return { text:'lunged at '+article(lower(L.sid))+' and missed', hit:false };
+      if(a.state==='chase' && t) return { text:(sp.ambush ? 'strikes at ' : 'is chasing ')+article(lower(t.sid))+' ('+t.mass.toFixed(0)+' kg)', hit:false };
+      if(a.state==='stalk' && t) return { text:'lies in wait as '+article(lower(t.sid))+' comes closer', hit:false };
+      if(a.state==='lurk') return { text:'lies still, waiting for prey to pass', hit:false };
+      return { text:(a.sid==='harpy' ? 'is circling over the canopy' : 'is on the prowl')+', no prey in range', hit:false };
+    }
+    if(a.state==='flee' && a.target) return { text:'is fleeing '+article(lower(a.target.sid)), hit:false };
+    return { text:'is foraging', hit:false };
+  }
+
+  function renderCaption(){
+    var card = document.getElementById('captionCard');
+    var subj = follow.a || (follow.site ? follow.last : null);
+    document.getElementById('viewHint').hidden = !!(subj || follow.auto);
+    if(!subj && !follow.auto){ card.hidden = true; return; }
+    card.hidden = false;
+    var sw = document.getElementById('capSwatch'), who = document.getElementById('capWho');
+    var uid = document.getElementById('capUid'), what = document.getElementById('capWhat');
+    if(!subj){
+      sw.style.background = 'var(--danger)';
+      who.textContent = 'Nature cam';
+      uid.textContent = '';
+      what.textContent = follow.filter==='any' ? 'Looking for a hunt…' : 'Looking for '+article(lower(follow.filter))+'…';
+      what.classList.remove('hit');
+      return;
+    }
+    var c = captionFor(subj);
+    sw.style.background = SPECIES[subj.sid].color;
+    who.textContent = SPECIES[subj.sid].name;
+    uid.textContent = '#'+subj.uid + (follow.auto ? ' · nature cam' : '');
+    what.textContent = c.text;
+    what.classList.toggle('hit', c.hit);
+  }
+
+  function follow2D(dt){
+    var p = follow.a || follow.site;
+    if(!p) return;
+    if(follow.zoomTo){
+      var cx = camera.x + view.w/camera.zoom/2, cy = camera.y + view.h/camera.zoom/2;
+      camera.zoom += (follow.zoomTo - camera.zoom)*Math.min(1, 3*dt);
+      camera.x = cx - view.w/camera.zoom/2;
+      camera.y = cy - view.h/camera.zoom/2;
+      if(Math.abs(follow.zoomTo - camera.zoom) < 0.02) follow.zoomTo = 0;
+    }
+    var k = Math.min(1, 5*dt);
+    camera.x += (p.x - view.w/camera.zoom/2 - camera.x)*k;
+    camera.y += (p.y - view.h/camera.zoom/2 - camera.y)*k;
+    clampCamera();
+  }
+
+  function setViewMode(mode){
+    if(mode==='3d' && !R3.available()) return;
+    viewMode = mode;
+    document.getElementById('mode2d').classList.toggle('active', mode==='2d');
+    document.getElementById('mode3d').classList.toggle('active', mode==='3d');
+    canvas.hidden = mode==='3d';
+    document.getElementById('world3d').hidden = mode!=='3d';
+    if(mode==='3d'){
+      try { R3.ensure(); }
+      catch(err){
+        console.error('3D view failed to start', err);
+        document.getElementById('mode3d').disabled = true;
+        setViewMode('2d');
+        return;
+      }
+      R3.resize();
+      R3.repaint();
+      if(follow.a || follow.site) R3.approach();
+    } else {
+      resizeView();
+      clampCamera();
+      if(follow.a) follow.zoomTo = Math.max(camera.zoom, 2.2);
+    }
+  }
+
+  function renderLog(){
+    logDirty = false;
+    var host = document.getElementById('logList');
+    if(!feed.length){
+      host.innerHTML = '<p class="hint">Nothing notable yet. Kills of large prey, narrow escapes and local extinctions are recorded here.</p>';
+      return;
+    }
+    host.innerHTML = feed.map(function(e){
+      var btn = e.x==null ? '<span></span>'
+        : '<button data-id="'+e.id+'">'+(e.pred && !e.pred.dead ? 'Follow' : 'Go to')+'</button>';
+      return '<div class="log-item"><span class="t">'+fmtTime(e.t)+'</span>'+
+        '<span class="msg"><i style="background:'+SPECIES[e.sid].color+'"></i>'+e.text+'</span>'+btn+'</div>';
+    }).join('');
+  }
+
+  function setupWatchUI(){
+    var sel = document.getElementById('camFilter');
+    sel.innerHTML = '<option value="any">Any hunt</option>' + PRED_IDS.map(function(id){
+      return '<option value="'+id+'">'+SPECIES[id].name+'</option>';
+    }).join('');
+    sel.addEventListener('change', function(){
+      follow.filter = sel.value;
+      if(follow.auto) directorPick(true);
+      renderCaption();
+    });
+    document.getElementById('camBtn').addEventListener('click', function(){ setNatureCam(!follow.auto); renderCaption(); });
+    document.getElementById('capStop').addEventListener('click', function(){ stopWatching(); renderCaption(); });
+    document.getElementById('mode2d').addEventListener('click', function(){ setViewMode('2d'); });
+    var b3 = document.getElementById('mode3d');
+    if(R3.available()) b3.addEventListener('click', function(){ setViewMode('3d'); });
+    else { b3.disabled = true; b3.title = 'The 3D view needs WebGL and a connection to load Three.js'; }
+    document.addEventListener('keydown', function(e){
+      if(e.key==='Escape' && (follow.a || follow.site || follow.auto)){ stopWatching(); renderCaption(); }
+    });
+    document.getElementById('logList').addEventListener('click', function(e){
+      var btn = e.target.closest ? e.target.closest('button[data-id]') : null;
+      if(!btn) return;
+      var id = +btn.getAttribute('data-id'), ev = null;
+      for(var i=0;i<feed.length;i++) if(feed[i].id===id){ ev = feed[i]; break; }
+      if(!ev) return;
+      if(follow.auto) setNatureCam(false);
+      if(ev.pred && !ev.pred.dead){
+        selected = ev.pred;
+        followAnimal(ev.pred, false);
+      } else {
+        follow.a = null; follow.last = null;
+        follow.site = { x:ev.x, y:ev.y };
+        follow.siteUntil = nowReal() + 6;
+        if(viewMode==='3d') R3.approach(); else follow.zoomTo = Math.max(camera.zoom, 2.2);
+      }
+      renderCaption();
+    });
+    renderLog();
+  }
+
+  /* --------------------------- 3D view --------------------------- */
+  /* A second renderer over the same state. The model stays flat; this only gives it
+     ground, bodies and a camera you can stand next to. One instanced mesh per species
+     per pose keeps a few thousand animals to a couple of dozen draw calls. */
+  var R3 = (function(){
+    var S = 0.1;   // world px -> scene units
+    var ready = false, renderer, scene, cam, cvs;
+    var terrainMesh = null, terrainTex, texCanvas, texCtx, texImg, builtVersion = -1;
+    var hills = [], trees = null, treeInfo = [];
+    var speciesMeshes = {}, counters = {};
+    var shadowMesh, shadowCap = 0, carcassMesh, followRing, targetRing, burstRings = [];
+    var orbit = { tx:0, tz:0, dist:250, yaw:0.65, pitch:1.0, distTo:0, pitchTo:0, home:false };
+    var canopyOpacity = 1;
+    var dummy, tmpColor, projV;
+
+    var SOIL = { r:118, g:96, b:62 }, LEAF = { r:62, g:124, b:54 }, RIPE = { r:214, g:106, b:46 };
+
+
+    function available(){
+      if(typeof THREE === 'undefined') return false;
+      try {
+        var c = document.createElement('canvas');
+        return !!(c.getContext('webgl') || c.getContext('experimental-webgl'));
+      } catch(e){ return false; }
+    }
+
+    function toX(x){ return (x - world.w/2)*S; }
+    function toZ(y){ return (y - world.h/2)*S; }
+
+    function makeHills(){
+      hills = [];
+      for(var i=0;i<7;i++){
+        var wl = 500 + Math.random()*1500, th = Math.random()*Math.PI;
+        hills.push({ kx:Math.cos(th)*2*Math.PI/wl, ky:Math.sin(th)*2*Math.PI/wl, ph:Math.random()*6.283, amp:(0.6+Math.random())*1.1 });
+      }
+    }
+    function heightAt(x, y){
+      var h = 0;
+      for(var i=0;i<hills.length;i++){ var q = hills[i]; h += q.amp*Math.sin(x*q.kx + y*q.ky + q.ph); }
+      return h;
+    }
+
+    function buildSpecies(){
+      var material = new THREE.MeshLambertMaterial({ vertexColors:true });
+      SPECIES_IDS.forEach(function(id){
+        var sp = SPECIES[id];
+        var cap = sp.cap + 80, pair = [];
+        for(var pose=0; pose<2; pose++){
+          var geo = Ludus.Bodies.build(id, sp.color, pose);
+          var mesh = new THREE.InstancedMesh(geo, material, cap);
+          mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+          mesh.frustumCulled = false;
+          mesh.count = 0;
+          scene.add(mesh);
+          pair.push(mesh);
+        }
+        pair.cap = cap;
+        speciesMeshes[id] = pair;
+        counters[id] = [0, 0];
+        shadowCap += cap;
+      });
+    }
+
+    function flatRing(inner, hex, opacity){
+      var g = new THREE.RingGeometry(inner, 1, 40);
+      g.rotateX(-Math.PI/2);
+      var m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color:hex, transparent:true, opacity:opacity, depthTest:false }));
+      m.renderOrder = 10;
+      m.visible = false;
+      scene.add(m);
+      return m;
+    }
+
+    function buildMarkers(){
+      var sg = new THREE.CircleGeometry(1, 16);
+      sg.rotateX(-Math.PI/2);
+      shadowMesh = new THREE.InstancedMesh(sg, new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.28, depthWrite:false }), shadowCap);
+      shadowMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      shadowMesh.frustumCulled = false;
+      shadowMesh.count = 0;
+      shadowMesh.renderOrder = 1;
+      scene.add(shadowMesh);
+
+      carcassMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 5), new THREE.MeshLambertMaterial({ color:0x5a2418 }), 320);
+      carcassMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      carcassMesh.frustumCulled = false;
+      carcassMesh.count = 0;
+      scene.add(carcassMesh);
+
+      followRing = flatRing(0.82, 0x4fd1e6, 0.95);
+      targetRing = flatRing(0.8, 0xff5a44, 0.95);
+      for(var i=0;i<6;i++) burstRings.push(flatRing(0.9, 0xff5a44, 1));
+    }
+
+    function buildTerrainMesh(){
+      makeHills();
+      if(terrainMesh){ scene.remove(terrainMesh); terrainMesh.geometry.dispose(); }
+      var nx = cols, ny = rows, vcount = (nx+1)*(ny+1);
+      var pos = new Float32Array(vcount*3), uv = new Float32Array(vcount*2), p = 0, u = 0;
+      for(var gy=0; gy<=ny; gy++){
+        for(var gx=0; gx<=nx; gx++){
+          var wx = Math.min(world.w, gx*CELL), wy = Math.min(world.h, gy*CELL);
+          pos[p++] = toX(wx); pos[p++] = heightAt(wx, wy); pos[p++] = toZ(wy);
+          uv[u++] = gx/nx; uv[u++] = 1 - gy/ny;
+        }
+      }
+      var idx = [];
+      for(var y=0; y<ny; y++){
+        for(var x=0; x<nx; x++){
+          var a = y*(nx+1)+x, b = a+1, c = a+(nx+1), d = c+1;
+          idx.push(a, c, b, b, c, d);
+        }
+      }
+      var g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+      g.setIndex(idx);
+      g.computeVertexNormals();
+      terrainMesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map:terrainTex }));
+      scene.add(terrainMesh);
+    }
+
+    function buildTrees(){
+      if(trees){
+        scene.remove(trees.trunks); scene.remove(trees.crowns);
+        trees.trunks.geometry.dispose(); trees.crowns.geometry.dispose();
+      }
+      treeInfo = [];
+      for(var p=0;p<fruitPatches.length;p++){
+        var P = fruitPatches[p], n = Math.round(P.r/22);
+        for(var i=0;i<n;i++){
+          var ang = Math.random()*6.283, rr = Math.sqrt(Math.random())*P.r*0.85;
+          treeInfo.push({ x:P.x + Math.cos(ang)*rr, y:P.y + Math.sin(ang)*rr, fruiting:true });
+        }
+      }
+      for(var j=0;j<170;j++) treeInfo.push({ x:Math.random()*world.w, y:Math.random()*world.h, fruiting:false });
+
+      var N = treeInfo.length;
+      var trunkGeo = new THREE.CylinderGeometry(0.28, 0.45, 1, 6);
+      trunkGeo.translate(0, 0.5, 0);
+      var trunks = new THREE.InstancedMesh(trunkGeo, new THREE.MeshLambertMaterial({ color:0x5a4330 }), N);
+      var crowns = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0),
+        new THREE.MeshLambertMaterial({ color:0xffffff, flatShading:true, transparent:true, opacity:1 }), N);
+      for(var k=0;k<N;k++){
+        var T = treeInfo[k];
+        T.h = (T.fruiting ? 6 : 4.5) + Math.random()*3.5;
+        T.cr = (T.fruiting ? 3.2 : 2.4) + Math.random()*1.8;
+        T.shade = 0.8 + Math.random()*0.35;
+        var gx = toX(T.x), gz = toZ(T.y), gy = heightAt(T.x, T.y);
+        dummy.position.set(gx, gy, gz);
+        dummy.rotation.set(0, Math.random()*6.283, 0);
+        dummy.scale.set(1, T.h, 1);
+        dummy.updateMatrix();
+        trunks.setMatrixAt(k, dummy.matrix);
+        dummy.position.set(gx, gy + T.h + T.cr*0.55, gz);
+        dummy.scale.set(T.cr, T.cr*0.8, T.cr);
+        dummy.updateMatrix();
+        crowns.setMatrixAt(k, dummy.matrix);
+        tmpColor.setRGB(0.22*T.shade, 0.47*T.shade, 0.2*T.shade);
+        crowns.setColorAt(k, tmpColor);
+      }
+      crowns.instanceColor.needsUpdate = true;
+      scene.add(trunks);
+      scene.add(crowns);
+      trees = { trunks:trunks, crowns:crowns };
+    }
+
+    // Fruiting crowns ripen toward orange as the fruit under them regrows.
+    function tintCanopies(){
+      if(!trees) return;
+      var crowns = trees.crowns;
+      for(var k=0;k<treeInfo.length;k++){
+        var T = treeInfo[k], s = T.shade, r = 0.22*s, g = 0.47*s, b = 0.2*s;
+        if(T.fruiting){
+          var c = cellAt(T.x, T.y), cap = fruitCap[c];
+          var ripe = cap > 0 ? Math.min(1, fruit[c]/cap)*0.55 : 0;
+          r += (0.78 - r)*ripe; g += (0.42 - g)*ripe; b += (0.14 - b)*ripe;
+        }
+        tmpColor.setRGB(r, g, b);
+        crowns.setColorAt(k, tmpColor);
+      }
+      crowns.instanceColor.needsUpdate = true;
+    }
+
+    function rebuildWorld(){
+      texCanvas.width = cols;
+      texCanvas.height = rows;
+      texImg = texCtx.createImageData(cols, rows);
+      buildTerrainMesh();
+      buildTrees();
+      builtVersion = terrainVersion;
+    }
+
+    function ensure(){
+      if(ready) return;
+      cvs = document.getElementById('world3d');
+      renderer = new THREE.WebGLRenderer({ canvas:cvs, antialias:true });
+      renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1));
+      scene = new THREE.Scene();
+      var haze = new THREE.Color(0xa7bf9c);
+      scene.background = haze;
+      scene.fog = new THREE.Fog(haze, 200, 700);
+      cam = new THREE.PerspectiveCamera(42, 1.5, 0.3, 2000);
+      scene.add(new THREE.HemisphereLight(0xf1f5dc, 0x3a3120, 0.9));
+      var sun = new THREE.DirectionalLight(0xfff0cc, 0.7);
+      sun.position.set(-120, 220, 90);
+      scene.add(sun);
+
+      dummy = new THREE.Object3D();
+      dummy.rotation.order = 'YXZ';
+      tmpColor = new THREE.Color();
+      projV = new THREE.Vector3();
+
+      texCanvas = document.createElement('canvas');
+      texCanvas.width = cols; texCanvas.height = rows;
+      texCtx = texCanvas.getContext('2d');
+      terrainTex = new THREE.CanvasTexture(texCanvas);
+      terrainTex.minFilter = THREE.LinearFilter;
+      terrainTex.magFilter = THREE.LinearFilter;
+      terrainTex.generateMipmaps = false;
+
+      buildSpecies();
+      buildMarkers();
+      bindInput();
+      rebuildWorld();
+      ready = true;
+    }
+
+    function resize(){
+      if(!ready) return;
+      var r = cvs.parentElement.getBoundingClientRect();
+      var w = Math.max(200, r.width), h = Math.max(150, r.height);
+      renderer.setSize(w, h, false);
+      cam.aspect = w/h;
+      cam.updateProjectionMatrix();
+    }
+
+    function repaint(){
+      if(!ready) return;
+      if(builtVersion !== terrainVersion) rebuildWorld();
+      var d = texImg.data;
+      for(var i=0;i<foliage.length;i++){
+        var f = foliage[i], fr = fruit[i], nu = Math.min(1, nutrients[i]*0.5);
+        var r = SOIL.r + (LEAF.r-SOIL.r)*f, g = SOIL.g + (LEAF.g-SOIL.g)*f, b = SOIL.b + (LEAF.b-SOIL.b)*f;
+        if(fr > 0.02){
+          var t = Math.min(1, fr*1.1)*0.65;
+          r += (RIPE.r-r)*t; g += (RIPE.g-g)*t; b += (RIPE.b-b)*t;
+        }
+        var dk = 1 - nu*0.22, o = i*4;
+        d[o] = r*dk; d[o+1] = g*dk; d[o+2] = b*dk; d[o+3] = 255;
+      }
+      texCtx.putImageData(texImg, 0, 0);
+      terrainTex.needsUpdate = true;
+      tintCanopies();
+    }
+
+    function updateCamera(dt){
+      var p = follow.a || follow.site;
+      if(p){
+        orbit.home = false;
+        var k = Math.min(1, 4*dt);
+        orbit.tx += (toX(p.x) - orbit.tx)*k;
+        orbit.tz += (toZ(p.y) - orbit.tz)*k;
+      } else if(orbit.home){
+        var kh = Math.min(1, 3*dt);
+        orbit.tx -= orbit.tx*kh;
+        orbit.tz -= orbit.tz*kh;
+        if(Math.abs(orbit.tx) + Math.abs(orbit.tz) < 0.5) orbit.home = false;
+      }
+      if(orbit.distTo){
+        orbit.dist += (orbit.distTo - orbit.dist)*Math.min(1, 2.5*dt);
+        if(Math.abs(orbit.dist - orbit.distTo) < 0.5) orbit.distTo = 0;
+      }
+      if(orbit.pitchTo){
+        orbit.pitch += (orbit.pitchTo - orbit.pitch)*Math.min(1, 2.5*dt);
+        if(Math.abs(orbit.pitch - orbit.pitchTo) < 0.01) orbit.pitchTo = 0;
+      }
+      var hw = world.w*S/2, hh = world.h*S/2;
+      orbit.tx = clamp(orbit.tx, -hw, hw);
+      orbit.tz = clamp(orbit.tz, -hh, hh);
+      var lift = follow.a ? follow.a.alt*0.7 : 0;
+      var ty = heightAt(orbit.tx/S + world.w/2, orbit.tz/S + world.h/2) + lift;
+      var cp = Math.cos(orbit.pitch);
+      var cx = orbit.tx + orbit.dist*cp*Math.sin(orbit.yaw);
+      var cz = orbit.tz + orbit.dist*cp*Math.cos(orbit.yaw);
+      var cy = ty + orbit.dist*Math.sin(orbit.pitch);
+      var floor = heightAt(cx/S + world.w/2, cz/S + world.h/2) + 1.5;
+      cam.position.set(cx, Math.max(cy, floor), cz);
+      cam.lookAt(orbit.tx, ty, orbit.tz);
+      scene.fog.near = orbit.dist*0.9;
+      scene.fog.far = orbit.dist*3.2 + 160;
+    }
+
+    function updateAnimals(dt){
+      for(var id in counters){ counters[id][0] = 0; counters[id][1] = 0; }
+      var sh = 0;
+      for(var i=0;i<animals.length;i++){
+        var a = animals[i], sp = SPECIES[a.sid], meshes = speciesMeshes[a.sid];
+        if(!meshes) continue;
+        var spd = Math.sqrt(a.vx*a.vx + a.vy*a.vy);
+        if(spd > 3){
+          var diff = -Math.atan2(a.vy, a.vx) - a.ryaw;
+          diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+          a.ryaw += diff*Math.min(1, 8*dt);
+        }
+        a.stride += spd*dt*0.05;
+
+        var alt = 0;
+        if(a.sid==='harpy'){
+          alt = 17;
+          if(a.state==='chase' && a.target){
+            var tdx = a.target.x - a.x, tdy = a.target.y - a.y;
+            alt = Math.min(17, Math.sqrt(tdx*tdx + tdy*tdy)*0.08 + 0.6);   // stoop onto the prey
+          }
+        }
+        a.alt += (alt - a.alt)*Math.min(1, 2.5*dt);
+
+        var s = Math.max(0.12, a.radius*S*1.1), pose = 0;
+        if(a.sid==='harpy') pose = Math.sin(simClock*7 + a.uid) > 0 ? 1 : 0;
+        else if(!(sp.ambush && a.state!=='chase') && spd > 6) pose = (a.stride % 1) > 0.5 ? 1 : 0;
+
+        var ground = heightAt(a.x, a.y), gx = toX(a.x), gz = toZ(a.y);
+        var since = simClock - a.lungeAt, stretch = 1, hop = 0;
+        if(since >= 0 && since < 0.35){
+          var q = Math.sin(since/0.35*Math.PI);
+          stretch = 1 + 0.35*q;
+          hop = 0.7*q*s;
+        }
+
+        dummy.position.set(gx, ground + a.alt + hop, gz);
+        dummy.rotation.set(a.sid==='harpy' ? Math.sin(simClock*1.3 + a.uid)*0.25 : 0, a.ryaw, 0);
+        dummy.scale.set(s*stretch, s, s);
+        dummy.updateMatrix();
+        var c = counters[a.sid];
+        if(c[pose] < meshes.cap) meshes[pose].setMatrixAt(c[pose]++, dummy.matrix);
+
+        if(sh < shadowCap){
+          var fade = 1 - Math.min(0.55, a.alt/32);
+          var len = a.sid==='anaconda' ? 2.4 : a.sid==='harpy' ? 1.6 : 1.25;
+          dummy.position.set(gx, ground + 0.05, gz);
+          dummy.rotation.set(0, a.ryaw, 0);
+          dummy.scale.set(s*len*fade, 1, s*(a.sid==='harpy' ? 1.9 : 0.8)*fade);
+          dummy.updateMatrix();
+          shadowMesh.setMatrixAt(sh++, dummy.matrix);
+        }
+      }
+      for(var sid in speciesMeshes){
+        var pair = speciesMeshes[sid];
+        for(var p=0;p<2;p++){
+          pair[p].count = counters[sid][p];
+          pair[p].instanceMatrix.needsUpdate = true;
+        }
+      }
+      shadowMesh.count = sh;
+      shadowMesh.instanceMatrix.needsUpdate = true;
+    }
+
+    function placeRing(ring, a, mult){
+      if(!a){ ring.visible = false; return; }
+      var s = Math.max(0.6, a.radius*S*1.1*mult);
+      ring.visible = true;
+      ring.position.set(toX(a.x), heightAt(a.x, a.y) + a.alt + 0.15, toZ(a.y));
+      ring.scale.set(s, s, s);
+    }
+
+    function updateMarkers(dt){
+      var n = 0;
+      for(var i=0;i<carcasses.length && n<320;i++){
+        var c = carcasses[i], age = simClock - c.t;
+        if(age < 0 || age > CARCASS_LIFE) continue;
+        var s = c.r*S*1.25*(1 - 0.5*age/CARCASS_LIFE);
+        dummy.position.set(toX(c.x), heightAt(c.x, c.y) + 0.08, toZ(c.y));
+        dummy.rotation.set(0, c.x*0.01, 0);
+        dummy.scale.set(s*1.5, s*0.32, s);
+        dummy.updateMatrix();
+        carcassMesh.setMatrixAt(n++, dummy.matrix);
+      }
+      carcassMesh.count = n;
+      carcassMesh.instanceMatrix.needsUpdate = true;
+
+      var fa = follow.a && !follow.a.dead ? follow.a : null;
+      placeRing(followRing, fa, 2.0);
+      placeRing(targetRing, fa && fa.target && !fa.target.dead ? fa.target : null, 1.8);
+
+      var t = nowReal(), used = 0;
+      for(var b=0;b<burstRings.length;b++) burstRings[b].visible = false;
+      for(var k=0;k<bursts.length && used<burstRings.length;k++){
+        var bu = bursts[k], q = (t - bu.t0)/1.1;
+        if(q < 0 || q > 1) continue;
+        var ring = burstRings[used++], rs = bu.r*S*1.8 + q*4.5;
+        ring.visible = true;
+        ring.position.set(toX(bu.x), heightAt(bu.x, bu.y) + 0.3, toZ(bu.y));
+        ring.scale.set(rs, rs, rs);
+        ring.material.opacity = 1 - q;
+      }
+
+      // Thin the canopy when you're down in it watching something, or you'd see only leaves.
+      var want = (follow.a || follow.site) && orbit.dist < 90 ? 0.07 : 1;
+      canopyOpacity += (want - canopyOpacity)*Math.min(1, 3*dt);
+      if(trees){
+        trees.crowns.material.opacity = canopyOpacity;
+        trees.crowns.material.depthWrite = canopyOpacity > 0.97;
+      }
+    }
+
+    function frame(dt, sync){
+      if(builtVersion !== terrainVersion) repaint();
+      updateCamera(dt);
+      updateAnimals(dt);
+      updateMarkers(dt);
+      renderer.render(scene, cam);
+      if(sync) renderer.getContext().finish();
+    }
+
+    /* The click target scales with the animal's size on screen, so a click anywhere on a
+       tapir filling a fifth of the view still counts, while distant agouti keep a usable minimum. */
+    function pick(e){
+      var rect = cvs.getBoundingClientRect();
+      var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      var pxPerUnit = rect.height/(2*Math.tan(cam.fov*Math.PI/360));
+      var best = null, bestScore = 1;
+      for(var i=0;i<animals.length;i++){
+        var a = animals[i];
+        projV.set(toX(a.x), heightAt(a.x, a.y) + a.alt + a.radius*S*1.15, toZ(a.y));
+        var depth = cam.position.distanceTo(projV);
+        projV.project(cam);
+        if(projV.z > 1 || projV.z < -1) continue;
+        var sx = (projV.x*0.5 + 0.5)*rect.width, sy = (-projV.y*0.5 + 0.5)*rect.height;
+        var reach = Math.max(14, a.radius*S*1.6*pxPerUnit/depth);
+        var score = Math.sqrt((sx-mx)*(sx-mx) + (sy-my)*(sy-my))/reach;
+        if(score < bestScore){ bestScore = score; best = a; }
+      }
+      if(best) pickAnimal(best);
+    }
+
+    function bindInput(){
+      var drag = null;
+      cvs.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+      cvs.addEventListener('mousedown', function(e){
+        drag = { x:e.clientX, y:e.clientY, moved:false, pan:(e.button===2 || e.shiftKey) };
+        cvs.classList.add('dragging');
+      });
+      window.addEventListener('mousemove', function(e){
+        if(!drag) return;
+        var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+        if(Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+        if(!drag.moved) return;
+        drag.x = e.clientX; drag.y = e.clientY;
+        if(drag.pan){
+          if(follow.a || follow.site){ stopWatching(); renderCaption(); }
+          orbit.home = false;
+          var sc = orbit.dist*0.0016, sy = Math.sin(orbit.yaw), cy = Math.cos(orbit.yaw);
+          orbit.tx -= (cy*dx + sy*dy)*sc;
+          orbit.tz += (sy*dx - cy*dy)*sc;
+        } else {
+          orbit.yaw -= dx*0.006;
+          orbit.pitch = clamp(orbit.pitch + dy*0.005, 0.12, 1.45);
+          orbit.pitchTo = 0;
+        }
+      });
+      window.addEventListener('mouseup', function(e){
+        if(!drag) return;
+        var d = drag;
+        drag = null;
+        cvs.classList.remove('dragging');
+        if(!d.moved && e.button===0 && e.target===cvs) pick(e);
+      });
+      cvs.addEventListener('wheel', function(e){
+        e.preventDefault();
+        orbit.distTo = 0;
+        orbit.dist = clamp(orbit.dist*(e.deltaY < 0 ? 1/1.12 : 1.12), 5, 320);
+      }, { passive:false });
+    }
+
+    function zoom(f){ orbit.distTo = 0; orbit.dist = clamp(orbit.dist*f, 5, 320); }
+    function overview(){ orbit.distTo = 250; orbit.pitchTo = 1.0; orbit.home = true; }
+    function approach(){ if(orbit.dist > 45){ orbit.distTo = 30; orbit.pitchTo = 0.55; } }
+
+    return {
+      available:available, ensure:ensure, resize:resize, repaint:repaint, frame:frame,
+      zoom:zoom, overview:overview, approach:approach,
+      get ready(){ return ready; }
+    };
+  })();
+
+  /* --------------------------- loop --------------------------- */
+  var lastT = performance.now(), hdrTimer=0, specTimer=0;
+  var active = true;   // false while the Arena is on screen: no simulation, no drawing
+  function frame(now){
+    var dt = Math.min(0.1, (now-lastT)/1000);
+    lastT = now;
+    if(!active){ requestAnimationFrame(frame); return; }
+    tick(dt);
+    watchTick(dt);
+    plantTimer += dt;
+    if(viewMode==='3d' && R3.ready){
+      if(plantTimer > 0.25){ plantTimer=0; R3.repaint(); }
+      R3.frame(dt);
+    } else {
+      if(plantTimer > 0.2){ plantTimer=0; repaintPlants(); }
+      follow2D(dt);
+      draw();
+    }
+    hdrTimer += dt;
+    if(hdrTimer>0.25){ hdrTimer=0; renderHeader(); renderStatus(); renderCaption(); }
+    specTimer += dt;
+    if(specTimer>0.4){
+      specTimer=0;
+      var p=document.querySelector('.panel:not([hidden])');
+      if(p && p.getAttribute('data-panel')==='specimen') renderSpecimen();
+      if(p && p.getAttribute('data-panel')==='log' && logDirty) renderLog();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* Public API — handy for headless tuning runs from the console. */
+  window.Vivarium = {
+    step: function(dt){ step(dt); },
+    reset: function(){ seedWorld(); },
+    setPaused: function(v){ params.paused=v; },
+    setActive: function(v){
+      active = v !== false;
+      if(!active) return;
+      lastT = performance.now();
+      if(viewMode==='3d') R3.resize();
+      else { resizeView(); clampCamera(); }
+    },
+    counts: function(){ return Object.assign({}, counts); },
+    stats: function(){
+      var veg=0; for(var i=0;i<foliage.length;i++) veg+=foliage[i];
+      return { t:simClock, total:animals.length, counts:Object.assign({},counts), foliage:veg/foliage.length };
+    },
+    species: SPECIES,
+    deaths: function(){ return Object.assign({}, deathLog); },
+    animals: function(){ return animals; },
+    follow: function(uid){
+      var a = animals.find(function(x){ return x.uid===uid; });
+      if(a) pickAnimal(a);
+      return !!a;
+    },
+    natureCam: function(on){ setNatureCam(on!==false); renderCaption(); },
+    view: function(mode){ if(mode) setViewMode(mode); return viewMode; },
+    /* Runs frames synchronously and reports where the time goes. Works with the tab hidden,
+       and in 3D waits for the GPU to finish, so the figure is the whole frame. */
+    benchmark: function(frames, dt){
+      frames = frames || 120; dt = dt || 1/60;
+      var simMs = 0, drawMs = 0;
+      for(var i=0;i<frames;i++){
+        var t0 = performance.now();
+        step(dt);
+        watchTick(dt);
+        var t1 = performance.now();
+        if(viewMode==='3d' && R3.ready){
+          if(i%15===0) R3.repaint();
+          R3.frame(dt, true);
+        } else {
+          if(i%12===0) repaintPlants();
+          follow2D(dt);
+          draw();
+        }
+        drawMs += performance.now() - t1;
+        simMs += t1 - t0;
+      }
+      renderHeader();
+      renderCaption();
+      var per = (simMs + drawMs)/frames;
+      return { view:viewMode, animals:animals.length, frames:frames,
+               simMs:+(simMs/frames).toFixed(2), renderMs:+(drawMs/frames).toFixed(2),
+               frameMs:+per.toFixed(2), fps:Math.round(1000/per) };
+    },
+    params: params
+  };
+
+  function init(){
+    readTheme();
+    resizeView();
+    seedWorld();
+    defaultView();
+    repaintPlants();
+    buildLegends();
+    updateGeneSeg();
+    fillSelects();
+    setupWatchUI();
+    renderRoster();
+    renderHeader();
+    renderSpecimen();
+    requestAnimationFrame(frame);
+  }
+
+  init();
+})();
