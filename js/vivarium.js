@@ -62,7 +62,7 @@
   var idCounter = 1;
   var maxGeneration = 0;
   var simClock = 0;
-  var params = { mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false };
+  var params = { mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
   var worldMode = 'instinct';   // the brain mode the current world was seeded with
   var events = { droughtUntil:0, mastUntil:0 };
   var selected = null;
@@ -509,7 +509,10 @@
 
   function updatePredator(a, dt){
     var sp = SPECIES[a.sid];
-    var prey = nearestPrey(a);
+    // Satiation: a well-fed pursuit predator stops hunting, so kills track need rather
+    // than opportunity. Without it ocelots and harpies overshoot and wipe out the small
+    // prey every ~90s. Ambushers already wait for prey to come to them.
+    var prey = (sp.ambush || a.energy < a.maxEnergy*params.satiety) ? nearestPrey(a) : null;
     var lurking = false;
 
     a.target = prey;
