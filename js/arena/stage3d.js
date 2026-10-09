@@ -234,35 +234,187 @@
       scene.add(feast);
     })();
 
-    /* ----- contestants ----- */
+    /* ----- contestants: cartoon rigs (rig*.js) where loaded, the low-poly bodies otherwise ----- */
     var bodies = [];
+    var useRigs = !!(L.Rigs && L.RigAnim && L.RigActions);
+    var fx = L.ArenaFX ? L.ArenaFX.create({ scene:scene, overlay:tagsEl }) : null;
     var ringGeo = new THREE.RingGeometry(0.82, 1, 40); ringGeo.rotateX(-Math.PI/2);
     var shadowGeo = new THREE.CircleGeometry(1, 18); shadowGeo.rotateX(-Math.PI/2);
     var shadowMat = new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.32, depthWrite:false });
     info.cs.forEach(function(c){
       var sp = SPECIES[c.sid];
-      var group = new THREE.Group();
-      var mat = new THREE.MeshLambertMaterial({ vertexColors:true, emissive:0x000000, transparent:true, opacity:1 });
-      var poses = [0, 1].map(function(p){
-        var mesh = new THREE.Mesh(L.Bodies.build(c.sid, sp.color, p), mat);
-        mesh.visible = p === 0;
-        group.add(mesh);
-        return mesh;
-      });
-      scene.add(group);
-      var shadow = new THREE.Mesh(shadowGeo, shadowMat);
-      scene.add(shadow);
+      var b = {
+        id:c.id, sid:c.sid, scale:Math.max(0.6, c.r*S*2.0), flash:0, lastHp:1, stride:0, lastX:c.x, lastY:c.y, deadT:null, fall:0
+      };
+      if(useRigs && L.Rigs.has(c.sid)){
+        var rig = L.Rigs.create(c.sid, { rootMotion:false });
+        if(rig.model.bird) rig.state.fly = 0;
+        b.rig = rig; b.group = rig.group; b.rigScale = b.scale*0.72;
+        b.speed = 0; b.lookId = null; b.lookT = -99; b.spotT = -99; b.hurtT = -99; b.rt = 0; b.pending = []; b.winAt = 0; b.moveN = c.id;
+        b.lookV = new THREE.Vector3();
+        rig.on(function(name){ onCue(b, name); });
+        scene.add(rig.group);
+      } else {
+        var group = new THREE.Group();
+        var mat = new THREE.MeshLambertMaterial({ vertexColors:true, emissive:0x000000, transparent:true, opacity:1 });
+        b.poses = [0, 1].map(function(p){
+          var mesh = new THREE.Mesh(L.Bodies.build(c.sid, sp.color, p), mat);
+          mesh.visible = p === 0;
+          group.add(mesh);
+          return mesh;
+        });
+        b.group = group; b.mat = mat;
+        scene.add(group);
+      }
+      b.shadow = new THREE.Mesh(shadowGeo, shadowMat);
+      scene.add(b.shadow);
       var tag = root.document.createElement('div');
       tag.className = 'tag';
       tag.innerHTML = '<span class="nm"></span><span class="hp"><i></i></span>';
       tag.firstChild.textContent = c.name;
       tag.style.color = sp.color;
       tagsEl.appendChild(tag);
-      bodies.push({
-        id:c.id, sid:c.sid, group:group, poses:poses, mat:mat, shadow:shadow, tag:tag, tagHp:tag.querySelector('i'),
-        scale:Math.max(0.6, c.r*S*2.0), flash:0, lastHp:1, stride:0, lastX:c.x, lastY:c.y, deadT:null, fall:0
-      });
+      b.tag = tag; b.tagHp = tag.querySelector('i');
+      bodies.push(b);
     });
+
+    /* ----- what the animals do: read from the engine's event log as the view's clock passes it ----- */
+    var events = info.events || [], evIdx = 0, curView = null, rate = 1;
+    var CALLOUT = { pounce:'POUNCE!', charge:'CHARGE!', dive:'DIVE!', ambush:'AMBUSH!', deathroll:'DEATH ROLL!', constrict:'SQUEEZE!', venom:'VENOM!' };
+    var QUICK = { jaguar:['bite', 'swipe'], ocelot:['swipe', 'bite'], otter:['bite', 'swipe'], howler:['swipe', 'bite'], spider:['swipe', 'bite'], agouti:['bite', 'swipe'] };
+    var fxV = new THREE.Vector3(), fxV2 = new THREE.Vector3();
+
+    // Callouts only for fights the viewer is watching, or the screen fills with words.
+    function watched(a, b){
+      if(!curView) return false;
+      return a === curView.focusId || b === curView.focusId || a === curView.targetId || b === curView.targetId || camera.dist < 45;
+    }
+    function alive(id){ return curView && curView.cs[id] && curView.cs[id].alive; }
+
+    function handleEvent(e){
+      var A = e.a != null && e.a >= 0 ? bodies[e.a] : null, V = typeof e.b === 'number' ? bodies[e.b] : null;
+      switch(e.type){
+        case 'lock':
+          if(A && A.rig && alive(e.a)){
+            A.lookId = e.b; A.lookT = clock;
+            if(clock - A.spotT > 9){ A.spotT = clock; A.rig.play('spot'); }
+          }
+          if(V && V.rig && alive(e.b) && clock - V.spotT > 12 && (e.t*7) % 1 < 0.5){ V.spotT = clock; V.lookId = e.a; V.rig.play('startle'); }
+          break;
+        case 'special':
+          if(!A || !A.rig) break;
+          if(typeof e.b === 'number'){ A.lookId = e.b; A.lookT = clock; }
+          if(e.kind === 'pounce') A.rig.play('pounce');
+          else if(e.kind === 'charge') A.rig.play('charge');
+          else if(e.kind === 'dive') A.rig.play('pounce');
+          else if(e.kind === 'howl') A.rig.play('taunt');
+          break;
+        case 'hit': {
+          if(!A || !V) break;
+          var victim = curView ? curView.cs[e.b] : null, share = e.dmg/Math.max(1, info.cs[e.b].maxHp);
+          var tags = e.tags || [];
+          if(A.rig){
+            A.lookId = e.b; A.lookT = clock;
+            var busy = A.rig.playing();
+            if(tags.indexOf('deathroll') >= 0 && A.sid === 'caiman') A.rig.play('deathroll');
+            else if(tags.indexOf('constrict') >= 0) A.rig.play('constrict');
+            else if(tags.indexOf('venom') >= 0) A.rig.play('venom');
+            else if(!busy || busy === 'spot' || busy === 'startle'){
+              var q = QUICK[A.sid] || ['bite'];
+              A.rig.play(q[(A.moveN++) % q.length]);
+            }
+            A.pending.push({ b:e.b, a:e.a, share:share, tags:tags, due:A.rt + 0.45, swipe:A.rig.playing() === 'swipe' });
+          } else reactTo(e.a, e.b, share, tags, false);
+          if(V.rig){ V.lookId = e.a; V.lookT = clock; }
+          break;
+        }
+        case 'miss':
+          if(V && V.rig && alive(e.b)){ V.rig.play('dodge', { side:(e.t*13) % 2 < 1 ? 1 : -1 }); V.lookId = e.a; }
+          if(A && A.rig && !A.rig.playing()){ var qq = QUICK[A.sid] || ['bite']; A.rig.play(qq[(A.moveN++) % qq.length]); }
+          if(fx && V && V.rig && watched(e.a, e.b)) fx.callout('DODGE', V.rig.worldOf('head', fxV, 0, 0.9, 0), { tone:'dodge' });
+          break;
+        case 'winner':
+          (e.ids || []).forEach(function(id){ if(bodies[id]) bodies[id].winAt = clock + 1.4; });
+          break;
+      }
+    }
+
+    // A landed blow, shown when the attacker's animation connects (or shortly after, if it's busy).
+    function reactTo(a, bId, share, tags, swipe){
+      var V = bodies[bId];
+      if(!V || !V.rig || !fx) return;
+      var crit = tags.indexOf('crit') >= 0, model = V.rig.model;
+      if(crit) V.rig.play('crit'); else V.rig.play('hit', { power:clamp(share*4, 0.3, 1.2) });
+      if(crit || share > 0.15) voice(V, 'pain');
+      var head = V.rig.worldOf('head', fxV, 0, 0, 0);
+      fx.impact(head, { power:crit ? 1.6 : clamp(0.5 + share*3, 0.5, 1.4), color:model.fx.color, kind:model.fx.kind, scale:V.rigScale*0.55 });
+      if(swipe) fx.slash(head, { scale:V.rigScale*0.8 });
+      if(tags.indexOf('venom') >= 0) fx.dust(head, { color:0x9BE27A, scale:V.rigScale*0.4, count:8 });
+      if(watched(a, bId)){
+        fxV2.copy(head); fxV2.y += V.rigScale*1.1;
+        if(crit) fx.callout('CRIT!', fxV2, { tone:'crit' });
+        else for(var i=0; i<tags.length; i++){ if(CALLOUT[tags[i]]){ fx.callout(CALLOUT[tags[i]], fxV2); break; } }
+      }
+    }
+    // Species voices for the fights on screen; the far side of the arena stays quiet.
+    function voice(b, kind, force){
+      if(!L.ArenaAudio || !b.rig || !curView) return;
+      if(b.rig.model.voice === 'howl' && kind === 'taunt') return;   // the match already plays the howl
+      var on = force || watched(b.id, -1);
+      if(!on) return;
+      L.ArenaAudio.play('voice', { voice:b.rig.model.voice, kind:kind, pan:screenX(curView.cs[b.id].x, curView.cs[b.id].y)*0.8 });
+    }
+    function flushPending(b){
+      var list = b.pending; b.pending = [];
+      list.forEach(function(p){ reactTo(p.a, p.b, p.share, p.tags, p.swipe); });
+    }
+    function onCue(b, name){
+      if(!fx) return;
+      if(name === 'impact') flushPending(b);
+      else if(name === 'leap' || name === 'thud'){ b.rig.worldOf('root', fxV); fx.dust(fxV, { scale:b.rigScale*0.5 }); }
+      else if(name === 'roar'){
+        b.rig.worldOf('head', fxV, 0.5, 0, 0); b.rig.worldOf('head', fxV2, 1.5, 0, 0);
+        fx.shockwave(fxV, fxV2.sub(fxV), { scale:b.rigScale });
+        voice(b, b.rig.playing() === 'victory' ? 'victory' : 'taunt');
+      }
+      else if(name === 'spot') voice(b, 'taunt');
+      else if(name === 'yawn' || name === 'shrug') voice(b, 'taunt');
+    }
+    function eventsTo(t, jumped){
+      if(jumped){
+        evIdx = 0;
+        while(evIdx < events.length && events[evIdx].t <= t) evIdx++;
+        bodies.forEach(function(b){ if(b.pending) b.pending = []; });
+        return;
+      }
+      while(evIdx < events.length && events[evIdx].t <= t){ handleEvent(events[evIdx]); evIdx++; }
+    }
+
+    function moodFor(c, b, calm){
+      if(!c.alive) return 'calm';
+      if(c.flee || c.hp < 0.25) return calm ? 'chill' : 'scared';
+      if(c.pinned) return 'hurt';
+      if(b.lookId != null && clock - b.lookT < 6) return calm ? 'chill' : 'hunt';
+      if(curView.night && !b.rig.model.nocturnal && b.speed < 0.2) return 'drowsy';
+      return 'calm';
+    }
+    function nearFood(c){
+      var f = curView.feast;
+      if(f && f.active && Math.hypot(f.x - c.x, f.y - c.y) < 70) return true;
+      for(var i=0; i<info.bushes.length; i++){
+        var bu = info.bushes[i];
+        if((curView.bushes ? curView.bushes[i] : 1) > 0.15 && Math.hypot(bu.x - c.x, bu.y - c.y) < 40) return true;
+      }
+      return false;
+    }
+    // The capybara's calm is catching: anything standing near a living one looks chill (visual only).
+    function nearCapybara(c){
+      for(var i=0; i<curView.cs.length; i++){
+        var o = curView.cs[i];
+        if(o.alive && o.sid === 'capybara' && o.id !== c.id && Math.hypot(o.x - c.x, o.y - c.y) < 90) return true;
+      }
+      return false;
+    }
     var focusRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color:0xE8B04A, transparent:true, opacity:0.95, depthTest:false }));
     var targetRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color:0xD9452F, transparent:true, opacity:0.9, depthTest:false }));
     focusRing.renderOrder = targetRing.renderOrder = 10;
@@ -291,10 +443,14 @@
         camera.tz = lerp(camera.tz, camera.goal.tz, k);
         camera.dist = lerp(camera.dist, camera.goal.dist, Math.min(1, k*0.8));
         camera.pitch = lerp(camera.pitch, camera.goal.pitch, Math.min(1, k*0.6));
-        camera.yaw += dt*0.05;   // a slow drift keeps a static shot alive
-        // Near the wall, swing round to shoot outward from the middle, not in through the stands.
         var fromCentre = Math.hypot(camera.tx, camera.tz);
-        if(fromCentre > R*0.3){
+        if(camera.goal.yaw != null){
+          camera.yaw = angleLerp(camera.yaw, camera.goal.yaw, Math.min(1, k*0.9));   // a framed close-up
+        } else {
+          camera.yaw += dt*0.05;   // a slow drift keeps a static shot alive
+        }
+        // Near the wall, swing round to shoot outward from the middle, not in through the stands.
+        if(camera.goal.yaw == null && fromCentre > R*0.3){
           var inward = Math.atan2(-camera.tx, -camera.tz);
           var w = clamp((fromCentre - R*0.3)/(R*0.4), 0, 1);
           camera.yaw = angleLerp(camera.yaw, inward, k === 1 ? w : Math.min(1, w*2*dt));
@@ -319,36 +475,69 @@
       cam.lookAt(camera.tx, camera.ty + 1.2, camera.tz);
     }
 
+    // Mouse and touch: drag to orbit, right-drag / shift-drag / two fingers to pan,
+    // wheel or pinch to zoom, click or tap to follow an animal.
     function bindInput(onUser){
-      var drag = null;
+      var pointers = new Map(), drag = null, pinch = null;
+      canvas.style.touchAction = 'none';
       canvas.addEventListener('contextmenu', function(e){ e.preventDefault(); });
-      canvas.addEventListener('mousedown', function(e){
-        drag = { x:e.clientX, y:e.clientY, moved:false, pan:e.button === 2 || e.shiftKey };
-        canvas.classList.add('dragging');
+      function panBy(dx, dy){
+        var sc = camera.dist*0.0018, sy = Math.sin(camera.yaw), cy = Math.cos(camera.yaw);
+        camera.tx -= (cy*dx + sy*dy)*sc;
+        camera.tz += (sy*dx - cy*dy)*sc;
+      }
+      function mid(){
+        var p = Array.from(pointers.values());
+        return { x:(p[0].x + p[1].x)/2, y:(p[0].y + p[1].y)/2, d:Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) };
+      }
+      canvas.addEventListener('pointerdown', function(e){
+        if(canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+        pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
+        if(pointers.size === 1){
+          drag = { x:e.clientX, y:e.clientY, moved:false, pan:e.button === 2 || e.shiftKey };
+          canvas.classList.add('dragging');
+        } else if(pointers.size === 2){
+          pinch = mid();
+          if(drag) drag.moved = true;   // a second finger never counts as a tap
+        }
       });
-      root.addEventListener('mousemove', function(e){
+      canvas.addEventListener('pointermove', function(e){
+        if(!pointers.has(e.pointerId)) return;
+        pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
+        if(pointers.size >= 2 && pinch){
+          var m = mid();
+          camera.free = true;
+          if(onUser) onUser('zoom');
+          if(pinch.d > 0 && m.d > 0) camera.dist = clamp(camera.dist*pinch.d/m.d, 8, 170);
+          camera.goal.dist = camera.dist;
+          panBy(m.x - pinch.x, m.y - pinch.y);
+          pinch = m;
+          return;
+        }
         if(!drag) return;
         var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-        if(!drag.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+        if(!drag.moved && Math.abs(dx) + Math.abs(dy) < (e.pointerType === 'touch' ? 10 : 4)) return;
         drag.moved = true;
         drag.x = e.clientX; drag.y = e.clientY;
         if(onUser) onUser('drag');
         camera.free = true;
-        if(drag.pan){
-          var sc = camera.dist*0.0018, sy = Math.sin(camera.yaw), cy = Math.cos(camera.yaw);
-          camera.tx -= (cy*dx + sy*dy)*sc;
-          camera.tz += (sy*dx - cy*dy)*sc;
-        } else {
+        if(drag.pan) panBy(dx, dy);
+        else {
           camera.yaw -= dx*0.006;
           camera.pitch = clamp(camera.pitch + dy*0.005, 0.15, 1.45);
         }
       });
-      root.addEventListener('mouseup', function(e){
-        if(!drag) return;
+      function end(e){
+        if(!pointers.has(e.pointerId)) return;
+        pointers.delete(e.pointerId);
+        if(pointers.size < 2) pinch = null;
+        if(pointers.size > 0) return;
         var d = drag; drag = null;
         canvas.classList.remove('dragging');
-        if(!d.moved && e.button === 0 && e.target === canvas && onUser) onUser('click', e);
-      });
+        if(d && !d.moved && e.type === 'pointerup' && (e.button === 0 || e.pointerType === 'touch') && onUser) onUser('click', e);
+      }
+      canvas.addEventListener('pointerup', end);
+      canvas.addEventListener('pointercancel', end);
       canvas.addEventListener('wheel', function(e){
         e.preventDefault();
         camera.free = true;
@@ -407,12 +596,20 @@
       var rect = canvas.getBoundingClientRect();
       // A cut or a jump in time is not a hit: re-baseline health and position without flashing.
       var jumped = cutting || lastViewT === null || Math.abs(view.t - lastViewT) > 0.6;
+      var vdt = jumped ? 0 : Math.max(0, view.t - lastViewT);
+      // Animation follows the view's clock, so slow motion slows the animals and a pause freezes them.
+      rate += ((jumped ? 1 : clamp(vdt/Math.max(dt, 1e-4), 0, 3)) - rate)*Math.min(1, dt*6);
+      var rigDt = dt*rate;
+      curView = view;
+      eventsTo(view.t, jumped);
+      if(useRigs){ var cvs = renderer.domElement; L.Rigs.setResolution(cvs.width, cvs.height); }
       view.cs.forEach(function(c, i){
         var b = bodies[i];
         if(jumped){ b.lastHp = c.hp; b.lastX = c.x; b.lastY = c.y; b.flash = 0; }
         var gx = c.x*S, gz = c.y*S, ground = sceneY(c.x, c.y);
         var moved = Math.hypot(c.x - b.lastX, c.y - b.lastY);
         b.lastX = c.x; b.lastY = c.y;
+        if(b.rig){ renderRig(c, b, gx, gz, ground, moved, jumped, vdt, rigDt, rect); return; }
         b.stride += moved*0.045;
         if(c.hp < b.lastHp - 0.005) b.flash = 1;
         b.lastHp = c.hp;
@@ -446,28 +643,86 @@
         b.shadow.scale.set(s*1.3*fade, 1, s*0.95*fade);
         b.shadow.rotation.y = -c.yaw;
 
-        // name tag
-        projV.set(gx, ground + c.alt*FLY + s*1.9 + 0.8, gz).project(cam);
-        var visible = view.tags !== false && c.alive && projV.z < 1 && projV.z > -1;
-        if(visible){
-          var px = (projV.x*0.5 + 0.5)*rect.width, py = (-projV.y*0.5 + 0.5)*rect.height;
-          visible = px > -40 && px < rect.width + 40 && py > -20 && py < rect.height + 20;
-          if(visible){
-            b.tag.style.transform = 'translate(' + px.toFixed(1) + 'px,' + py.toFixed(1) + 'px) translate(-50%,-100%)';
-            b.tagHp.style.width = Math.round(c.hp*100) + '%';
-            b.tag.classList.toggle('low', c.hp < 0.3);
-            b.tag.classList.toggle('focus', view.focusId === c.id);
-          }
-        }
-        b.tag.style.display = visible ? '' : 'none';
+        placeTag(c, b, gx, ground + c.alt*FLY + s*1.9 + 0.8, gz, rect);
       });
 
       placeRing(focusRing, view.focusId, 1.9);
       placeRing(targetRing, view.targetId, 1.7);
       updateCamera(dt);
       fadeBlockingTrees(dt, cutting);
+      if(fx) fx.update(rigDt, cam, rect);
       renderer.render(scene, cam);
       lastViewT = view.t;
+    }
+
+    function placeTag(c, b, x, y, z, rect){
+      projV.set(x, y, z).project(cam);
+      var visible = curView.tags !== false && c.alive && projV.z < 1 && projV.z > -1;
+      if(visible){
+        var px = (projV.x*0.5 + 0.5)*rect.width, py = (-projV.y*0.5 + 0.5)*rect.height;
+        visible = px > -40 && px < rect.width + 40 && py > -20 && py < rect.height + 20;
+        if(visible){
+          b.tag.style.transform = 'translate(' + px.toFixed(1) + 'px,' + py.toFixed(1) + 'px) translate(-50%,-100%)';
+          b.tagHp.style.width = Math.round(c.hp*100) + '%';
+          b.tag.classList.toggle('low', c.hp < 0.3);
+          b.tag.classList.toggle('focus', curView.focusId === c.id);
+        }
+      }
+      b.tag.style.display = visible ? '' : 'none';
+    }
+
+    function renderRig(c, b, gx, gz, ground, moved, jumped, vdt, rigDt, rect){
+      var rig = b.rig, s = b.rigScale, model = rig.model;
+      b.rt += rigDt;
+      var shakeY = c.pinned ? Math.sin(clock*40)*0.05 : 0;
+      b.group.position.set(gx, ground + c.alt*FLY + shakeY, gz);
+      b.group.rotation.set(0, -c.yaw, 0);
+      b.group.scale.setScalar(s);
+
+      // Ground speed in body lengths a second, roughly: a sprinting jaguar reads as a run.
+      var speed = vdt > 0 ? (moved/vdt)/85 : (jumped ? 0 : b.speed);
+      b.speed += (speed - b.speed)*Math.min(1, rigDt*8);
+
+      if(!c.alive && !rig.state.dead){
+        rig.play('death');
+        if(jumped && rig.state.action){ rig.state.action.t = rig.state.action.def.dur; rig.state.action.prev = rig.state.action.t; }
+        else voice(b, 'death');
+      } else if(c.alive && rig.state.dead) rig.play('revive');
+      if(b.winAt && clock >= b.winAt){ b.winAt = 0; if(c.alive){ rig.play('victory'); voice(b, 'victory', true); } }
+
+      // Hurt with no blow to show for it: fire, flood or venom ticking.
+      if(!jumped && c.alive && c.hp < b.lastHp - 0.015 && !b.pending.length && !rig.playing() && clock - b.hurtT > 0.9){
+        b.hurtT = clock;
+        rig.play('hit', { power:0.3 });
+      }
+      b.lastHp = c.hp;
+      if(b.pending.length && b.rt > b.pending[0].due) flushPending(b);
+
+      var look = null;
+      if(b.lookId != null && c.alive){
+        var o = curView.cs[b.lookId];
+        if(o && o.alive && Math.hypot(o.x - c.x, o.y - c.y) < 320 && clock - b.lookT < 10){
+          look = b.lookV.set(o.x*S, sceneY(o.x, o.y) + o.alt*FLY + bodies[o.id].rigScale*(bodies[o.id].rig ? bodies[o.id].rig.model.height*0.7 : 1), o.y*S);
+        } else b.lookId = null;
+      }
+      var calm = c.sid !== 'capybara' && nearCapybara(c);
+      rig.set({
+        speed:c.alive ? b.speed : 0, night:!!curView.night, stunned:!!c.stunned && c.alive,
+        eating:c.alive && b.speed < 0.25 && !look && nearFood(c), mood:moodFor(c, b, calm), look:look
+      });
+      if(model.bird) rig.state.fly = clamp(c.alt, 0, 1);
+      // Animals right in front of the lens thin out so they don't block a close-up.
+      var inLens = c.id !== curView.focusId && c.id !== curView.targetId &&
+        Math.hypot(cam.position.x - gx, cam.position.z - gz) < s*(model.length || 2.4)*0.9 + 1.5;
+      rig.setOpacity(inLens ? 0.25 : (c.alive && c.stealth > 0.6 ? 0.45 : 1));
+      rig.update(rigDt, cam);
+
+      b.shadow.visible = c.alive;
+      b.shadow.position.set(gx, ground + 0.06, gz);
+      var fade = 1 - Math.min(0.6, c.alt*0.6), len = (model.length || 2.4)*0.45;
+      b.shadow.scale.set(s*len*fade, 1, s*0.6*fade);
+      b.shadow.rotation.y = -c.yaw;
+      placeTag(c, b, gx, ground + c.alt*FLY + s*((model.height || 2) + 0.5) + 0.5, gz, rect);
     }
 
     // Trees standing between the camera and what it is looking at thin out to a ghost.
@@ -521,7 +776,8 @@
     }
 
     function dispose(){
-      bodies.forEach(function(b){ b.tag.remove(); });
+      bodies.forEach(function(b){ b.tag.remove(); if(b.rig) b.rig.dispose(); });
+      if(fx) fx.clear();
       renderer.dispose();
       if(renderer.forceContextLoss) renderer.forceContextLoss();
     }

@@ -59,7 +59,7 @@
           id:i, sid:c.sid, name:c.name, alive:(flags & 1) === 1,
           x:lerp(data[ba], data[bb], a), y:lerp(data[ba + 1], data[bb + 1], a), yaw:angleLerp(data[ba + 2], data[bb + 2], a),
           hp:lerp(data[ba + 3], data[bb + 3], a), alt:lerp(data[ba + 4], data[bb + 4], a), stealth:lerp(data[ba + 5], data[bb + 5], a),
-          anim:data[near + 6], pinned:(flags & 2) === 2
+          anim:data[near + 6], pinned:(flags & 2) === 2, stunned:(flags & 4) === 4, flee:(flags & 32) === 32
         });
       }
       return { t:t, night:data[oa + 4] > 0.5, hazard:hazard, feast:f ? { x:f.x, y:f.y, food:food, active:true } : null, cs:cs, tags:true };
@@ -349,12 +349,15 @@
       var hero = view.cs[m.hero], other = view.cs[m.other];
       view.focusId = m.hero;
       view.targetId = other && other.alive ? m.other : null;
-      var cx = hero.x, cy = hero.y, d = 24;
+      var cx = hero.x, cy = hero.y, d = 24, gap = 999;
       if(other){
-        var gap = Math.hypot(hero.x - other.x, hero.y - other.y);
+        gap = Math.hypot(hero.x - other.x, hero.y - other.y);
         if(gap < 260){ cx = (hero.x + other.x)/2; cy = (hero.y + other.y)/2; d = clamp(gap*0.07 + 18, 18, 38); }
       }
-      R.stage.camera.lookAt(cx, cy, d, 0.42);
+      // Around the decisive moment, drop to face level so the reactions carry it.
+      var dramatic = Math.abs(p.t - m.key) < 1.2 && gap < 200;
+      if(dramatic) d = clamp(gap*0.05 + 9, 9, 15);
+      R.stage.camera.lookAt(cx, cy, d, dramatic ? 0.28 : 0.42);
       R.stage.camera.yaw += dt*(slow ? 0.35 : 0.12);
       R.stage.setView(view);
       R.stage.render(dt);

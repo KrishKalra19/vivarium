@@ -18,7 +18,7 @@
     settings:{ balanced:true, length:'standard', pairs:false, hazard:'random' },
     roster:[], pick:null, odds:null, computing:false, progress:0, runToken:0
   };
-  var portraits = {};
+  var portraits = {}, reactions = {}, reactTimers = {};
   var els = {};
 
   function SP(){ return L.ArenaSpecies; }
@@ -112,7 +112,9 @@
 
   /* ----- portraits rendered from the real 3D body plans ----- */
   function renderPortraits(){
-    if(typeof THREE === 'undefined' || !L.Bodies) return;
+    if(typeof THREE === 'undefined') return;
+    if(L.Rigs && L.RigAnim && renderRigPortraits()) return;
+    if(!L.Bodies) return;
     try {
       var w = 176, h = 112, canvas = doc.createElement('canvas');
       canvas.width = w; canvas.height = h;
@@ -153,6 +155,72 @@
     } catch(e){
       portraits = {};
     }
+  }
+
+  // Head-and-shoulders portraits of the cartoon rigs, wearing each species' resting face, plus
+  // a short reaction (a "!" and a hop; the capybara just shrugs) played when a card changes.
+  function renderRigPortraits(){
+    try {
+      var w = 176, h = 112, canvas = doc.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      var r = new THREE.WebGLRenderer({ canvas:canvas, antialias:true, alpha:true, preserveDrawingBuffer:true });
+      r.setPixelRatio(1);
+      r.setSize(w, h, false);
+      L.Rigs.setResolution(w, h);
+      var scene = new THREE.Scene();
+      scene.add(new THREE.HemisphereLight(0xfff4e0, 0x2a1d12, 0.75));
+      var sun = new THREE.DirectionalLight(0xffe2b0, 0.8);
+      sun.position.set(3, 5, 4);
+      scene.add(sun);
+      var cam = new THREE.PerspectiveCamera(30, w/h, 0.05, 100), head = new THREE.Vector3();
+      function snap(rig, dt){
+        rig.update(dt, cam);
+        r.clear();
+        r.render(scene, cam);
+        return canvas.toDataURL('image/png');
+      }
+      ids().forEach(function(id){
+        if(!L.Rigs.has(id)) return;
+        var rig = L.Rigs.create(id, { rootMotion:false, outlineWidth:1.6 });
+        rig.fx.aura = null;   // the capybara's aura ring would only read as a stray line on a card
+        scene.add(rig.group);
+        rig.update(0.05, cam);
+        rig.worldOf('head', head);
+        // Frame the face, three-quarters on; heads are much closer in size than bodies are.
+        // Long snouts and blocky heads need the shot pulled forward and back a little.
+        var F = { caiman:{ look:0.3, reach:0.1 }, capybara:{ look:0.2, reach:0 }, tapir:{ look:0.15, reach:0.1 } }[id] || {};
+        var reach = 0.95 + rig.model.height*0.12 + (F.reach || 0);
+        cam.position.set(head.x + reach*1.5 + (F.look || 0), head.y + reach*0.35, head.z + reach*0.95);
+        cam.lookAt(head.x - reach*0.35 + (F.look || 0), head.y - reach*0.22, head.z);
+        rig.set({ look:cam.position.clone() });   // everyone poses for the camera
+        for(var k=0; k<14; k++) rig.update(0.05, cam);
+        portraits[id] = snap(rig, 0.05);
+        rig.play(id === 'capybara' ? 'shrug' : 'spot');
+        var frames = [];
+        for(var f=0; f<10; f++) frames.push(snap(rig, 0.09));
+        reactions[id] = frames;
+        scene.remove(rig.group);
+        rig.dispose();
+      });
+      r.dispose();
+      if(r.forceContextLoss) r.forceContextLoss();
+      return true;
+    } catch(e){
+      portraits = {}; reactions = {};
+      return false;
+    }
+  }
+
+  function react(i){
+    var r = state.roster[i], frames = r && reactions[r.sid];
+    var img = els.tributes && els.tributes.querySelector('.tribute[data-i="' + i + '"] .portrait img');
+    if(!frames || !img) return;
+    root.clearInterval(reactTimers[i]);
+    var n = 0, sid = r.sid;
+    reactTimers[i] = root.setInterval(function(){
+      if(n >= frames.length){ root.clearInterval(reactTimers[i]); img.src = portraits[sid]; return; }
+      img.src = frames[n++];
+    }, 80);
   }
 
   /* ----- building the page ----- */
@@ -205,11 +273,17 @@
       store('ludus.lobby', { settings:state.settings, roster:state.roster });
       renderSide();
     });
+    // A renamed contestant reacts to its new name once typing stops.
+    els.tributes.addEventListener('change', function(e){
+      if(!e.target.matches('input.name')) return;
+      react(+e.target.closest('.tribute').dataset.i);
+    });
     els.tributes.addEventListener('change', function(e){
       if(!e.target.matches('select')) return;
       var i = +e.target.closest('.tribute').dataset.i;
       state.roster[i].sid = e.target.value;
       changed(true);
+      react(i);
     });
   }
 
@@ -226,7 +300,7 @@
     var act = b.dataset.act;
     if(act === 'fill') fillRandom();
     else if(act === 'names') shuffleNames();
-    else if(act === 'reroll') reroll(+b.closest('.tribute').dataset.i);
+    else if(act === 'reroll'){ var ri = +b.closest('.tribute').dataset.i; reroll(ri); react(ri); }
     else if(act === 'pick'){
       var i = +b.closest('.tribute').dataset.i;
       state.pick = state.pick === i ? null : i;

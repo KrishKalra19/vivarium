@@ -276,6 +276,8 @@
     }
 
     function setIntent(c, intent, target){
+      // Lock-ons are narration only (the 3D view shows a "!"); they never touch the simulation.
+      if(intent === 'hunt' && target && c.target !== target) event({ type:'lock', a:c.id, b:target.id });
       c.intent = intent;
       c.target = intent === 'hunt' ? target : null;
       c.threat = intent === 'flee' ? target : null;
@@ -412,6 +414,7 @@
       var acc = 0.86*(c.howledUntil > S.t ? 0.75 : 1);
       if(rng() > acc*(1 - dodge)){
         c.stats.missed++; t.stats.dodged++;
+        event({ type:'miss', a:c.id, b:t.id });
         return;
       }
       // Wide rolls and big crits keep fights from being foregone conclusions: without them the

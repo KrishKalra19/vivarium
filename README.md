@@ -32,7 +32,7 @@ Open `index.html` in any modern browser. The 3D views load [Three.js](https://th
 
 1. **Lobby.** Pick sixteen contestants (up to two of each of thirteen species), name them, and set the rules: **Balanced** or **Open weight**, **Standard** (about 4 minutes) or **Epic** (about 10), **Free-for-all** or **Pairs**, and a **wildfire** ring or a rising **flood**.
 2. **Read the omens.** Simulate 200 matches of that exact roster (120 for Epic) to get each contestant's chance of winning, then pick who you think will survive. Your record — calls, streak, points, best underdog — is saved in the browser, and an underdog call scores more than a favourite.
-3. **The match.** A 3D arena ringed by an amphitheatre. A director camera finds the hottest fight and frames the attacker with its target; a kill feed, name tags, banners (*First blood*, *Double kill*, *Final three*) and a slow-motion kill cam narrate it. Days turn to nights, feasts pull everyone together, and the hazard closes in. Click any animal to follow it; switch to a free camera any time.
+3. **The match.** A 3D arena ringed by an amphitheatre, fought by cartoon animals with real faces: a cocky jaguar, a grumpy caiman, a smug harpy eagle, a capybara that stays unbothered through everything. They glare when they lock on, wince when hit, dodge, go dizzy when stunned and fall with X eyes, and each species has its own moves (the caiman's death roll, the anaconda's squeeze, the howler's howl). The director cuts to face level for crits and kills. A director camera finds the hottest fight and frames the attacker with its target; a kill feed, name tags, banners (*First blood*, *Double kill*, *Final three*) and a slow-motion kill cam narrate it. Days turn to nights, feasts pull everyone together, and the hazard closes in. Click any animal to follow it; switch to a free camera any time.
 4. **Results.** The victor, then **Play of the Game** plays automatically: every kill and escape is scored for hype — upsets against the pre-match odds, clutch kills on low health, multi-kills, ambushes, long brawls, the final blow — and the best one replays with a cinematic camera and slow motion on the decisive bite. Then a highlight reel, a day-by-day recap in BrantSteele style, awards, placings, and each animal's hidden form revealed.
 
 ### The contestants
@@ -153,6 +153,14 @@ js/app.js               the Vivarium / Arena switch
 js/arena/roster.js      arena species and combat stats
 js/arena/tuning.js      generated Balanced-mode corrections
 js/arena/engine.js      deterministic match engine (browser or Node)
+js/arena/rig.js         cartoon rigs: one skinned, toon-shaded, outlined mesh per animal
+js/arena/rig-models.js  the shared face kit (eyes, lids, brows, jaw) and the jaguar
+js/arena/rig-quads*.js  four-legged body helpers and the other quadrupeds
+js/arena/rig-snakes-birds.js  anaconda, bushmaster and harpy eagle
+js/arena/rig-anim.js    procedural animation: gait, idle life, expressions, look-at
+js/arena/rig-actions.js shared attack, reaction, victory and death clips
+js/arena/rig-species-actions.js  signature moves and per-species overrides
+js/arena/fx.js          blood-free impact effects and comic callouts
 js/arena/stage3d.js     3D arena, shared by live play and replays
 js/arena/match.js       live match: director camera, kill feed, banners
 js/arena/results.js     victory, Play of the Game, highlights, recap, awards
@@ -189,7 +197,9 @@ Ludus.ArenaResults.debugFrame(0);  // draw a frame of Play of the Game
 - [x] 3D view with follow camera, nature cam and field log
 - [x] Arena mode with predictions, replays and Play of the Game
 - [ ] Share a match as a link (the engine is deterministic, so a seed and roster replay it exactly)
-- [ ] Touch controls for the 3D views
+- [x] Cartoon animals with faces, personalities, signature attacks and species voices
+- [x] Touch controls and a phone layout for the Arena
+- [ ] Touch controls for the Vivarium 3D view
 - [ ] Biome switcher (savanna, temperate forest, reef) for both modes
 - [ ] Pack hunters (giant otters here; lions or wild dogs on a savanna)
 - [ ] Sexual reproduction and lineage trees in the Vivarium

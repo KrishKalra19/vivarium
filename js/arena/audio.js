@@ -129,8 +129,68 @@
     },
     victory: function(t, dest){
       [523.3, 659.3, 784, 1046.5].forEach(function(fq, i){ tone('triangle', fq, fq, 0.5, 0.25, dest, t + i*0.12); });
+    },
+    // Species voices. kind: taunt, pain (short and high), death (long and falling), victory.
+    voice: function(t, dest, power, opts){
+      var v = opts.voice || 'grunt', kind = opts.kind || 'taunt';
+      var pitch = kind === 'pain' ? 1.35 : (kind === 'death' ? 0.75 : 1), len = kind === 'pain' ? 0.5 : (kind === 'death' ? 1.5 : 1);
+      var peak = kind === 'victory' ? 0.5 : 0.38;
+      switch(v){
+        case 'roar':
+          voiced('sawtooth', [120*pitch, 150*pitch, 70*pitch], 0.9*len, 700, peak, dest, t, 5, 6);
+          burst('bandpass', 320*pitch, 0.8, 0.8*len, peak*0.5, dest, t, 180);
+          break;
+        case 'yowl':
+          voiced('sawtooth', [300*pitch, 520*pitch, 260*pitch], 0.7*len, 1800, peak*0.8, dest, t, 7, 14);
+          break;
+        case 'bellow':
+          voiced('sawtooth', [62*pitch, 75*pitch, 55*pitch], 1.0*len, 420, peak*1.2, dest, t, 18, 4);
+          break;
+        case 'hiss':
+          burst('highpass', 3200, 0.6, 0.85*len, peak*0.7, dest, t, kind === 'death' ? 900 : 5000);
+          break;
+        case 'screech':
+          voiced('square', [1500*pitch, 2600*pitch, 1200*pitch], 0.6*len, 3200, peak*0.45, dest, t, 11, 40);
+          break;
+        case 'chatter':
+          for(var i=0; i<(kind === 'pain' ? 3 : 6); i++) tone('square', (900 + (i % 3)*220)*pitch, 1300*pitch, 0.045, peak*0.35, dest, t + i*0.07);
+          break;
+        case 'whistle':
+          voiced('sine', [1200*pitch, 1850*pitch, 900*pitch], 0.55*len, 4000, peak*0.7, dest, t, 5, 20);
+          break;
+        case 'squeak':
+          tone('sine', 1800*pitch, 2500*pitch, 0.1*len, peak*0.6, dest, t);
+          tone('sine', 2000*pitch, 2700*pitch, 0.08*len, peak*0.5, dest, t + 0.13);
+          break;
+        case 'chirp':
+          for(var k=0; k<3; k++) tone('sine', 520*pitch, 760*pitch, 0.1, peak*0.45, dest, t + k*0.16);
+          break;
+        case 'howl':
+          sounds.howl(t, dest);
+          break;
+        default:   // grunt
+          voiced('sawtooth', [95*pitch, 70*pitch, 55*pitch], 0.16*len, 520, peak, dest, t, 20, 3);
+          voiced('sawtooth', [90*pitch, 65*pitch, 50*pitch], 0.16*len, 520, peak*0.8, dest, t + 0.2, 20, 3);
+      }
     }
   };
+
+  // A pitched cry: frequency glides through three points, with vibrato, through a lowpass.
+  function voiced(type, freqs, dur, cutoff, peak, dest, t, vibRate, vibDepth){
+    var o = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+    var f = ctx.createBiquadFilter(), g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freqs[0], t);
+    o.frequency.linearRampToValueAtTime(freqs[1], t + dur*0.3);
+    o.frequency.linearRampToValueAtTime(freqs[2], t + dur);
+    lfo.frequency.value = vibRate; lg.gain.value = vibDepth;
+    lfo.connect(lg); lg.connect(o.frequency);
+    f.type = 'lowpass'; f.frequency.value = cutoff;
+    envelope(g.gain, t, Math.min(0.06, dur*0.2), dur, peak);
+    o.connect(f); f.connect(g); g.connect(dest);
+    o.start(t); lfo.start(t); o.stop(t + dur + 0.1); lfo.stop(t + dur + 0.1);
+  }
+  var lastVoice = {};
 
   function play(name, opts){
     if(muted || !sounds[name]) return;
@@ -141,10 +201,15 @@
       if(now - lastHit < 0.07) return;   // keep a brawl from turning into static
       lastHit = now;
     }
+    if(name === 'voice'){
+      var key = (opts.voice || '') + opts.kind;
+      if(ctx.currentTime - (lastVoice[key] || -9) < 0.35) return;   // one cry at a time per species and kind
+      lastVoice[key] = ctx.currentTime;
+    }
     var t = ctx.currentTime + (opts.delay || 0);
     var dest = out(opts.pan);
     dest.gain.value = opts.volume == null ? 1 : opts.volume;
-    sounds[name](t, dest, opts.power);
+    sounds[name](t, dest, opts.power, opts);
   }
 
   /* Ambience: a soft bed of forest air with birds by day and insects by night. */

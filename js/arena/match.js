@@ -156,7 +156,7 @@
     if(M.hudT > 0.2){ M.hudT = 0; renderHud(); renderStrip(false); renderFocus(); }
     pumpBanner(t);
     if(S.ended) endSequence(t);
-    M.raf = root.requestAnimationFrame(loop);
+    if(M) M.raf = root.requestAnimationFrame(loop);   // the end sequence may have closed the match
   }
 
   function buildView(alpha){
@@ -175,7 +175,7 @@
           x:lerp(p.x, c.x, alpha), y:lerp(p.y, c.y, alpha), yaw:angleLerp(p.yaw, c.yaw, alpha), alt:lerp(p.alt, c.alt, alpha),
           hp:c.alive ? c.hp/c.maxHp : 0, stealth:c.stealth,
           anim:c.anim + Math.min(0.99, Math.max(0, S.t - c.animT)),
-          pinned:!!c.pinnedBy
+          pinned:!!c.pinnedBy, flee:c.intent === 'flee', stunned:c.stunUntil > S.t
         };
       })
     };
@@ -193,13 +193,18 @@
           if(live && (e.a === M.focus || e.b === M.focus)){
             audio(e.tags.indexOf('crit') >= 0 ? 'crit' : 'hit', { power:clamp(share*4, 0.2, 1), pan:pan(victim) });
             if(share > 0.18) M.stage.camera.shake = Math.max(M.stage.camera.shake, 0.7);
+            var showy = e.tags.some(function(g){ return g === 'crit' || g === 'deathroll' || g === 'constrict' || g === 'ambush' || g === 'dive'; });
+            if(showy || share > 0.3) closeUp(e.a, e.b, 1.6);
           }
           break;
         }
         case 'special':
           if(!live) break;
           if(e.kind === 'howl' && near(S.cs[e.a])) audio('howl', { pan:pan(S.cs[e.a]) });
-          else if((e.kind === 'pounce' || e.kind === 'charge' || e.kind === 'dive') && (e.a === M.focus || e.b === M.focus)) audio('lunge', { pan:pan(S.cs[e.a]) });
+          else if((e.kind === 'pounce' || e.kind === 'charge' || e.kind === 'dive') && (e.a === M.focus || e.b === M.focus)){
+            audio('lunge', { pan:pan(S.cs[e.a]) });
+            closeUp(e.a, e.b, 1.9);
+          }
           break;
         case 'kill':
           onKill(e, live);
@@ -237,6 +242,7 @@
       M.slowUntil = now() + 900;
       M.stage.camera.shake = Math.max(M.stage.camera.shake, 1.1);
       if(e.a === M.focus || e.b === M.focus || e.first || e.streak >= 2){ M.focus = killer ? killer.id : M.focus; M.holdUntil = now() + 2600; }
+      closeUp(killer ? killer.id : e.b, e.b, 2.4);
     }
     if(e.first) banner('First blood', killer ? killer.name + ' draws it' : victim.name + ' is the first to fall', 'blood');
     else if(e.streak >= 2) banner(STREAK[Math.min(4, e.streak)], killer ? killer.name + ' the ' + SP(killer.sid).name : '', 'blood');
@@ -286,9 +292,31 @@
   function near(c){ var f = M.focus != null ? M.S.cs[M.focus] : null; return f && Math.hypot(f.x - c.x, f.y - c.y) < 220; }
 
   /* ----- director: put the camera where the fight is ----- */
+  // A face-level shot of attacker and victim for the big moments, then back out.
+  function closeUp(a, b, seconds){
+    if(!M || M.camMode === 'free') return;
+    var t = now();
+    if(M.close && t < M.close.until - 600 && M.close.a === a) return;   // don't restart a shot already running
+    M.close = { a:a, b:b, until:t + seconds*1000 };
+  }
+
   function director(dt){
     var S = M.S, t = now(), cam = M.stage.camera;
     if(M.camMode === 'free') return;
+    if(M.close && t < M.close.until){
+      var ca = S.cs[M.close.a], cb = S.cs[M.close.b] || ca;
+      var gap = Math.hypot(ca.x - cb.x, ca.y - cb.y);
+      if(gap < 180){
+        var mx = (ca.x + cb.x)/2, my = (ca.y + cb.y)/2;
+        // Shoot side-on to the pair so both faces show, from the side nearer the arena's middle.
+        var dx = cb.x - ca.x, dy = cb.y - ca.y, len = Math.hypot(dx, dy) || 1, px = -dy/len, py = dx/len;
+        if(px*mx + py*my > 0){ px = -px; py = -py; }
+        cam.goal.yaw = Math.atan2(px, py);
+        cam.lookAt(mx, my, clamp(gap*0.05 + 10, 10, 18), 0.3);
+        return;
+      }
+    }
+    cam.goal.yaw = null;
     var focus = M.focus != null ? S.cs[M.focus] : null;
     if(M.camMode === 'director' && (t > M.holdUntil || !focus || !focus.alive)){
       var best = null, bestScore = 0.25;

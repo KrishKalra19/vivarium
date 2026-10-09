@@ -202,6 +202,15 @@
 .tag.low .hp i{background:var(--a-crimson);}
 .tag.focus{font-size:17px;color:var(--a-gold);}
 .tag.focus .hp{width:60px;height:5px;}
+/* Comic callouts over a landed blow: CRIT!, DODGE, POUNCE! */
+.callout{
+  position:absolute;left:0;top:0;font-family:var(--font-hud);font-style:italic;font-weight:800;font-size:clamp(22px,3.4vw,38px);
+  letter-spacing:.02em;color:var(--a-gold);white-space:nowrap;-webkit-text-stroke:2px #1A120C;paint-order:stroke fill;
+  text-shadow:0 3px 0 #1A120C;animation:callout-pop .22s cubic-bezier(.2,1.6,.4,1) both;will-change:transform,opacity;
+}
+.callout.crit{color:#FF6A4D;font-size:clamp(28px,4.4vw,50px);}
+.callout.dodge{color:var(--a-teal);}
+@keyframes callout-pop{from{scale:.3;rotate:calc(var(--tilt) * 3);}to{scale:1;rotate:var(--tilt);}}
 
 .cam-bar{position:absolute;left:14px;bottom:12px;z-index:4;display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
 .cam-bar .toggle{background:rgba(20,15,12,.72);backdrop-filter:blur(6px);}
@@ -323,6 +332,35 @@
 @keyframes rec{50%{opacity:.25;}}
 .replay-skip{position:absolute;right:14px;bottom:12px;z-index:6;}
 .slowmo{position:absolute;left:50%;top:14px;z-index:6;transform:translateX(-50%);font-family:var(--font-hud);font-weight:800;letter-spacing:.3em;font-size:13px;color:var(--a-ink);opacity:.8;}
+
+/* ---------------- phones ---------------- */
+@media (max-width:600px){
+  .arena{padding:16px 12px 20px;border-radius:14px;min-height:0;}
+  .stage{aspect-ratio:3/4;min-height:0;border-radius:12px;}
+  .hud-top{left:8px;right:8px;top:8px;}
+  .hud-chip{gap:8px;padding:5px 9px;font-size:14px;}
+  .hud-chip .alive b{font-size:18px;}
+  .hud-chip .phase, .hud-chip .hazard{font-size:11px;}
+  .killfeed{right:8px;top:74px;width:62%;}   /* below the HUD chip, which wraps to two lines */
+  .kill{font-size:13px;padding:4px 8px;gap:5px;}
+  .kill .how{font-size:11px;}
+  .kill:nth-child(n+4){display:none;}
+  .banner{top:18%;width:92%;}
+  .banner .small{font-size:13px;}
+  .cam-bar{left:8px;right:8px;bottom:8px;}
+  .cam-bar .a-btn{min-height:38px;padding:6px 10px;}
+  .speed-bar{right:8px;bottom:54px;}
+  .speed-bar .toggle button{min-height:36px;}
+  .focus-card{left:8px;bottom:100px;max-width:calc(100% - 16px);padding:6px 10px;}
+  .focus-card .who{font-size:17px;}
+  .tag{font-size:12px;}
+  .tag.focus{font-size:14px;}
+  .potg{padding:0 0 56px 16px;}
+  .replay-badge{right:8px;top:8px;font-size:12px;}
+  .victory{padding:24px 16px 20px;}
+  .placings{font-size:13px;}
+  .placings-wrap, .placings{display:block;overflow-x:auto;}
+}
 
 @media (prefers-reduced-motion: reduce){
   .kill, .banner.show, .potg .kicker, .potg .name, .potg .desc, .potg .bar{animation:none !important;}
