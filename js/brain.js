@@ -48,7 +48,7 @@
     wIn(w,7,I.tNear,2.2); wIn(w,7,I.mem1,1.4); bIn(w,7,-0.4); // h7: recent fright, decays
 
     wOut(w,O.turn,0,0.9); wOut(w,O.turn,1,2.4); wOut(w,O.turn,5,0.15);
-    wOut(w,O.throttle,2,2.4); wOut(w,O.throttle,6,0.9); wOut(w,O.throttle,3,-1.1); wOut(w,O.throttle,7,0.9); bOut(w,O.throttle,-0.5);
+    wOut(w,O.throttle,2,2.4); wOut(w,O.throttle,6,0.9);  wOut(w,O.throttle,7,0.9); bOut(w,O.throttle,-0.5);
     wOut(w,O.headDown,3,2.2); wOut(w,O.headDown,2,-3.2); wOut(w,O.headDown,7,-1.2); bOut(w,O.headDown,-0.1);
     wOut(w,O.breed,4,2.4);
     wOut(w,O.mem1,7,1.2);
