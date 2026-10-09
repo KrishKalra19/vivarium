@@ -83,6 +83,17 @@
             <button data-speed="8">8×</button>
           </div>
           <button class="btn wide" id="pauseBtn">Pause</button>
+          <button class="btn wide" id="turboBtn" aria-pressed="false">Turbo<span class="sub">as fast as this device can run, lighter drawing</span></button>
+        </div>
+
+        <div class="group">
+          <h3>Behaviour</h3>
+          <div class="seg" id="brainSeg">
+            <button data-mode="instinct" class="active">Instinct</button>
+            <button data-mode="mixed">Mixed A/B</button>
+            <button data-mode="brains">Brains</button>
+          </div>
+          <span class="caption">agoutis only for now · switching restarts the range</span>
         </div>
 
         <div class="group">
@@ -146,6 +157,18 @@
       </div>
 
       <div class="panel" data-panel="genetics" hidden>
+        <div class="group" id="brainGroup" hidden>
+          <h3>Evolved brains</h3>
+          <span class="caption" id="brainSummary">agouti lineages</span>
+          <div class="card">
+            <div class="card-head"><span class="card-title">Agouti lineages</span><span class="card-val" id="vLineage" style="color:var(--accent)">—</span></div>
+            <div class="mini-legend">
+              <span><i style="background:var(--accent)"></i>brain</span>
+              <span><i id="instinctSwatch"></i>instinct</span>
+            </div>
+            <canvas class="chart" id="chartLineage"></canvas>
+          </div>
+        </div>
         <div class="group">
           <h3>Trait drift</h3>
           <span class="caption">population averages for the selected species</span>
@@ -169,6 +192,7 @@
         <div class="group">
           <h3>Specimen</h3>
           <div class="specimen" id="specimenCard"></div>
+          <canvas class="brain-canvas" id="brainCanvas" hidden></canvas>
         </div>
       </div>
 
@@ -188,6 +212,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="js/species.js"></script>
 <script src="js/bodies.js"></script>
+<script src="js/brain.js"></script>
 <script src="js/vivarium.js"></script>
 <script src="js/arena/roster.js"></script>
 <script src="js/arena/tuning.js"></script>

@@ -286,3 +286,8 @@ canvas.chart{width:100%;height:74px;display:block;}
 .mode-tab.active{background:var(--bg);color:var(--ink);box-shadow:0 6px 14px -10px var(--shadow);}
 .mode-tab .biome-tag{margin-left:0;}
 .stats[hidden], main[hidden]{display:none;}
+
+/* Evolved brains */
+.brain-canvas{width:100%;height:290px;display:block;margin-top:10px;}
+.brain-canvas[hidden]{display:none;}
+#turboBtn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#05161a;}
