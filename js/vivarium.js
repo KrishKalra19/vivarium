@@ -708,14 +708,18 @@
       var x=brains[Math.floor(Math.random()*brains.length)], y=brains[Math.floor(Math.random()*brains.length)];
       if(x!==y){ div += Brain.distance(x,y); pairs++; }
     }
+    var topGen = 0;
+    for(var tg=0; tg<animals.length; tg++) if(animals[tg].genome.brain && animals[tg].gen>topGen) topGen = animals[tg].gen;
+    if(topGen >= lastGenMark+10){ lastGenMark = topGen - topGen%10; mark('gen '+lastGenMark); }
+    if(sampleCount===30) metricBase = { breed:metricEma.breed.brain, flee:metricEma.flee.brain, headDown:metricEma.headDown.brain, predRate:metricEma.predRate.brain };
     push(driftHistory.drift, brains.length ? drift/brains.length : 0);
     push(driftHistory.diversity, pairs ? div/pairs : 0);
 
     // Field log: takeovers and lineage losses, with hysteresis so it doesn't chatter.
     var id = BRAIN_IDS[0], share = (lb+li) ? lb/(lb+li) : null;
     if(worldMode==='mixed' && share!=null){
-      if(lineageMark.share!=='brain' && share>0.75 && lb>=20){ lineageMark.share='brain'; logEvent({ sid:id, text:'Evolved-brain agoutis now make up '+Math.round(share*100)+'% of the population.' }); }
-      else if(lineageMark.share!=='instinct' && share<0.25 && li>=20){ lineageMark.share='instinct'; logEvent({ sid:id, text:'Instinct agoutis are outcompeting the evolved brains ('+Math.round((1-share)*100)+'%).' }); }
+      if(lineageMark.share!=='brain' && share>0.75 && lb>=20){ lineageMark.share='brain'; mark('brains lead'); logEvent({ sid:id, text:'Evolved-brain agoutis now make up '+Math.round(share*100)+'% of the population.' }); }
+      else if(lineageMark.share!=='instinct' && share<0.25 && li>=20){ lineageMark.share='instinct'; mark('instinct leads'); logEvent({ sid:id, text:'Instinct agoutis are outcompeting the evolved brains ('+Math.round((1-share)*100)+'%).' }); }
       else if(share>0.4 && share<0.6) lineageMark.share=null;
       if(lineageMark.instinctAlive && !li) logEvent({ sid:id, text:'The instinct agouti lineage has died out.' });
       lineageMark.instinctAlive = li>0;
@@ -724,7 +728,9 @@
     lineageMark.brainAlive = lb>0;
   }
 
+  var lastGenMark = 0;
   function sample(){
+    sampleCount++;
     for(var i=0;i<SPECIES_IDS.length;i++){
       var id=SPECIES_IDS[i];
       var ph=popHistory[id], prev=ph.length ? ph[ph.length-1] : null;
@@ -754,6 +760,7 @@
     push(vegHistory.fruit, rCells? rSum/rCells*100 : 0);
     renderCharts();
     renderRoster();
+    if(modal.src) renderModal();
   }
 
   function resetHistory(){
@@ -764,6 +771,7 @@
     vegHistory={ foliage:[], fruit:[] };
     lineageHistory={ brain:[], instinct:[] };
     resetMetrics();
+    sampleCount = 0; chartMarks = []; lastGenMark = 0; metricBase = null;
   }
 
   /* --------------------------- world setup --------------------------- */
@@ -1003,14 +1011,32 @@
   }
 
   /* --------------------------- charts --------------------------- */
-  function drawChart(el, series, floor){
+  /* Timeline markers ("challenge started", "generation 10"...) drawn on brain charts.
+     Positions are in samples, so they scroll left with the history. */
+  var sampleCount = 0, chartMarks = [];
+  function mark(label){ chartMarks.push({ s:sampleCount, label:label }); if(chartMarks.length>40) chartMarks.shift(); }
+
+  function rgba(color, a){
+    if(color && color.charAt(0)==='#'){ var c=hexToRgb(color); return 'rgba('+c.r+','+c.g+','+c.b+','+a+')'; }
+    return color;
+  }
+
+  /* opts: { gap:true shades between series 0 and 1 in the leader's colour,
+             marks:true draws timeline markers, big:true adds axes and labels,
+             fmt:value formatter, hover:index of the sample under the pointer } */
+  function drawChart(el, series, floor, opts){
+    opts = opts || {};
+    el._chart = { series:series, floor:floor, opts:opts };
     var rect = el.getBoundingClientRect();
     var dpr = Math.min(2, window.devicePixelRatio||1);
-    var w = Math.max(10,rect.width), h = Math.max(10,rect.height);
-    el.width=Math.round(w*dpr); el.height=Math.round(h*dpr);
+    var W = Math.max(10,rect.width), H = Math.max(10,rect.height);
+    if(el.width!==Math.round(W*dpr) || el.height!==Math.round(H*dpr)){ el.width=Math.round(W*dpr); el.height=Math.round(H*dpr); }
     var c = el.getContext('2d');
     c.setTransform(dpr,0,0,dpr,0,0);
-    c.clearRect(0,0,w,h);
+    c.clearRect(0,0,W,H);
+
+    var big = !!opts.big, L = big ? 46 : 0, B = big ? 22 : 0, T = big ? 16 : 3;
+    var w = W-L-(big?10:0), h = H-B-T;
 
     var max = floor||1, any=false;
     for(var s=0;s<series.length;s++){
@@ -1020,41 +1046,136 @@
     }
     if(!any) return;
     max *= 1.15;
+    var stepX = w/(HISTORY_CAP-1);
+    function X(off, p){ return L+(off+p)*stepX; }
+    function Y(v){ return T+h-(v/max)*h; }
 
     c.strokeStyle = theme.line; c.lineWidth = 1;
-    for(var g=1;g<3;g++){
-      var gy = h - h*g/3;
-      c.beginPath(); c.moveTo(0,gy); c.lineTo(w,gy); c.stroke();
+    c.font = '10px ui-monospace, monospace'; c.fillStyle = theme.inkDim;
+    for(var g=0;g<=3;g++){
+      var gv = max*g/3, gy = Y(gv);
+      if(g>0){ c.beginPath(); c.moveTo(L,gy); c.lineTo(L+w,gy); c.stroke(); }
+      if(big){ c.textAlign='right'; c.textBaseline='middle'; c.fillText(opts.fmt ? opts.fmt(gv) : Math.round(gv), L-6, gy); }
+    }
+    if(big){
+      c.textAlign='center'; c.textBaseline='top';
+      for(var m=0;m<=4;m++){
+        var secs = Math.round((HISTORY_CAP-1)*(1-m/4));
+        c.fillText(secs ? '−'+(secs>=60 ? (secs/60).toFixed(secs%60?1:0)+'m' : secs+'s') : 'now', L+w*m/4, T+h+6);
+      }
     }
 
-    var stepX = w/(HISTORY_CAP-1);
+    // Lead/lag: shade the gap between the first two series in whichever leads.
+    if(opts.gap && series.length>1 && series[0].data.length>1){
+      var d0=series[0].data, d1=series[1].data, n=Math.min(d0.length,d1.length), o0=HISTORY_CAP-n;
+      for(var k=1;k<n;k++){
+        var a0=d0[d0.length-n+k-1], b0=d1[d1.length-n+k-1], a1=d0[d0.length-n+k], b1=d1[d1.length-n+k];
+        c.fillStyle = rgba((a1+a0)>=(b1+b0) ? series[0].color : series[1].color, 0.16);
+        c.beginPath();
+        c.moveTo(X(o0,k-1),Y(a0)); c.lineTo(X(o0,k),Y(a1)); c.lineTo(X(o0,k),Y(b1)); c.lineTo(X(o0,k-1),Y(b0));
+        c.closePath(); c.fill();
+      }
+    }
+
     for(var si=0; si<series.length; si++){
-      var data = series[si].data;
+      var data = series[si].data, col = series[si].color;
       if(data.length<2) continue;
       var off = HISTORY_CAP-data.length;
-      if(series.length===1){
-        c.beginPath();
-        for(var p=0;p<data.length;p++){
-          var px=(off+p)*stepX, py=h-(data[p]/max)*h;
-          if(p===0) c.moveTo(px,py); else c.lineTo(px,py);
-        }
-        c.lineTo((off+data.length-1)*stepX, h);
-        c.lineTo(off*stepX, h);
-        c.closePath();
-        c.save(); c.globalAlpha=0.14; c.fillStyle=series[si].color; c.fill(); c.restore();
-      }
+      // gradient area under the line
+      var grad = c.createLinearGradient(0, T, 0, T+h);
+      grad.addColorStop(0, rgba(col, series.length===1 ? 0.32 : 0.16));
+      grad.addColorStop(1, rgba(col, 0));
       c.beginPath();
-      for(var q=0;q<data.length;q++){
-        var qx=(off+q)*stepX, qy=h-(data[q]/max)*h;
-        if(q===0) c.moveTo(qx,qy); else c.lineTo(qx,qy);
-      }
-      c.strokeStyle = series[si].color; c.lineWidth = 1.7; c.stroke();
+      for(var p=0;p<data.length;p++){ if(p===0) c.moveTo(X(off,p),Y(data[p])); else c.lineTo(X(off,p),Y(data[p])); }
+      c.lineTo(X(off,data.length-1), T+h); c.lineTo(X(off,0), T+h); c.closePath();
+      c.fillStyle = grad; c.fill();
+      // line with a soft glow
+      c.save();
+      c.shadowColor = rgba(col, 0.7); c.shadowBlur = big ? 8 : 5;
       c.beginPath();
-      c.fillStyle = series[si].color;
-      c.arc((off+data.length-1)*stepX, h-(data[data.length-1]/max)*h, 2.4, 0, Math.PI*2);
-      c.fill();
+      for(var q=0;q<data.length;q++){ if(q===0) c.moveTo(X(off,q),Y(data[q])); else c.lineTo(X(off,q),Y(data[q])); }
+      c.strokeStyle = col; c.lineWidth = big ? 2.2 : 1.7; c.stroke();
+      c.restore();
+      // latest value: dot with a halo
+      var lx=X(off,data.length-1), ly=Y(data[data.length-1]);
+      c.beginPath(); c.fillStyle = rgba(col, 0.25); c.arc(lx, ly, big ? 7 : 5, 0, Math.PI*2); c.fill();
+      c.beginPath(); c.fillStyle = col; c.arc(lx, ly, big ? 3.2 : 2.4, 0, Math.PI*2); c.fill();
+    }
+
+    if(opts.marks){
+      c.save();
+      c.setLineDash([3,3]); c.strokeStyle = rgba(theme.ink, 0.35); c.lineWidth = 1;
+      c.textAlign='left'; c.textBaseline='top'; c.fillStyle = theme.inkDim;
+      var lastLabelX = -1e9;
+      for(var mk=0; mk<chartMarks.length; mk++){
+        var pos = HISTORY_CAP-1-(sampleCount-1-chartMarks[mk].s);
+        if(pos<0) continue;
+        var mx = L+pos*stepX;
+        c.beginPath(); c.moveTo(mx, T); c.lineTo(mx, T+h); c.stroke();
+        if(big && mx-lastLabelX > 70){ c.fillText(chartMarks[mk].label, mx+3, T+2); lastLabelX = mx; }
+      }
+      c.restore();
+    }
+
+    if(opts.hover!=null){
+      var hi = opts.hover, hx = L+hi*stepX;
+      c.strokeStyle = rgba(theme.ink, 0.6); c.lineWidth = 1;
+      c.beginPath(); c.moveTo(hx, T); c.lineTo(hx, T+h); c.stroke();
+      for(var hs=0; hs<series.length; hs++){
+        var hd=series[hs].data, idx=hi-(HISTORY_CAP-hd.length);
+        if(idx<0 || idx>=hd.length) continue;
+        c.beginPath(); c.fillStyle=series[hs].color; c.arc(hx, Y(hd[idx]), 4, 0, Math.PI*2); c.fill();
+      }
     }
   }
+
+  /* ---------------- tap a chart to see it large ---------------- */
+  var modal = { el:null, src:null, hover:null };
+  function openChart(src){
+    var card = src.closest('.card');
+    modal.src = src; modal.hover = null;
+    document.getElementById('cmTitle').textContent = card ? card.querySelector('.card-title').textContent : '';
+    var cap = card ? card.querySelector('.caption, .mini-legend') : null;
+    document.getElementById('cmCaption').innerHTML = cap ? cap.innerHTML : '';
+    document.getElementById('chartModal').hidden = false;
+    renderModal();
+  }
+  function closeChart(){ document.getElementById('chartModal').hidden = true; modal.src = null; }
+  function renderModal(){
+    if(!modal.src || !modal.src._chart) return;
+    var ch = modal.src._chart, cv = document.getElementById('cmCanvas');
+    var o = {}; for(var k in ch.opts) o[k]=ch.opts[k];
+    o.big = true; o.hover = modal.hover;
+    drawChart(cv, ch.series, ch.floor, o);
+    var out = document.getElementById('cmReadout');
+    if(modal.hover==null){ out.textContent = 'Hover or drag across the chart to read values.'; return; }
+    var ago = HISTORY_CAP-1-modal.hover, parts = [];
+    ch.series.forEach(function(se){
+      var idx = modal.hover-(HISTORY_CAP-se.data.length);
+      if(idx>=0 && idx<se.data.length) parts.push('<span><i style="background:'+se.color+'"></i>'+(se.name||'')+' '+(ch.opts.fmt ? ch.opts.fmt(se.data[idx]) : Math.round(se.data[idx]))+'</span>');
+    });
+    out.innerHTML = '<b>'+(ago ? ago+'s ago' : 'now')+'</b> '+parts.join(' ');
+  }
+  function modalPointer(e){
+    var cv = document.getElementById('cmCanvas'), r = cv.getBoundingClientRect();
+    var pt = e.touches ? e.touches[0] : e;
+    var x = pt.clientX - r.left - 46, w = r.width - 56;
+    modal.hover = clamp(Math.round(x/w*(HISTORY_CAP-1)), 0, HISTORY_CAP-1);
+    renderModal();
+  }
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if(t.matches && t.matches('canvas.chart')) openChart(t);
+    else if(t.id==='chartModal' || t.id==='cmClose') closeChart();
+  });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeChart(); });
+  (function(){
+    var cv = document.getElementById('cmCanvas');
+    cv.addEventListener('mousemove', modalPointer);
+    cv.addEventListener('touchstart', modalPointer, { passive:true });
+    cv.addEventListener('touchmove', modalPointer, { passive:true });
+    cv.addEventListener('mouseleave', function(){ modal.hover=null; renderModal(); });
+  })();
 
   var el = {
     chartLineage:document.getElementById('chartLineage'),
@@ -1067,7 +1188,7 @@
   };
 
   function seriesFor(ids){
-    return ids.map(function(id){ return { data:popHistory[id], color:SPECIES[id].color }; });
+    return ids.map(function(id){ return { data:popHistory[id], color:SPECIES[id].color, name:SPECIES[id].name }; });
   }
 
   function renderCharts(){
@@ -1083,9 +1204,9 @@
     if(worldMode!=='instinct'){
       var lb=lineageHistory.brain, li=lineageHistory.instinct;
       drawChart(el.chartLineage, [
-        { data:lb, color:theme.accent },
-        { data:li, color:SPECIES[BRAIN_IDS[0]].color }
-      ], 20);
+        { data:lb, color:theme.accent, name:'brain' },
+        { data:li, color:SPECIES[BRAIN_IDS[0]].color, name:'instinct' }
+      ], 20, { gap:worldMode==='mixed', marks:true });
       var nb=lb.length?lb[lb.length-1]:0, ni=li.length?li[li.length-1]:0;
       document.getElementById('vLineage').textContent = (nb+ni) ? Math.round(nb/(nb+ni)*100)+'% brain' : '—';
       var bg=0;
@@ -1093,18 +1214,19 @@
       var ic = SPECIES[BRAIN_IDS[0]].color;
       BRAIN_CHARTS.forEach(function(c){
         var h = metricHistory[c.key];
-        var series = [{ data:h.brain, color:theme.accent }];
-        if(worldMode==='mixed') series.push({ data:h.instinct, color:ic });
-        drawChart(document.getElementById('bc_'+c.key), series, c.floor);
+        var series = [{ data:h.brain, color:theme.accent, name:'brain' }];
+        if(worldMode==='mixed') series.push({ data:h.instinct, color:ic, name:'instinct' });
+        drawChart(document.getElementById('bc_'+c.key), series, c.floor, { marks:true, fmt:c.fmt });
         var lastB = h.brain.length ? h.brain[h.brain.length-1] : null;
         var lastI = h.instinct.length ? h.instinct[h.instinct.length-1] : null;
         document.getElementById('bv_'+c.key).textContent = lastB==null ? '—' :
           c.fmt(lastB)+(worldMode==='mixed' && lastI!=null ? ' vs '+c.fmt(lastI) : '');
       });
       drawChart(document.getElementById('bc_drift'), [
-        { data:driftHistory.drift, color:theme.accent },
-        { data:driftHistory.diversity, color:theme.fruit }
-      ], 0.2);
+        { data:driftHistory.drift, color:theme.accent, name:'drift' },
+        { data:driftHistory.diversity, color:theme.fruit, name:'diversity' }
+      ], 0.2, { marks:true, fmt:function(v){ return v.toFixed(2); } });
+      document.getElementById('storyText').innerHTML = evolutionStory(nb, ni, bg);
       var dd=driftHistory.drift;
       document.getElementById('bv_drift').textContent = dd.length ? dd[dd.length-1].toFixed(2) : '—';
       document.getElementById('brainSummary').textContent =
@@ -1210,8 +1332,11 @@
       else if(a.state==='flee' && a.target) intents.push('running from '+article(lower(a.target.sid)));
       else intents.push('on the move ('+Math.round((o[O.throttle]+1)*50)+'% throttle)');
       if(a.wantBreed) intents.push('ready to breed');
-      html += '<div class="note"><b>Evolved brain</b>: '+intents.join(' · ')+'.<br>Live network below: '+
-        'nodes glow with activity, lines show weights (teal +, red −).</div>';
+      var changes = brainChanges(a.genome.brain);
+      html += '<div class="note"><b>Evolved brain</b>: '+intents.join(' · ')+'.</div>';
+      html += '<div class="note changes"><b>Compared with the starting brain, this '+lower(a.sid)+':</b>'+
+        (changes.length ? '<ul><li>'+changes.join('</li><li>')+'</li></ul>' : '<br>is still wired almost exactly like it.')+'</div>';
+      html += '<div class="note dim">Live network below: nodes glow with activity, lines show weights (teal +, red −).</div>';
     } else if(a.vigil){
       html += '<div class="note"><b>Instinct lineage</b>: scripted rules'+(a.headDown?', grazing head down':'')+'.</div>';
     }
@@ -2460,12 +2585,14 @@
     if(params.brainMode==='instinct') params.brainMode = 'mixed';
     seedWorld(); defaultView(); repaintPlants(); syncBrainUI();
     logEvent({ sid:BRAIN_IDS[0], text:'Seeded '+lower(BRAIN_IDS[0])+' brains from '+source+' (generation '+pool.generation+').' });
+    mark(/challenging/.test(source) ? 'challenge starts' : 'seeded');
   }
   function startEvolve(){
     seedPool = null;
     params.brainMode = 'brains';
     seedWorld(); defaultView(); repaintPlants();
     evolveRun = { target:25 };
+    mark('evolving');
     setTurbo(true);
     syncBrainUI();
   }
@@ -2485,6 +2612,72 @@
     if(evolveRun) return 'Evolving brains-only: generation '+brainGenGap()+' of '+evolveRun.target+', then Mixed vs instinct.';
     if(seedPool && worldMode!=='instinct') return 'Brain lineage seeded from '+seedPool.source+'.';
     return '';
+  }
+
+  var metricBase = null;   // brain metrics 30s into the run, for brains-only comparisons
+
+  /* Plain-English summary of where evolution has taken the brains so far. */
+  function evolutionStory(nb, ni, gen){
+    var name = lower(BRAIN_IDS[0])+'s', E = metricEma, lines = [], ref, refName;
+    if(nb===0) return 'No brain '+name+' are alive right now. New arrivals will come from the gene bank of earlier successful parents.';
+    var lead = 'Brain '+name+' are on generation <b>'+gen+'</b>'+(seedPool ? ', descended from '+seedPool.source : '')+'. ';
+    if(worldMode==='mixed'){
+      var share = Math.round(nb/(nb+ni)*100);
+      lead += share>=60 ? 'They\'re <b>winning</b>: '+share+'% of '+name+' have brains.'
+            : share<=40 ? 'Instinct is <b>winning</b> for now: only '+share+'% of '+name+' have brains.'
+            : 'It\'s <b>neck and neck</b>: '+share+'% of '+name+' have brains.';
+      ref = { breed:E.breed.instinct, flee:E.flee.instinct, headDown:E.headDown.instinct, predRate:E.predRate.instinct };
+      refName = 'instinct '+name;
+    } else {
+      lead += 'Compared with how they behaved at the start of this run:';
+      ref = metricBase; refName = 'at the start';
+    }
+    if(ref){
+      function cmp(now, was, more, less, unit, tol){
+        if(now==null || was==null || Math.abs(now-was) < tol) return;
+        lines.push((now>was ? more : less)+' <span class="num">('+unit(now)+' vs '+unit(was)+')</span>');
+      }
+      var pct=function(v){ return Math.round(v)+'%'; }, px=function(v){ return Math.round(v)+' px'; };
+      cmp(E.breed.brain, ref.breed, 'wait until they\'re better fed to breed', 'breed <b>earlier</b>, at lower energy: a riskier strategy', pct, 4);
+      cmp(E.flee.brain, ref.flee, 'start running from predators <b>sooner</b>', 'let predators get <b>closer</b> before running', px, 6);
+      cmp(E.headDown.brain, ref.headDown, 'spend <b>more</b> time grazing head-down', 'graze head-down <b>less</b>, staying alert', pct, 4);
+      cmp(E.predRate.brain, ref.predRate, 'get caught <b>more</b> often', 'get caught <b>less</b> often', function(v){ return v.toFixed(0)+'/100/min'; }, 8);
+    }
+    var dd = driftHistory.drift, d = dd.length ? dd[dd.length-1] : 0;
+    var drift = d<0.12 ? 'Their brains are still close to the hand-wired starting brain.'
+              : d<0.25 ? 'Their brains have <b>noticeably</b> moved away from the starting brain.'
+              : 'Their brains have changed <b>a lot</b> from the starting brain.';
+    return '<p>'+lead+'</p>'+(lines.length ? '<ul><li>'+lines.slice(0,4).join('</li><li>')+'</li></ul>' :
+      (ref ? '<p>No clear behaviour differences yet. Give it a few generations.</p>' : ''))+'<p>'+drift+'</p>';
+  }
+
+  /* Plain-English top changes in one brain versus the starting brain, using the
+     direct input→output sensitivity (hidden layer linearised). */
+  var IN_TEXT = ['', '', 'a nearby predator', '', '', 'rich food in view', 'food underfoot', '', '', 'nearby kin',
+                 'crowding', 'having plenty of energy', 'getting older', 'being able to breed'];
+  var TURN_TEXT = { 0:'a predator', 3:'food', 7:'kin' };
+  var OUT_TEXT = [null, ['speed up','slow down'], ['put its head down','keep its head up'], ['breed','hold off breeding']];
+  function sensitivity(w, o, i){
+    var s=0;
+    for(var h=0;h<Brain.NH;h++) s += Brain.weightOut(w,o,h)*Brain.weightIn(w,h,i);
+    return s;
+  }
+  function brainChanges(w){
+    var cands=[];
+    for(var o=0;o<4;o++){
+      for(var i=0;i<14;i++){
+        var turnPair = o===0 && TURN_TEXT[i]!=null;
+        if(o===0 ? !turnPair : !IN_TEXT[i]) continue;
+        var dlt = sensitivity(w,o,i) - sensitivity(SEED_BRAIN,o,i);
+        if(Math.abs(dlt) < 0.3) continue;
+        var text = turnPair
+          ? 'turns '+(dlt>0 ? 'towards ' : 'away from ')+TURN_TEXT[i]+' more strongly'
+          : IN_TEXT[i]+' makes it more likely to '+OUT_TEXT[o][dlt>0?0:1];
+        cands.push({ d:Math.abs(dlt), text:text });
+      }
+    }
+    cands.sort(function(a,b){ return b.d-a.d; });
+    return cands.slice(0,3).map(function(c){ return c.text; });
   }
 
   var BRAIN_CHARTS = [
@@ -2512,6 +2705,18 @@
       '<i class="dot" style="background:var(--fruit)"></i>diversity between brains</span>'+
       '<canvas class="chart" id="bc_drift"></canvas></div>';
     host.insertAdjacentHTML('beforeend', html);
+    document.getElementById('brainSummary').insertAdjacentHTML('afterend',
+      '<details class="intro"><summary>What am I looking at?</summary>'+
+      '<p>Some agoutis here are driven by a small <b>neural network</b> (their "brain") instead of hand-written rules. '+
+      'It sees nearby predators, food and kin, plus its own energy, and decides where to steer, how fast to go, '+
+      'whether to graze and when to breed.</p>'+
+      '<p>Grazing means putting your head down, which makes an agouti slower and half-blind to predators. '+
+      'Every brain is inherited from its parent with small random changes. Brains that survive and breed more pass '+
+      'on their wiring, so behaviour <b>evolves</b>; nobody programs it.</p>'+
+      '<p><b>Mixed A/B</b> pits brain agoutis against rule-following "instinct" agoutis in the same forest. '+
+      'Teal rings on the map mark brain animals. Tap a chart to enlarge it.</p></details>'+
+      '<div class="card story"><div class="card-head"><span class="card-title">What\'s happening</span></div>'+
+      '<div id="storyText" class="story-text"></div></div>');
   }
 
   function syncBrainUI(){

@@ -217,6 +217,14 @@
   <main class="arena" id="arenaMode" hidden></main>
 </div>
 
+<div class="chart-modal" id="chartModal" hidden>
+  <div class="chart-modal-box" role="dialog" aria-modal="true" aria-labelledby="cmTitle">
+    <div class="cm-head"><b id="cmTitle"></b><button class="btn quiet" id="cmClose" aria-label="Close">×</button></div>
+    <div class="cm-caption" id="cmCaption"></div>
+    <canvas id="cmCanvas"></canvas>
+    <div class="cm-readout" id="cmReadout"></div>
+  </div>
+</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="js/species.js"></script>
 <script src="js/bodies.js"></script>
