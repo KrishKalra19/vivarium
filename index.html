@@ -93,8 +93,8 @@
             <button data-mode="mixed">Mixed A/B</button>
             <button data-mode="brains">Brains</button>
           </div>
-          <span class="caption">agoutis only for now · switching restarts the range</span>
-          <button class="btn wide" id="evolveBtn">Evolve, then challenge<span class="sub">brains only on turbo for 25 generations, then Mixed vs instinct</span></button>
+          <span class="caption">all herbivores · switching restarts the range</span>
+          <button class="btn wide" id="evolveBtn">Evolve, then challenge<span class="sub">brains-only on turbo for 10 sim-minutes, then Mixed vs instinct</span></button>
           <div class="btn-grid">
             <button class="btn" id="exportBrains">Export brains<span class="sub">download .json</span></button>
             <button class="btn" id="importBrains">Import brains<span class="sub">seed from a file</span></button>
@@ -167,9 +167,10 @@
       <div class="panel" data-panel="genetics" hidden>
         <div class="group" id="brainGroup" hidden>
           <h3>Evolved brains</h3>
-          <span class="caption" id="brainSummary">agouti lineages</span>
+          <div class="seg" id="brainSpeciesSeg"></div>
+          <span class="caption" id="brainSummary">lineages</span>
           <div class="card">
-            <div class="card-head"><span class="card-title">Agouti lineages</span><span class="card-val" id="vLineage" style="color:var(--accent)">—</span></div>
+            <div class="card-head"><span class="card-title" id="lineageTitle">Lineages</span><span class="card-val" id="vLineage" style="color:var(--accent)">—</span></div>
             <div class="mini-legend">
               <span><i style="background:var(--accent)"></i>brain</span>
               <span><i id="instinctSwatch"></i>instinct</span>
