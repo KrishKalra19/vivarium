@@ -94,6 +94,14 @@
             <button data-mode="brains">Brains</button>
           </div>
           <span class="caption">agoutis only for now · switching restarts the range</span>
+          <button class="btn wide" id="evolveBtn">Evolve, then challenge<span class="sub">brains only on turbo for 25 generations, then Mixed vs instinct</span></button>
+          <div class="btn-grid">
+            <button class="btn" id="exportBrains">Export brains<span class="sub">download .json</span></button>
+            <button class="btn" id="importBrains">Import brains<span class="sub">seed from a file</span></button>
+          </div>
+          <button class="btn quiet wide" id="restoreBrains" hidden>Restore autosaved brains<span class="sub" id="restoreSub"></span></button>
+          <input type="file" id="brainFile" accept=".json,application/json" hidden>
+          <div class="status" id="brainStatus"></div>
         </div>
 
         <div class="group">

@@ -126,7 +126,14 @@
     };
   }
 
+  /* When set, new brain lineages start from these genomes (imported, restored
+     or evolved by "Evolve, then challenge") instead of the hand-wired seed. */
+  var seedPool = null;
   function brainGenome(){
+    if(seedPool && seedPool.genomes.length){
+      var src = seedPool.genomes[Math.floor(Math.random()*seedPool.genomes.length)];
+      return mutate(src, params.mutationRate*0.3);
+    }
     var g = newGenome();
     g.lineage = 'brain';
     g.brain = Brain.seedInstinct();
@@ -742,6 +749,7 @@
     }
     push(lineageHistory.brain, lb); push(lineageHistory.instinct, li);
     if(worldMode!=='instinct') sampleBrainMetrics(lb, li);
+    brainTick();
     push(vegHistory.foliage, fSum/foliage.length*100);
     push(vegHistory.fruit, rCells? rSum/rCells*100 : 0);
     renderCharts();
@@ -761,7 +769,7 @@
   /* --------------------------- world setup --------------------------- */
   function seedWorld(){
     animals=[]; idCounter=1; maxGeneration=0; simClock=0; sampleAccum=0;
-    worldMode = params.brainMode; brainBank = [];
+    worldMode = params.brainMode; brainBank = []; autosaveAt = 0;
     lineageDeaths = { brain:{}, instinct:{} };
     events.droughtUntil=0; events.mastUntil=0;
     buildTerrain(); initHash(); resetHistory(); resetWatch();
@@ -1230,6 +1238,7 @@
     if(simClock<events.droughtUntil) parts.push('drought — '+Math.ceil(events.droughtUntil-simClock)+'s');
     if(simClock<events.mastUntil) parts.push('mast fruiting — '+Math.ceil(events.mastUntil-simClock)+'s');
     if(params.turbo && !params.paused) parts.push('turbo — '+Math.round(turboRate)+'× real time');
+    document.getElementById('brainStatus').textContent = nowReal() < brainNoteUntil ? brainNote : brainStatusText();
     document.getElementById('statusLine').textContent = parts.join(' · ');
   }
 
@@ -1315,15 +1324,42 @@
   });
   document.querySelectorAll('#brainSeg button').forEach(function(b){
     b.addEventListener('click', function(){
+      evolveRun = null;
       params.brainMode = b.getAttribute('data-mode');
       seedWorld(); defaultView(); repaintPlants();
       syncBrainUI();
     });
   });
-  document.getElementById('turboBtn').addEventListener('click', function(){
-    params.turbo = !params.turbo;
-    this.setAttribute('aria-pressed', params.turbo);
+  function setTurbo(on){
+    params.turbo = on;
+    document.getElementById('turboBtn').setAttribute('aria-pressed', on);
     turboRate = 0;
+  }
+  document.getElementById('turboBtn').addEventListener('click', function(){ setTurbo(!params.turbo); });
+  document.getElementById('evolveBtn').addEventListener('click', startEvolve);
+  document.getElementById('exportBrains').addEventListener('click', function(){
+    var data = packBrains();
+    if(!data){ note('No brain agoutis to export yet. Pick Mixed or Brains first.'); return; }
+    var blob = new Blob([JSON.stringify(data)], { type:'application/json' });
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'agouti-brains-gen'+data.generation+'.json';
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(function(){ URL.revokeObjectURL(link.href); }, 2000);
+  });
+  document.getElementById('importBrains').addEventListener('click', function(){ document.getElementById('brainFile').click(); });
+  document.getElementById('brainFile').addEventListener('change', function(){
+    var f = this.files && this.files[0], input = this;
+    if(!f) return;
+    f.text().then(function(txt){
+      try { useSeedPool(unpackBrains(JSON.parse(txt)), 'imported file '+f.name); }
+      catch(e){ note('Couldn\'t load '+f.name+': '+e.message+'.'); }
+      input.value = '';
+    });
+  });
+  document.getElementById('restoreBrains').addEventListener('click', function(){
+    try { useSeedPool(unpackBrains(readAutosave()), 'the autosave'); }
+    catch(e){ note('Autosave unreadable: '+e.message+'.'); }
   });
   document.querySelectorAll('#speedSeg button').forEach(function(b){
     b.addEventListener('click', function(){
@@ -1719,6 +1755,7 @@
     var hills = [], trees = null, treeInfo = [];
     var speciesMeshes = {}, counters = {};
     var shadowMesh, shadowCap = 0, carcassMesh, followRing, targetRing, burstRings = [];
+    var brainRings, vigilRing, sensorLines, BRAIN_RING_CAP = 2000;
     var orbit = { tx:0, tz:0, dist:250, yaw:0.65, pitch:1.0, distTo:0, pitchTo:0, home:false };
     var canopyOpacity = 1;
     var dummy, tmpColor, projV;
@@ -1797,6 +1834,23 @@
       carcassMesh.count = 0;
       scene.add(carcassMesh);
 
+      var rg = new THREE.RingGeometry(0.8, 1, 24);
+      rg.rotateX(-Math.PI/2);
+      brainRings = new THREE.InstancedMesh(rg, new THREE.MeshBasicMaterial({ color:0x4fd1e6, transparent:true, opacity:0.75, depthWrite:false }), BRAIN_RING_CAP);
+      brainRings.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      brainRings.frustumCulled = false;
+      brainRings.count = 0;
+      brainRings.renderOrder = 9;
+      scene.add(brainRings);
+      vigilRing = flatRing(0.96, 0xffffff, 0.45);
+      var lg = new THREE.BufferGeometry();
+      lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(18), 3));
+      lg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(18), 3));
+      sensorLines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0.9, depthTest:false }));
+      sensorLines.renderOrder = 11;
+      sensorLines.frustumCulled = false;
+      sensorLines.visible = false;
+      scene.add(sensorLines);
       followRing = flatRing(0.82, 0x4fd1e6, 0.95);
       targetRing = flatRing(0.8, 0xff5a44, 0.95);
       for(var i=0;i<6;i++) burstRings.push(flatRing(0.9, 0xff5a44, 1));
@@ -2065,6 +2119,29 @@
       shadowMesh.instanceMatrix.needsUpdate = true;
     }
 
+    var COL_FOOD = new THREE.Color(), COL_KIN = new THREE.Color(0x4fd1e6), COL_THREAT = new THREE.Color(0xff5a44);
+    function updateSensors3D(a){
+      if(!a){ vigilRing.visible = false; sensorLines.visible = false; return; }
+      COL_FOOD.set(theme.fruit || '#e0a040');
+      var y0 = heightAt(a.x, a.y) + a.alt + 0.4;
+      var range = a.sense*SPECIES[a.sid].panic*(a.headDown ? HEAD_DOWN_SENSE : 1)*S;
+      vigilRing.visible = true;
+      vigilRing.material.color.set(a.headDown ? 0xff5a44 : 0xffffff);
+      vigilRing.position.set(toX(a.x), y0 - 0.25, toZ(a.y));
+      vigilRing.scale.set(range, range, range);
+      var pos = sensorLines.geometry.attributes.position, col = sensorLines.geometry.attributes.color, k = 0;
+      function seg(x, y, c){
+        pos.setXYZ(k, toX(a.x), y0, toZ(a.y)); col.setXYZ(k++, c.r, c.g, c.b);
+        pos.setXYZ(k, toX(x), heightAt(x, y) + 0.4, toZ(y)); col.setXYZ(k++, c.r, c.g, c.b);
+      }
+      if(a.fs > 0) seg(a.fx, a.fy, COL_FOOD);
+      if(a.kin && !a.kin.dead) seg(a.kin.x, a.kin.y, COL_KIN);
+      if(a.target && !a.target.dead) seg(a.target.x, a.target.y, COL_THREAT);
+      sensorLines.geometry.setDrawRange(0, k);
+      pos.needsUpdate = true; col.needsUpdate = true;
+      sensorLines.visible = k > 0;
+    }
+
     function placeRing(ring, a, mult){
       if(!a){ ring.visible = false; return; }
       var s = Math.max(0.6, a.radius*S*1.1*mult);
@@ -2087,6 +2164,23 @@
       }
       carcassMesh.count = n;
       carcassMesh.instanceMatrix.needsUpdate = true;
+
+      var nb = 0;
+      if(worldMode!=='instinct'){
+        for(var bi=0; bi<animals.length && nb<BRAIN_RING_CAP; bi++){
+          var ba = animals[bi];
+          if(!ba.genome.brain) continue;
+          var bs3 = Math.max(0.5, ba.radius*S*1.35);
+          dummy.position.set(toX(ba.x), heightAt(ba.x, ba.y) + ba.alt + 0.1, toZ(ba.y));
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.set(bs3, bs3, bs3);
+          dummy.updateMatrix();
+          brainRings.setMatrixAt(nb++, dummy.matrix);
+        }
+      }
+      brainRings.count = nb;
+      brainRings.instanceMatrix.needsUpdate = true;
+      updateSensors3D(selected && !selected.dead && selected.genome.brain ? selected : null);
 
       var fa = follow.a && !follow.a.dead ? follow.a : null;
       placeRing(followRing, fa, 2.0);
@@ -2310,6 +2404,89 @@
     }
   };
 
+  /* --------------------------- brain save / load --------------------------- */
+  var SAVE_KEY = 'vivarium.brains.v1', autosaveAt = 0;
+  var brainNote = '', brainNoteUntil = 0;
+  function note(text){ brainNote = text; brainNoteUntil = nowReal() + 6; document.getElementById('brainStatus').textContent = text; }
+  var evolveRun = null;   // { target, startGen } while "Evolve, then challenge" runs
+
+  function brainGenGap(){
+    var bg=0;
+    for(var i=0;i<animals.length;i++) if(animals[i].genome.brain && animals[i].gen>bg) bg=animals[i].gen;
+    return bg;
+  }
+  function packBrains(){
+    var src = brainBank.length ? brainBank : animals.filter(function(a){ return a.genome.brain; }).map(function(a){ return a.genome; });
+    if(!src.length) return null;
+    return {
+      format:'vivarium-brains', version:1, species:BRAIN_IDS[0], saved:new Date().toISOString(),
+      generation: Math.max(brainGenGap(), seedPool ? seedPool.generation : 0),
+      network:{ inputs:Brain.IN, outputs:Brain.OUT, hidden:Brain.NH, weights:Brain.SIZE },
+      genomes: src.slice(0, BANK_CAP).map(function(g){
+        return { mass:+g.mass.toFixed(4), speed:+g.speed.toFixed(4), sense:+g.sense.toFixed(4), metab:+g.metab.toFixed(4),
+                 brain: Array.prototype.map.call(g.brain, function(v){ return +v.toFixed(4); }) };
+      })
+    };
+  }
+  /* Returns a seed pool, or throws with a readable reason. */
+  function unpackBrains(data){
+    if(!data || data.format!=='vivarium-brains') throw new Error('not a Vivarium brains file');
+    if(!data.network || data.network.weights!==Brain.SIZE) throw new Error('made for a different brain layout');
+    var genomes = (data.genomes||[]).filter(function(g){ return g && g.brain && g.brain.length===Brain.SIZE; }).map(function(g){
+      var out = { lineage:'brain', brain:Float32Array.from(g.brain) };
+      TRAITS.forEach(function(k){ var b=TRAIT_BAND[k]; out[k] = clamp(+g[k]||1, b[0], b[1]); });
+      return out;
+    });
+    if(!genomes.length) throw new Error('no usable genomes in the file');
+    return { genomes:genomes, generation:data.generation||0, source:'' };
+  }
+  function autosave(){
+    var data = packBrains();
+    if(!data) return;
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch(e){}
+    syncRestore();
+  }
+  function readAutosave(){
+    try { var raw = localStorage.getItem(SAVE_KEY); return raw ? JSON.parse(raw) : null; } catch(e){ return null; }
+  }
+  function syncRestore(){
+    var saved = readAutosave(), btn = document.getElementById('restoreBrains');
+    btn.hidden = !saved;
+    if(saved) document.getElementById('restoreSub').textContent =
+      'generation '+saved.generation+' · '+new Date(saved.saved).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+  }
+  function useSeedPool(pool, source){
+    seedPool = pool; seedPool.source = source;
+    if(params.brainMode==='instinct') params.brainMode = 'mixed';
+    seedWorld(); defaultView(); repaintPlants(); syncBrainUI();
+    logEvent({ sid:BRAIN_IDS[0], text:'Seeded '+lower(BRAIN_IDS[0])+' brains from '+source+' (generation '+pool.generation+').' });
+  }
+  function startEvolve(){
+    seedPool = null;
+    params.brainMode = 'brains';
+    seedWorld(); defaultView(); repaintPlants();
+    evolveRun = { target:25 };
+    setTurbo(true);
+    syncBrainUI();
+  }
+  /* Called once per sampled second. */
+  function brainTick(){
+    if(worldMode==='instinct') return;
+    if(simClock - autosaveAt > 30){ autosaveAt = simClock; autosave(); }
+    if(evolveRun && brainGenGap() >= evolveRun.target && brainBank.length){
+      var pool = { genomes:brainBank.slice(), generation:brainGenGap() };
+      evolveRun = null;
+      setTurbo(false);
+      params.brainMode = 'mixed';
+      useSeedPool(pool, 'a '+pool.generation+'-generation evolution run, now challenging instinct');
+    }
+  }
+  function brainStatusText(){
+    if(evolveRun) return 'Evolving brains-only: generation '+brainGenGap()+' of '+evolveRun.target+', then Mixed vs instinct.';
+    if(seedPool && worldMode!=='instinct') return 'Brain lineage seeded from '+seedPool.source+'.';
+    return '';
+  }
+
   var BRAIN_CHARTS = [
     { key:'predRate', title:'Predation', unit:'deaths per 100 per minute', floor:5, fmt:function(v){ return v.toFixed(1); } },
     { key:'flee', title:'Flee distance', unit:'gap to the predator when it starts running', floor:50, fmt:function(v){ return Math.round(v)+' px'; } },
@@ -2339,6 +2516,7 @@
 
   function syncBrainUI(){
     buildBrainCards();
+    syncRestore();
     document.getElementById('brainGroup').classList.toggle('solo', worldMode!=='mixed');
     document.querySelectorAll('#brainSeg button').forEach(function(b){
       b.classList.toggle('active', b.getAttribute('data-mode')===params.brainMode);
