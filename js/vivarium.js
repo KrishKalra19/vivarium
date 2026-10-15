@@ -25,7 +25,8 @@
      head-down: they only eat with the head lowered, which shrinks threat sense
      and caps speed, so feeding versus vigilance becomes a real trade-off. */
   var Brain = Ludus.brain;
-  var BRAIN_IDS = HERB_IDS.slice();   // every herbivore can carry a brain
+  var BRAIN_IDS = SPECIES_IDS.slice();   // every species can carry a brain
+  function layoutOf(id){ return Brain.forRole(SPECIES[id].role); }
   var HEAD_DOWN_SENSE = 0.4, HEAD_DOWN_SPEED = 0.35;
   var BREED_FLOOR = 0.45;        // brains choose when to breed, but never below this energy
   var TURN_RATE = 4.5;           // rad/s at full turn output
@@ -75,20 +76,21 @@
   var sampleAccum = 0;
   /* Per-species brain bookkeeping: lineage counts, behaviour metrics (accumulated
      between samples, then smoothed), drift, gene bank and log hysteresis. */
-  var METRICS = ['flee','breed','headDown','predRate'];
+  var METRICS = { herbivore:['flee','breed','headDown','predRate'], predator:['success','killRate','preyMass','breed'] };
   var BS = {};
   var brainSpecies = BRAIN_IDS[0];   // which species the Genetics brain charts show
   var SEEDS = {};                    // noise-free starting brain per species, for drift
-  BRAIN_IDS.forEach(function(id){ SEEDS[id] = Brain.seedInstinct(0, SPECIES[id].herd); });
-  function newBrainState(){
+  BRAIN_IDS.forEach(function(id){ SEEDS[id] = layoutOf(id).seed(0, SPECIES[id]); });
+  function newAcc(){ return { fleeS:0, fleeN:0, breedS:0, breedN:0, pred:0, lunge:0, hit:0, massS:0 }; }
+  function newBrainState(id){
     var st = { lineage:{ brain:[], instinct:[] }, hist:{}, ema:{}, base:null, lastGen:0,
-               acc:{ brain:{ fleeS:0, fleeN:0, breedS:0, breedN:0, pred:0 }, instinct:{ fleeS:0, fleeN:0, breedS:0, breedN:0, pred:0 } },
+               role:SPECIES[id].role, acc:{ brain:newAcc(), instinct:newAcc() },
                drift:{ drift:[], diversity:[] }, mark:{ share:null, brainAlive:true, instinctAlive:true },
                deaths:{ brain:{}, instinct:{} }, bank:[], marks:[] };
-    METRICS.forEach(function(m){ st.hist[m] = { brain:[], instinct:[] }; st.ema[m] = { brain:null, instinct:null }; });
+    METRICS[st.role].forEach(function(m){ st.hist[m] = { brain:[], instinct:[] }; st.ema[m] = { brain:null, instinct:null }; });
     return st;
   }
-  function resetMetrics(){ BRAIN_IDS.forEach(function(id){ BS[id] = newBrainState(); }); }
+  function resetMetrics(){ BRAIN_IDS.forEach(function(id){ BS[id] = newBrainState(id); }); }
   resetMetrics();
   function lineageOf(a){ return a.genome.brain ? 'brain' : 'instinct'; }
   /* Distance to the threat at the moment an animal decides to run. */
@@ -121,9 +123,10 @@
       state:'idle', target:null, lungeAt:-99, lastLunge:null, cause:null, killedBy:null,
       ryaw:Math.random()*Math.PI*2, stride:Math.random(), alt:0,
       vigil: worldMode!=='instinct' && BRAIN_IDS.indexOf(id)>=0, headDown:false, wantBreed:false,
-      bIn: genome.brain ? new Float32Array(Brain.NI) : null,
-      bHid: genome.brain ? new Float32Array(Brain.NH) : null,
-      bOut: genome.brain ? new Float32Array(Brain.NO) : null,
+      bIn: genome.brain ? new Float32Array(Brain.forRole(sp.role).NI) : null,
+      bHid: genome.brain ? new Float32Array(Brain.forRole(sp.role).NH) : null,
+      bOut: genome.brain ? new Float32Array(Brain.forRole(sp.role).NO) : null,
+      lock:null,
       mem0:0, mem1:0, foodT:0, fx:x, fy:y, fs:0
     };
   }
@@ -136,7 +139,7 @@
     if(list && list.length) return mutate(list[Math.floor(Math.random()*list.length)], params.mutationRate*0.3);
     var g = newGenome();
     g.lineage = 'brain';
-    g.brain = Brain.seedInstinct(null, SPECIES[id].herd);
+    g.brain = layoutOf(id).seed(null, SPECIES[id]);
     return g;
   }
 
@@ -453,8 +456,19 @@
     inp[slot+1] = (ch*dx + sh*dy)/d;
   }
 
+  /* Brain locomotion: turn the body, then accelerate along it. A little heading
+     noise stands in for wandering, and a wall turns the heading back inward. */
+  function brainMove(a, turn, throttle, mult, dt){
+    a.heading += (turn*TURN_RATE + (Math.random()-0.5)*1.2)*dt;
+    var ch=Math.cos(a.heading), sh=Math.sin(a.heading);
+    if((a.x<=0 && ch<0) || (a.x>=world.w && ch>0)) a.heading = Math.PI - a.heading;
+    if((a.y<=0 && sh<0) || (a.y>=world.h && sh>0)) a.heading = -a.heading;
+    var v = a.speed*throttle*mult;
+    steer(a, Math.cos(a.heading)*v, Math.sin(a.heading)*v, 6, dt);
+  }
+
   function brainHerbivore(a, sp, dt){
-    var B=Brain.I, inp=a.bIn, out=a.bOut, dx, dy, d;
+    var HB=Brain.herbivore, B=HB.I, inp=a.bIn, out=a.bOut, dx, dy, d;
     var mult = a.headDown ? HEAD_DOWN_SENSE : 1;
     var range = a.sense*sp.panic*mult;
     var threat = nearestThreat(a, mult);
@@ -495,14 +509,12 @@
     inp[B.canBreed] = (a.cooldown<=0 && a.age>=sp.repro.minAge && a.energy>=a.maxEnergy*BREED_FLOOR) ? 1 : 0;
     inp[B.mem1] = a.mem0; inp[B.mem2] = a.mem1;
 
-    Brain.forward(a.genome.brain, inp, a.bHid, out);
+    HB.forward(a.genome.brain, inp, a.bHid, out);
 
-    var O=Brain.O;
-    a.heading += out[O.turn]*TURN_RATE*dt;
+    var O=HB.O;
     var throttle = (out[O.throttle]+1)*0.5;
     a.headDown = out[O.headDown] > 0;
-    var v = a.speed*throttle*(a.headDown ? HEAD_DOWN_SPEED : 1);
-    steer(a, Math.cos(a.heading)*v, Math.sin(a.heading)*v, 6, dt);
+    brainMove(a, out[O.turn], throttle, a.headDown ? HEAD_DOWN_SPEED : 1, dt);
     a.mem0 = out[O.mem1]; a.mem1 = out[O.mem2];
     a.wantBreed = out[O.breed] > 0 && inp[B.canBreed] > 0;
     var prev = a.state;
@@ -543,8 +555,31 @@
     if(ready && a.cooldown<=0 && a.age>=sp.repro.minAge) reproduce(a);
   }
 
-  function updatePredator(a, dt){
-    var sp = SPECIES[a.sid];
+  /* One discrete lunge, then a recovery window. Most hunts fail. */
+  function lunge(a, sp, prey){
+    a.huntCd = 2.5;
+    var massEdge = clamp(0.42*Math.pow(a.mass/prey.mass, 0.75), 0.08, 1.2);
+    var odds = sp.catchSkill * (a.speed/(a.speed+prey.speed)) * massEdge * 1.5;
+    var hit = Math.random() < odds;
+    a.lungeAt = simClock;
+    a.lastLunge = { hit:hit, sid:prey.sid, mass:prey.mass, t:simClock };
+    if(a.vigil){
+      var acc = BS[a.sid].acc[lineageOf(a)];
+      acc.lunge++;
+      if(hit){ acc.hit++; acc.massS += prey.mass; }
+    }
+    if(hit){
+      a.kills++;
+      a.energy = Math.min(a.maxEnergy, a.energy + prey.maxEnergy*KILL_YIELD);
+      die(prey,'predated',a);
+    } else {
+      a.energy -= a.drain*1.5;
+      onMiss(a, prey);
+    }
+  }
+
+  /* Returns true while the predator is lying still (cheaper metabolism). */
+  function instinctPredator(a, sp, dt){
     // Satiation: a well-fed pursuit predator stops hunting, so kills track need rather
     // than opportunity. Without it ocelots and harpies overshoot and wipe out the small
     // prey every ~90s. Ambushers already wait for prey to come to them.
@@ -562,24 +597,7 @@
       } else {
         a.state = 'chase';
         seek(a, prey.x, prey.y, 1, dt);
-        var reach = a.radius + prey.radius + 3;
-        if(dist < reach && a.huntCd <= 0){
-          // One discrete lunge, then a recovery window. Most hunts fail.
-          a.huntCd = 2.5;
-          var massEdge = clamp(0.42*Math.pow(a.mass/prey.mass, 0.75), 0.08, 1.2);
-          var odds = sp.catchSkill * (a.speed/(a.speed+prey.speed)) * massEdge * 1.5;
-          var hit = Math.random() < odds;
-          a.lungeAt = simClock;
-          a.lastLunge = { hit:hit, sid:prey.sid, mass:prey.mass, t:simClock };
-          if(hit){
-            a.kills++;
-            a.energy = Math.min(a.maxEnergy, a.energy + prey.maxEnergy*KILL_YIELD);
-            die(prey,'predated',a);
-          } else {
-            a.energy -= a.drain*1.5;
-            onMiss(a, prey);
-          }
-        }
+        if(dist < a.radius + prey.radius + 3 && a.huntCd <= 0) lunge(a, sp, prey);
       }
     } else if(sp.ambush){
       lurking = true;
@@ -589,6 +607,88 @@
       a.state = 'roam';
       wander(a, dt, 0.45);
     }
+    return lurking;
+  }
+
+  function preyOdds(a, o){
+    return clamp(0.42*Math.pow(a.mass/o.mass, 0.75), 0.08, 1.2) * (a.speed/(a.speed+o.speed));
+  }
+  /* What a brain predator can see: instinct's best target, the biggest meal and
+     the nearest rival predator, all within sense range. */
+  var _hunt = { best:null, bestS:0, big:null, bigM:0, rival:null, rivalD:0 };
+  function scanHunt(a, sp){
+    var c=_hunt, r2=a.sense*a.sense;
+    c.best=null; c.bestS=0; c.big=null; c.bigM=0; c.rival=null; c.rivalD=r2;
+    forNear(a.x, a.y, a.sense, function(o){
+      if(o===a || o.dead) return;
+      var dx=o.x-a.x, dy=o.y-a.y, d2=dx*dx+dy*dy;
+      if(d2>r2) return;
+      if(SPECIES[o.sid].role==='predator'){ if(d2<c.rivalD){ c.rivalD=d2; c.rival=o; } return; }
+      if(sp.prey.indexOf(o.sid)<0 || o.mass>sp.maxPreyMass) return;
+      var od=preyOdds(a,o), score=od*od*(o.maxEnergy*KILL_YIELD)/(Math.sqrt(d2)+60);
+      if(score>c.bestS){ c.bestS=score; c.best=o; }
+      if(o.mass>c.bigM){ c.bigM=o.mass; c.big=o; }
+    });
+  }
+  function preySlots(inp, at, a, o){
+    if(!o){ inp[at]=0; inp[at+1]=0; inp[at+2]=0; inp[at+3]=0; inp[at+4]=0; return; }
+    var dx=o.x-a.x, dy=o.y-a.y, d=Math.sqrt(dx*dx+dy*dy)||1;
+    relDir(inp, at, a, dx, dy, d);
+    inp[at+2] = 0.3 + 0.7*clamp(1-d/a.sense, 0, 1);
+    inp[at+3] = clamp(preyOdds(a,o)*2, 0, 1.5);
+    inp[at+4] = clamp(o.mass/a.mass, 0, 2);
+  }
+
+  function brainPredator(a, sp, dt){
+    var PB=Brain.predator, I=PB.I, O=PB.O, inp=a.bIn, out=a.bOut, c=_hunt;
+    scanHunt(a, sp);
+    var lk=a.lock;
+    if(lk){
+      var lx=lk.x-a.x, ly=lk.y-a.y;
+      if(lk.dead || lx*lx+ly*ly > a.sense*a.sense*1.44) lk=null;
+    }
+    if(!lk) lk=c.best;
+    var other = lk===c.best ? (c.big!==c.best ? c.big : null) : c.best;
+    a.lock = lk;
+    preySlots(inp, I.pSin, a, lk);
+    preySlots(inp, I.aSin, a, other);
+    if(c.rival){
+      var rx=c.rival.x-a.x, ry=c.rival.y-a.y, rd=Math.sqrt(rx*rx+ry*ry)||1;
+      inp[I.rSin] = (Math.cos(a.heading)*ry - Math.sin(a.heading)*rx)/rd;
+      inp[I.rNear] = clamp(1-rd/a.sense, 0, 1);
+    } else { inp[I.rSin]=0; inp[I.rNear]=0; }
+    var dist = 1e9;
+    if(lk){ var px=lk.x-a.x, py=lk.y-a.y; dist=Math.sqrt(px*px+py*py); }
+    var inReach = lk && dist < a.radius + lk.radius + 3;
+    inp[I.reach] = inReach ? 1 : 0;
+    inp[I.ready] = a.huntCd<=0 ? 1 : 0;
+    inp[I.energy] = a.energy/a.maxEnergy;
+    inp[I.age] = Math.min(1, a.age/a.maxAge);
+    inp[I.canBreed] = (a.cooldown<=0 && a.age>=sp.repro.minAge && a.energy>=a.maxEnergy*BREED_FLOOR) ? 1 : 0;
+    inp[I.mem1] = a.mem0; inp[I.mem2] = a.mem1;
+
+    PB.forward(a.genome.brain, inp, a.bHid, out);
+
+    var throttle = (out[O.throttle]+1)*0.5;
+    brainMove(a, out[O.turn], throttle, 1, dt);
+    // Satiation is a hard limit for pursuit predators, brain or not: a full stomach
+    // can't take another kill. The brain decides everything below that.
+    var hungry = sp.ambush || a.energy < a.maxEnergy*params.satiety;
+    if(inReach && hungry && a.huntCd<=0 && out[O.lunge]>0) lunge(a, sp, lk);
+    if(other && out[O.swap]>0.5) a.lock = other;
+    a.mem0 = out[O.mem1]; a.mem1 = out[O.mem2];
+    a.wantBreed = out[O.breed] > 0 && inp[I.canBreed] > 0;
+    a.target = a.lock && !a.lock.dead ? a.lock : null;
+    a.state = a.target ? (throttle>0.5 ? 'chase' : 'stalk') : (sp.ambush ? 'lurk' : 'roam');
+    // sensor overlay: the alternative prey and the nearest rival
+    if(other){ a.fx=other.x; a.fy=other.y; a.fs=1; } else a.fs=0;
+    a.kin = c.rival;
+    return sp.ambush && throttle < 0.15;
+  }
+
+  function updatePredator(a, dt){
+    var sp = SPECIES[a.sid];
+    var lurking = a.genome.brain ? brainPredator(a, sp, dt) : instinctPredator(a, sp, dt);
     move(a, dt);
 
     var spd = Math.sqrt(a.vx*a.vx+a.vy*a.vy)/Math.max(1,a.speed);
@@ -599,7 +699,8 @@
     a.huntCd = Math.max(0, a.huntCd-dt);
     if(a.energy<=0){ die(a,'starved'); return; }
     if(a.age>a.maxAge){ die(a,'age'); return; }
-    if(a.energy >= a.maxEnergy*sp.repro.threshold && a.cooldown<=0 && a.age>=sp.repro.minAge) reproduce(a);
+    var ready = a.genome.brain ? a.wantBreed : a.energy >= a.maxEnergy*sp.repro.threshold;
+    if(ready && a.cooldown<=0 && a.age>=sp.repro.minAge) reproduce(a);
   }
 
   /* Small, slow trickle of dispersers from the wider forest. Without it a
@@ -703,11 +804,17 @@
     }
     ['brain','instinct'].forEach(function(k){
       var acc=st.acc[k];
-      ema(st, 'flee', k, acc.fleeN ? acc.fleeS/acc.fleeN : null);
       ema(st, 'breed', k, acc.breedN ? acc.breedS/acc.breedN*100 : null);
-      ema(st, 'headDown', k, n[k] ? hd[k]/n[k]*100 : null);
-      ema(st, 'predRate', k, n[k] ? acc.pred/n[k]*100*60 : null);   // per 100 animals per minute
-      acc.fleeS=0; acc.fleeN=0; acc.breedS=0; acc.breedN=0; acc.pred=0;
+      if(st.role==='predator'){
+        ema(st, 'success', k, acc.lunge ? acc.hit/acc.lunge*100 : null);
+        ema(st, 'killRate', k, n[k] ? acc.hit/n[k]*60 : null);       // kills per predator per minute
+        ema(st, 'preyMass', k, acc.hit ? acc.massS/acc.hit : null);
+      } else {
+        ema(st, 'flee', k, acc.fleeN ? acc.fleeS/acc.fleeN : null);
+        ema(st, 'headDown', k, n[k] ? hd[k]/n[k]*100 : null);
+        ema(st, 'predRate', k, n[k] ? acc.pred/n[k]*100*60 : null);   // per 100 animals per minute
+      }
+      st.acc[k] = newAcc();
     });
     var drift=0, div=0, pairs=0, seed=SEEDS[id];
     for(var b=0;b<brains.length;b++) drift += Brain.distance(brains[b], seed);
@@ -716,7 +823,7 @@
       if(x!==y){ div += Brain.distance(x,y); pairs++; }
     }
     if(topGen >= st.lastGen+10){ st.lastGen = topGen - topGen%10; speciesMark(id, 'gen '+st.lastGen); }
-    if(sampleCount===30) st.base = { breed:st.ema.breed.brain, flee:st.ema.flee.brain, headDown:st.ema.headDown.brain, predRate:st.ema.predRate.brain };
+    if(sampleCount===30){ st.base = {}; METRICS[st.role].forEach(function(m){ st.base[m] = st.ema[m].brain; }); }
     push(st.drift.drift, brains.length ? drift/brains.length : 0);
     push(st.drift.diversity, pairs ? div/pairs : 0);
 
@@ -993,7 +1100,7 @@
   /* What the selected brain animal is sensing: its threat radius (which shrinks
      while grazing head-down) and lines to the threat, food target and nearest kin. */
   function drawSensors(a, z){
-    var sp=SPECIES[a.sid], range=a.sense*sp.panic*(a.headDown?HEAD_DOWN_SENSE:1);
+    var sp=SPECIES[a.sid], range = sp.role==='predator' ? a.sense : a.sense*sp.panic*(a.headDown?HEAD_DOWN_SENSE:1);
     ctx.save();
     ctx.lineWidth = 1.5/z;
     ctx.setLineDash([4/z, 4/z]);
@@ -1220,6 +1327,7 @@
       var ic = SPECIES[bsid].color;
       BRAIN_CHARTS.forEach(function(c){
         var h = st.hist[c.key];
+        if(!h) return;
         var series = [{ data:h.brain, color:theme.accent, name:'brain' }];
         if(worldMode==='mixed') series.push({ data:h.instinct, color:ic, name:'instinct' });
         drawChart(document.getElementById('bc_'+c.key), series, c.floor, { marks:true, fmt:c.fmt });
@@ -1334,8 +1442,13 @@
     html += bar('Metabolism', a.genome.metab.toFixed(2), (a.genome.metab-TRAIT_BAND.metab[0])/(TRAIT_BAND.metab[1]-TRAIT_BAND.metab[0]), sp.color, '×');
     if(sp.role==='predator') html += '<div class="note">Successful hunts: '+a.kills+'</div>';
     if(a.genome.brain){
-      var o=a.bOut, O=Brain.O, intents=[];
-      if(a.headDown) intents.push('grazing, head down');
+      var lay=layoutOf(a.sid), o=a.bOut, O=lay.O, intents=[];
+      if(sp.role==='predator'){
+        if(a.state==='chase' && a.target) intents.push('chasing '+article(lower(a.target.sid))+' ('+a.target.mass.toFixed(0)+' kg)');
+        else if(a.state==='stalk' && a.target) intents.push('watching '+article(lower(a.target.sid))+', holding back');
+        else intents.push(sp.ambush ? 'lying in wait' : 'roaming ('+Math.round((o[O.throttle]+1)*50)+'% throttle)');
+      }
+      else if(a.headDown) intents.push('grazing, head down');
       else if(a.state==='flee' && a.target) intents.push('running from '+article(lower(a.target.sid)));
       else intents.push('on the move ('+Math.round((o[O.throttle]+1)*50)+'% throttle)');
       if(a.wantBreed) intents.push('ready to breed');
@@ -2256,7 +2369,8 @@
       if(!a){ vigilRing.visible = false; sensorLines.visible = false; return; }
       COL_FOOD.set(theme.fruit || '#e0a040');
       var y0 = heightAt(a.x, a.y) + a.alt + 0.4;
-      var range = a.sense*SPECIES[a.sid].panic*(a.headDown ? HEAD_DOWN_SENSE : 1)*S;
+      var sp3 = SPECIES[a.sid];
+      var range = (sp3.role==='predator' ? a.sense : a.sense*sp3.panic*(a.headDown ? HEAD_DOWN_SENSE : 1))*S;
       vigilRing.visible = true;
       vigilRing.material.color.set(a.headDown ? 0xff5a44 : 0xffffff);
       vigilRing.position.set(toX(a.x), y0 - 0.25, toZ(a.y));
@@ -2568,14 +2682,15 @@
     });
     if(!any) return null;
     return {
-      format:'vivarium-brains', version:2, saved:new Date().toISOString(),
+      format:'vivarium-brains', version:3, saved:new Date().toISOString(),
       generation: Math.max(brainGenGap(), seedPool ? seedPool.generation : 0),
-      network:{ inputs:Brain.IN, outputs:Brain.OUT, hidden:Brain.NH, weights:Brain.SIZE },
+      network:{ herbivore:{ inputs:Brain.herbivore.IN, outputs:Brain.herbivore.OUT, weights:Brain.herbivore.SIZE },
+                predator:{ inputs:Brain.predator.IN, outputs:Brain.predator.OUT, weights:Brain.predator.SIZE } },
       species: species
     };
   }
-  function unpackGenomes(list){
-    return (list||[]).filter(function(g){ return g && g.brain && g.brain.length===Brain.SIZE; }).map(function(g){
+  function unpackGenomes(list, size){
+    return (list||[]).filter(function(g){ return g && g.brain && g.brain.length===size; }).map(function(g){
       var out = { lineage:'brain', brain:Float32Array.from(g.brain) };
       TRAITS.forEach(function(k){ var b=TRAIT_BAND[k]; out[k] = clamp(+g[k]||1, b[0], b[1]); });
       return out;
@@ -2584,15 +2699,14 @@
   /* Returns a seed pool, or throws with a readable reason. Version 1 files held agoutis only. */
   function unpackBrains(data){
     if(!data || data.format!=='vivarium-brains') throw new Error('not a Vivarium brains file');
-    if(!data.network || data.network.weights!==Brain.SIZE) throw new Error('made for a different brain layout');
     var genomes = {}, n = 0;
     var src = data.version===1 ? { agouti:{ genomes:data.genomes } } : (data.species||{});
     Object.keys(src).forEach(function(id){
       if(BRAIN_IDS.indexOf(id)<0) return;
-      var list = unpackGenomes(src[id].genomes);
+      var list = unpackGenomes(src[id].genomes, layoutOf(id).SIZE);
       if(list.length){ genomes[id] = list; n += list.length; }
     });
-    if(!n) throw new Error('no usable genomes in the file');
+    if(!n) throw new Error('no usable genomes in the file (it may be from an older brain layout)');
     return { genomes:genomes, generation:data.generation||0, source:'' };
   }
   function bankPool(){
@@ -2659,7 +2773,7 @@
       lead += share>=60 ? 'They\'re <b>winning</b>: '+share+'% of '+name+' have brains.'
             : share<=40 ? 'Instinct is <b>winning</b> for now: only '+share+'% of '+name+' have brains.'
             : 'It\'s <b>neck and neck</b>: '+share+'% of '+name+' have brains.';
-      ref = { breed:E.breed.instinct, flee:E.flee.instinct, headDown:E.headDown.instinct, predRate:E.predRate.instinct };
+      ref = {}; METRICS[BS[id].role].forEach(function(m){ ref[m] = E[m].instinct; });
       refName = 'instinct '+name;
     } else {
       lead += 'Compared with how they behaved at the start of this run:';
@@ -2671,10 +2785,16 @@
         lines.push((now>was ? more : less)+' <span class="num">('+unit(now)+' vs '+unit(was)+')</span>');
       }
       var pct=function(v){ return Math.round(v)+'%'; }, px=function(v){ return Math.round(v)+' px'; };
+      if(BS[id].role==='predator'){
+        cmp(E.success.brain, ref.success, 'land <b>more</b> of their strikes', 'miss <b>more</b> of their strikes', pct, 4);
+        cmp(E.killRate.brain, ref.killRate, 'kill <b>more</b> often', 'kill <b>less</b> often', function(v){ return v.toFixed(2)+'/min'; }, 0.05);
+        cmp(E.preyMass.brain, ref.preyMass, 'go after <b>bigger</b> prey', 'take <b>smaller</b>, easier prey', function(v){ return v.toFixed(0)+' kg'; }, 3);
+      } else {
+        cmp(E.flee.brain, ref.flee, 'start running from predators <b>sooner</b>', 'let predators get <b>closer</b> before running', px, 6);
+        cmp(E.headDown.brain, ref.headDown, 'spend <b>more</b> time grazing head-down', 'graze head-down <b>less</b>, staying alert', pct, 4);
+        cmp(E.predRate.brain, ref.predRate, 'get caught <b>more</b> often', 'get caught <b>less</b> often', function(v){ return v.toFixed(0)+'/100/min'; }, 8);
+      }
       cmp(E.breed.brain, ref.breed, 'wait until they\'re better fed to breed', 'breed <b>earlier</b>, at lower energy: a riskier strategy', pct, 4);
-      cmp(E.flee.brain, ref.flee, 'start running from predators <b>sooner</b>', 'let predators get <b>closer</b> before running', px, 6);
-      cmp(E.headDown.brain, ref.headDown, 'spend <b>more</b> time grazing head-down', 'graze head-down <b>less</b>, staying alert', pct, 4);
-      cmp(E.predRate.brain, ref.predRate, 'get caught <b>more</b> often', 'get caught <b>less</b> often', function(v){ return v.toFixed(0)+'/100/min'; }, 8);
     }
     var dd = BS[id].drift.drift, d = dd.length ? dd[dd.length-1] : 0;
     var drift = d<0.12 ? 'Their brains are still close to the hand-wired starting brain.'
@@ -2686,22 +2806,34 @@
 
   /* Plain-English top changes in one brain versus the starting brain, using the
      direct input→output sensitivity (hidden layer linearised). */
-  var IN_TEXT = ['', '', 'a nearby predator', '', '', 'rich food in view', 'food underfoot', '', '', 'nearby kin',
-                 'crowding', 'having plenty of energy', 'getting older', 'being able to breed'];
-  var TURN_TEXT = { 0:'a predator', 3:'food', 7:'kin' };
-  var OUT_TEXT = [null, ['speed up','slow down'], ['put its head down','keep its head up'], ['breed','hold off breeding']];
-  function sensitivity(w, o, i){
+  var CHANGE_TEXT = {
+    herbivore:{
+      inputs:['', '', 'a nearby predator', '', '', 'rich food in view', 'food underfoot', '', '', 'nearby kin',
+              'crowding', 'having plenty of energy', 'getting older', 'being able to breed'],
+      turn:{ 0:'a predator', 3:'food', 7:'kin' },
+      outputs:[null, ['speed up','slow down'], ['put its head down','keep its head up'], ['breed','hold off breeding']]
+    },
+    predator:{
+      inputs:['', '', 'a close target', 'an easy-to-catch target', 'a big target', '', '', 'another prey close by',
+              'an easier alternative', 'a bigger alternative', '', 'a nearby rival', 'being within reach',
+              'being ready to strike', 'having plenty of energy', 'getting older', 'being able to breed'],
+      turn:{ 0:'its target', 5:'the other prey', 10:'rival predators' },
+      outputs:[null, ['speed up','slow down'], ['strike','hold back'], ['breed','hold off breeding'], ['switch to the other prey','stay on its target']]
+    }
+  };
+  function sensitivity(lay, w, o, i){
     var s=0;
-    for(var h=0;h<Brain.NH;h++) s += Brain.weightOut(w,o,h)*Brain.weightIn(w,h,i);
+    for(var h=0;h<lay.NH;h++) s += lay.weightOut(w,o,h)*lay.weightIn(w,h,i);
     return s;
   }
   function brainChanges(w, sid){
-    var cands=[], seed=SEEDS[sid];
-    for(var o=0;o<4;o++){
-      for(var i=0;i<14;i++){
+    var cands=[], seed=SEEDS[sid], lay=layoutOf(sid), T=CHANGE_TEXT[SPECIES[sid].role];
+    var IN_TEXT=T.inputs, TURN_TEXT=T.turn, OUT_TEXT=T.outputs;
+    for(var o=0;o<OUT_TEXT.length;o++){
+      for(var i=0;i<IN_TEXT.length;i++){
         var turnPair = o===0 && TURN_TEXT[i]!=null;
         if(o===0 ? !turnPair : !IN_TEXT[i]) continue;
-        var dlt = sensitivity(w,o,i) - sensitivity(seed,o,i);
+        var dlt = sensitivity(lay,w,o,i) - sensitivity(lay,seed,o,i);
         if(Math.abs(dlt) < 0.3) continue;
         var text = turnPair
           ? 'turns '+(dlt>0 ? 'towards ' : 'away from ')+TURN_TEXT[i]+' more strongly'
@@ -2714,6 +2846,9 @@
   }
 
   var BRAIN_CHARTS = [
+    { key:'success', title:'Strike success', unit:'share of lunges that land', floor:30, fmt:function(v){ return Math.round(v)+'%'; } },
+    { key:'killRate', title:'Kill rate', unit:'kills per predator per minute', floor:0.5, fmt:function(v){ return v.toFixed(2); } },
+    { key:'preyMass', title:'Prey size', unit:'average body mass of prey taken', floor:10, fmt:function(v){ return v.toFixed(0)+' kg'; } },
     { key:'predRate', title:'Predation', unit:'deaths per 100 per minute', floor:5, fmt:function(v){ return v.toFixed(1); } },
     { key:'flee', title:'Flee distance', unit:'gap to the predator when it starts running', floor:50, fmt:function(v){ return Math.round(v)+' px'; } },
     { key:'breed', title:'Energy at breeding', unit:'lower = riskier, earlier breeding', floor:50, fmt:function(v){ return Math.round(v)+'%'; } },
@@ -2726,7 +2861,7 @@
     var ic = 'var(--ink-dim)';
     var html='';
     BRAIN_CHARTS.forEach(function(c){
-      html += '<div class="card"><div class="card-head"><span class="card-title">'+c.title+'</span>'+
+      html += '<div class="card" data-metric="'+c.key+'"><div class="card-head"><span class="card-title">'+c.title+'</span>'+
         '<span class="card-val" id="bv_'+c.key+'" style="color:var(--accent)">—</span></div>'+
         '<span class="caption">'+c.unit+' · <i class="dot" style="background:var(--accent)"></i>brain'+
         '<span class="mixed-only"> · <i class="dot" style="background:'+ic+'"></i>instinct</span></span>'+
@@ -2740,13 +2875,13 @@
     host.insertAdjacentHTML('beforeend', html);
     document.getElementById('brainSummary').insertAdjacentHTML('afterend',
       '<details class="intro"><summary>What am I looking at?</summary>'+
-      '<p>Some herbivores here are driven by a small <b>neural network</b> (their "brain") instead of hand-written rules. '+
-      'It sees nearby predators, food and kin, plus its own energy, and decides where to steer, how fast to go, '+
-      'whether to graze and when to breed.</p>'+
+      '<p>Some animals here are driven by a small <b>neural network</b> (their "brain") instead of hand-written rules. '+
+      'A herbivore\'s brain sees nearby predators, food and kin and decides where to steer, how fast to go, '+
+      'whether to graze and when to breed. A predator\'s brain picks which prey to chase, when to strike and when to rest.</p>'+
       '<p>Grazing means putting your head down, which makes an animal slower and half-blind to predators. '+
       'Every brain is inherited from its parent with small random changes. Brains that survive and breed more pass '+
       'on their wiring, so behaviour <b>evolves</b>; nobody programs it.</p>'+
-      '<p><b>Mixed A/B</b> splits every herbivore species into brain and rule-following "instinct" lineages in the same forest. '+
+      '<p><b>Mixed A/B</b> splits every species into brain and rule-following "instinct" lineages in the same forest. '+
       'Teal rings on the map mark brain animals. Tap a chart to enlarge it.</p></details>'+
       '<div class="card story"><div class="card-head"><span class="card-title">What\'s happening</span></div>'+
       '<div id="storyText" class="story-text"></div></div>');
@@ -2771,6 +2906,10 @@
       });
     }
     Array.prototype.forEach.call(seg.children, function(n){ n.classList.toggle('active', n.dataset.sid===brainSpecies); });
+    var keys = METRICS[SPECIES[brainSpecies].role];
+    document.querySelectorAll('#brainGroup [data-metric]').forEach(function(card){
+      card.hidden = keys.indexOf(card.dataset.metric)<0;
+    });
     renderCharts();
   }
 
@@ -2784,7 +2923,7 @@
     var c=cv.getContext('2d');
     c.setTransform(dpr,0,0,dpr,0,0);
     c.clearRect(0,0,W,H);
-    var w=a.genome.brain, NI=Brain.NI, NH=Brain.NH, NO=Brain.NO;
+    var lay=layoutOf(a.sid), w=a.genome.brain, NI=lay.NI, NH=lay.NH, NO=lay.NO;
     var narrow = W < 300;
     var xi = narrow ? 62 : 74, xo = W - (narrow ? 70 : 84), xh = (xi+xo)/2;
     function ys(n, i){ return 10 + (i+0.5)*(H-20)/n; }
@@ -2796,14 +2935,14 @@
     var i, h, o, v;
     for(h=0;h<NH;h++){
       for(i=0;i<NI;i++){
-        v=Brain.weightIn(w,h,i);
+        v=lay.weightIn(w,h,i);
         if(Math.abs(v)<0.25) continue;
         c.strokeStyle=col(v, Math.min(0.75, Math.abs(v)/3*(0.25+Math.abs(a.bIn[i]))));
         c.lineWidth=Math.min(3, 0.4+Math.abs(v)*0.5);
         c.beginPath(); c.moveTo(xi, ys(NI,i)); c.lineTo(xh, ys(NH,h)); c.stroke();
       }
       for(o=0;o<NO;o++){
-        v=Brain.weightOut(w,o,h);
+        v=lay.weightOut(w,o,h);
         if(Math.abs(v)<0.25) continue;
         c.strokeStyle=col(v, Math.min(0.8, Math.abs(v)/3*(0.25+Math.abs(a.bHid[h]))));
         c.lineWidth=Math.min(3, 0.4+Math.abs(v)*0.5);
@@ -2819,13 +2958,13 @@
     c.font=(narrow?9:10)+'px ui-monospace, monospace';
     c.textBaseline='middle';
     c.textAlign='right';
-    for(i=0;i<NI;i++){ node(xi, ys(NI,i), a.bIn[i], 4); c.fillStyle=theme.inkDim; c.fillText(Brain.IN[i], xi-8, ys(NI,i)); }
+    for(i=0;i<NI;i++){ node(xi, ys(NI,i), a.bIn[i], 4); c.fillStyle=theme.inkDim; c.fillText(lay.IN[i], xi-8, ys(NI,i)); }
     for(h=0;h<NH;h++) node(xh, ys(NH,h), a.bHid[h], 5);
     c.textAlign='left';
     for(o=0;o<NO;o++){
       node(xo, ys(NO,o), a.bOut[o], 6);
       c.fillStyle=theme.ink;
-      c.fillText(Brain.OUT[o], xo+10, ys(NO,o)-6);
+      c.fillText(lay.OUT[o], xo+10, ys(NO,o)-6);
       c.fillStyle=theme.inkDim;
       c.fillText((a.bOut[o]>=0?'+':'')+a.bOut[o].toFixed(2), xo+10, ys(NO,o)+6);
     }
