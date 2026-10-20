@@ -251,34 +251,45 @@
   }
 
   /* --------------------------- spatial hash --------------------------- */
-  var HASH = 120, hcols=0, hrows=0, buckets=[];
+  /* Besides the all-animal grid there is one per species and one for predators
+     only: herbivores scanning for threats or kin then skip the ~2000 animals
+     they would ignore anyway. Each list keeps the main grid's order, so every
+     scan visits the same candidates in the same order as before. */
+  var HASH = 120, hcols=0, hrows=0, buckets=[], predBuckets=[], sidBuckets={};
+  function grid(){ var g=new Array(hcols*hrows); for(var i=0;i<g.length;i++) g[i]=[]; return g; }
   function initHash(){
     hcols = Math.ceil(world.w/HASH); hrows = Math.ceil(world.h/HASH);
-    buckets = new Array(hcols*hrows);
-    for(var i=0;i<buckets.length;i++) buckets[i]=[];
+    buckets = grid(); predBuckets = grid();
+    SPECIES_IDS.forEach(function(id){ sidBuckets[id] = grid(); });
   }
   function rebuildHash(){
-    for(var i=0;i<buckets.length;i++) buckets[i].length=0;
+    for(var i=0;i<buckets.length;i++){
+      buckets[i].length=0; predBuckets[i].length=0;
+      for(var s=0;s<SPECIES_IDS.length;s++) sidBuckets[SPECIES_IDS[s]][i].length=0;
+    }
     for(var j=0;j<animals.length;j++){
       var a=animals[j];
-      var hx=clamp(Math.floor(a.x/HASH),0,hcols-1), hy=clamp(Math.floor(a.y/HASH),0,hrows-1);
-      buckets[hy*hcols+hx].push(a);
+      var hx=clamp(Math.floor(a.x/HASH),0,hcols-1), hy=clamp(Math.floor(a.y/HASH),0,hrows-1), c=hy*hcols+hx;
+      buckets[c].push(a);
+      sidBuckets[a.sid][c].push(a);
+      if(SPECIES[a.sid].role==='predator') predBuckets[c].push(a);
     }
   }
-  function forNear(x,y,r,fn){
+  function forNearIn(g,x,y,r,fn){
     var hx0=clamp(Math.floor((x-r)/HASH),0,hcols-1), hx1=clamp(Math.floor((x+r)/HASH),0,hcols-1);
     var hy0=clamp(Math.floor((y-r)/HASH),0,hrows-1), hy1=clamp(Math.floor((y+r)/HASH),0,hrows-1);
     for(var hy=hy0;hy<=hy1;hy++){
       for(var hx=hx0;hx<=hx1;hx++){
-        var b=buckets[hy*hcols+hx];
+        var b=g[hy*hcols+hx];
         for(var i=0;i<b.length;i++) fn(b[i]);
       }
     }
   }
+  function forNear(x,y,r,fn){ forNearIn(buckets,x,y,r,fn); }
 
   function nearestThreat(a, mult){
     var range=a.sense*SPECIES[a.sid].panic*(mult||1), best=null, bestD=range*range;
-    forNear(a.x,a.y,range,function(o){
+    forNearIn(predBuckets,a.x,a.y,range,function(o){
       if(o.dead || SPECIES[o.sid].role!=='predator') return;
       var sp=SPECIES[o.sid];
       if(a.mass > sp.maxPreyMass) return;
@@ -310,7 +321,7 @@
   function herdVector(a, out){
     var sp=SPECIES[a.sid];
     var r=110, cx=0, cy=0, sx=0, sy=0, n=0;
-    forNear(a.x,a.y,r,function(o){
+    forNearIn(sidBuckets[a.sid],a.x,a.y,r,function(o){
       if(o===a || o.dead || o.sid!==a.sid) return;
       var dx=o.x-a.x, dy=o.y-a.y, d2=dx*dx+dy*dy;
       if(d2>r*r) return;
@@ -371,7 +382,7 @@
      so populations settle at a local carrying capacity instead of a global ceiling. */
   function crowded(a, limit){
     var n=0;
-    forNear(a.x, a.y, 95, function(o){
+    forNearIn(sidBuckets[a.sid], a.x, a.y, 95, function(o){
       if(!o.dead && o.sid===a.sid) n++;
     });
     return n > limit;
@@ -496,7 +507,7 @@
     inp[B.fHere] = clamp(foodAt(sp, cellAt(a.x,a.y)), 0, 1.5);
 
     var kin=null, kinD=110*110, crowd=0;
-    forNear(a.x, a.y, 110, function(o){
+    forNearIn(sidBuckets[a.sid], a.x, a.y, 110, function(o){
       if(o===a || o.dead || o.sid!==a.sid) return;
       var ex=o.x-a.x, ey=o.y-a.y, e2=ex*ex+ey*ey;
       if(e2<9025) crowd++;
@@ -751,17 +762,29 @@
     for(var j=0;j<animals.length;j++) counts[animals[j].sid]++;
   }
 
+  /* Section timings, only while Vivarium.profile() runs: { section: ms }. */
+  var prof = null;
+  function lap(name, t0){ var t1=performance.now(); prof[name] = (prof[name]||0) + t1-t0; return t1; }
+
   function step(dt){
+    var t = prof ? performance.now() : 0;
     simClock += dt;
     growPlants(dt);
+    if(prof) t = lap('plants', t);
     rebuildHash();
     recount();
     immigration(dt);
+    if(prof) t = lap('hash+immigration', t);
     for(var i=0;i<animals.length;i++){
       var a=animals[i];
       if(a.dead) continue;
-      if(SPECIES[a.sid].role==='herbivore') updateHerbivore(a, dt);
-      else updatePredator(a, dt);
+      if(SPECIES[a.sid].role==='herbivore'){
+        updateHerbivore(a, dt);
+        if(prof) t = lap(a.genome.brain ? 'herbivore brain' : 'herbivore instinct', t);
+      } else {
+        updatePredator(a, dt);
+        if(prof) t = lap(a.genome.brain ? 'predator brain' : 'predator instinct', t);
+      }
     }
     var alive=[];
     for(var j=0;j<animals.length;j++) if(!animals[j].dead) alive.push(animals[j]);
@@ -770,6 +793,7 @@
 
     sampleAccum += dt;
     if(sampleAccum >= 1){ sampleAccum = 0; sample(); }
+    if(prof) lap('sample+cleanup', t);
   }
 
   function tick(dt){
@@ -2356,6 +2380,7 @@
         else if(!(sp.ambush && a.state!=='chase') && spd > 6) pose = (a.stride % 1) > 0.5 ? 1 : 0;
 
         var ground = heightAt(a.x, a.y), gx = toX(a.x), gz = toZ(a.y);
+        a.gy = ground;   // reused by the brain rings this frame
         var since = simClock - a.lungeAt, stretch = 1, hop = 0;
         if(since >= 0 && since < 0.35){
           var q = Math.sin(since/0.35*Math.PI);
@@ -2440,15 +2465,17 @@
 
       var nb = 0;
       if(worldMode!=='instinct'){
+        // Unrotated, uniformly scaled rings: write scale and translation straight
+        // into the instance buffer instead of composing a matrix per ring.
+        var rm = brainRings.instanceMatrix.array;
         for(var bi=0; bi<animals.length && nb<BRAIN_RING_CAP; bi++){
           var ba = animals[bi];
           if(!ba.genome.brain) continue;
-          var bs3 = Math.max(0.5, ba.radius*S*1.35);
-          dummy.position.set(toX(ba.x), heightAt(ba.x, ba.y) + ba.alt + 0.1, toZ(ba.y));
-          dummy.rotation.set(0, 0, 0);
-          dummy.scale.set(bs3, bs3, bs3);
-          dummy.updateMatrix();
-          brainRings.setMatrixAt(nb++, dummy.matrix);
+          var bs3 = Math.max(0.5, ba.radius*S*1.35), o = 16*nb++;
+          rm[o]=bs3;  rm[o+1]=0;  rm[o+2]=0;  rm[o+3]=0;
+          rm[o+4]=0;  rm[o+5]=bs3; rm[o+6]=0;  rm[o+7]=0;
+          rm[o+8]=0;  rm[o+9]=0;  rm[o+10]=bs3; rm[o+11]=0;
+          rm[o+12]=toX(ba.x); rm[o+13]=(ba.gy!=null ? ba.gy : heightAt(ba.x, ba.y)) + ba.alt + 0.1; rm[o+14]=toZ(ba.y); rm[o+15]=1;
         }
       }
       brainRings.count = nb;
@@ -2661,6 +2688,16 @@
     },
     params: params,
     hunt: HUNT,
+    /* Steps n times with section timers on; returns ms per step by section. */
+    profile: function(n, dt){
+      n = n || 300; prof = {};
+      var t0 = performance.now();
+      for(var i=0;i<n;i++) step(dt || SUBSTEP);
+      var total = performance.now()-t0, out = { stepMs:+(total/n).toFixed(2), animals:animals.length };
+      Object.keys(prof).forEach(function(k){ out[k] = +(prof[k]/n).toFixed(3); });
+      prof = null;
+      return out;
+    },
     /* 'instinct' | 'mixed' | 'brains' — reseeds the world. */
     brainMode: function(mode){
       if(mode){ params.brainMode = mode; seedWorld(); syncBrainUI(); }
