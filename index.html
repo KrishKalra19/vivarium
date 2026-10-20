@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>99R's ludus de animalibus</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,500&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,700;1,800&display=swap">
-<link rel="stylesheet" href="css/style.css?v=3">
+<link rel="stylesheet" href="css/style.css?v=4">
 <link rel="stylesheet" href="css/arena.css?v=2">
 </head>
 <body>
@@ -101,6 +101,7 @@
           </div>
           <button class="btn quiet wide" id="restoreBrains" hidden>Restore autosaved brains<span class="sub" id="restoreSub"></span></button>
           <input type="file" id="brainFile" accept=".json,application/json" hidden>
+          <button class="btn quiet wide" data-tour-start>Guided tour<span class="sub">a short walkthrough of how evolved brains work</span></button>
           <div class="status" id="brainStatus"></div>
         </div>
 
@@ -230,7 +231,8 @@
 <script src="js/species.js?v=2"></script>
 <script src="js/bodies.js?v=2"></script>
 <script src="js/brain.js?v=3"></script>
-<script src="js/vivarium.js?v=6"></script>
+<script src="js/vivarium.js?v=7"></script>
+<script src="js/tour.js?v=3"></script>
 <script src="js/arena/roster.js?v=2"></script>
 <script src="js/arena/tuning.js?v=2"></script>
 <script src="js/arena/engine.js?v=2"></script>

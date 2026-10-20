@@ -2925,7 +2925,8 @@
       'Every brain is inherited from its parent with small random changes. Brains that survive and breed more pass '+
       'on their wiring, so behaviour <b>evolves</b>; nobody programs it.</p>'+
       '<p><b>Mixed A/B</b> splits every species into brain and rule-following "instinct" lineages in the same forest. '+
-      'Teal rings on the map mark brain animals. Tap a chart to enlarge it.</p></details>'+
+      'Teal rings on the map mark brain animals. Tap a chart to enlarge it.</p>'+
+      '<button class="btn tour-launch" data-tour-start>Take the guided tour</button></details>'+
       '<div class="card story"><div class="card-head"><span class="card-title">What\'s happening</span></div>'+
       '<div id="storyText" class="story-text"></div></div>');
   }
