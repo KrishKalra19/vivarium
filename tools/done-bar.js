@@ -61,6 +61,11 @@
     while(performance.now() - t0 < CHUNK_MS){
       V.step(DT); job.t += DT;
       if(job.phase === 'evolve'){
+        if(job.t >= (job.evoNext||0)){
+          job.evoNext = (job.evoNext||0) + 30;
+          var e = snapshot(); job.evoTrace = job.evoTrace || [];
+          job.evoTrace.push(Math.round(job.t)+' '+PREY.concat(PRED).map(function(id){ return e.per[id].b+e.per[id].i; }).join(' '));
+        }
         if(V.brainMode() === 'mixed'){ job.phase = 'mixed'; job.mixedT = 0; job.nextSample = 0; job.evolvedAt = job.t; }
         continue;
       }
@@ -96,7 +101,8 @@
       seed:job.seed, error:err||null, wallSecs:job.wall,
       finalShare:+last.share.toFixed(3), meanShareLast5:+mean.toFixed(3),
       stuckAtZero:stuck, maxZeroSecs:job.maxZero, minPrey:job.minPrey,
-      finalPrey:last.prey, finalPred:last.predPer,
+      finalPrey:last.prey, finalPred:last.predPer, predTotal:last.pred,
+      predMeanLast5:Math.round(tail.reduce(function(s,r){ return s+r.pred; }, 0) / Math.max(1, tail.length)),
       pass: !err && stuck.length===0 && last.share>=0.4 && mean>=0.4
     };
     if(onDone) soon(onDone);
@@ -163,5 +169,5 @@
     return JSON.stringify(s);
   }
 
-  window.DoneBar = { start:start, plain:plain, sweep:sweep, sweepResults:function(){ return { left:queue.length, running:!!(job&&!job.done), results:results.map(function(x){ var r=x.r; return JSON.stringify(x.opt.hunt||{})+' s'+x.opt.seed+(x.opt.evolve?' E':'')+' pass='+r.pass+' share='+r.finalShare+'/'+r.meanShareLast5+' minPrey='+JSON.stringify(r.minPrey)+' zero='+JSON.stringify(r.maxZeroSecs); }) }; }, status:status, brief:brief, probe:probe, series:function(){ return job && job.series; } };
+  window.DoneBar = { evoTrace:function(){ return job && job.evoTrace; }, start:start, plain:plain, sweep:sweep, sweepResults:function(){ return { left:queue.length, running:!!(job&&!job.done), results:results.map(function(x){ var r=x.r; return JSON.stringify(x.opt.hunt||{})+' s'+x.opt.seed+(x.opt.evolve?' E':'')+' pass='+r.pass+' share='+r.finalShare+'/'+r.meanShareLast5+' pred='+r.predTotal+'/'+r.predMeanLast5+' '+JSON.stringify(r.finalPred)+' minPrey='+JSON.stringify(r.minPrey)+' zero='+JSON.stringify(r.maxZeroSecs); }) }; }, status:status, brief:brief, probe:probe, series:function(){ return job && job.series; } };
 })();

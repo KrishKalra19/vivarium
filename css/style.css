@@ -239,6 +239,7 @@ select{
 .status{font-family:var(--font-mono);font-size:10.5px;color:var(--accent);min-height:13px;}
 
 /* charts */
+.card[hidden]{display:none;}
 .card{
   background:var(--bg);border:1px solid var(--line);border-radius:13px;
   padding:9px 11px 7px;display:flex;flex-direction:column;gap:5px;

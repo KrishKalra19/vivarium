@@ -81,7 +81,7 @@
   var sampleAccum = 0;
   /* Per-species brain bookkeeping: lineage counts, behaviour metrics (accumulated
      between samples, then smoothed), drift, gene bank and log hysteresis. */
-  var METRICS = { herbivore:['flee','breed','headDown','predRate'], predator:['success','killRate','preyMass','breed'] };
+  var METRICS = { herbivore:['flee','breed','headDown','predRate'], predator:['success','strikeRate','killRate','preyMass','breed'] };
   var BS = {};
   var brainSpecies = BRAIN_IDS[0];   // which species the Genetics brain charts show
   var SEEDS = {};                    // noise-free starting brain per species, for drift
@@ -123,7 +123,7 @@
       radius: 2.5*Math.pow(mass,1/3),
       age:0, maxAge: sp.lifespan*randRange(0.85,1.15),
       gen:gen||0, cooldown:randRange(0,sp.repro.cooldown*0.5),
-      huntCd:0, kills:0, dead:false,
+      huntCd:0, kills:0, strikes:0, dead:false,
       // What the animal is doing, recorded for the cameras and captions; never read by the model.
       state:'idle', target:null, lungeAt:-99, lastLunge:null, cause:null, killedBy:null,
       ryaw:Math.random()*Math.PI*2, stride:Math.random(), alt:0,
@@ -569,6 +569,7 @@
     var odds = sp.catchSkill * (a.speed/(a.speed+prey.speed)) * massEdge * 1.5;
     var hit = Math.random() < odds;
     a.lungeAt = simClock;
+    a.strikes++;
     a.lastLunge = { hit:hit, sid:prey.sid, mass:prey.mass, t:simClock };
     if(a.vigil){
       var acc = BS[a.sid].acc[lineageOf(a)];
@@ -817,6 +818,7 @@
       ema(st, 'breed', k, acc.breedN ? acc.breedS/acc.breedN*100 : null);
       if(st.role==='predator'){
         ema(st, 'success', k, acc.lunge ? acc.hit/acc.lunge*100 : null);
+        ema(st, 'strikeRate', k, n[k] ? acc.lunge/n[k]*60 : null);   // lunges per predator per minute
         ema(st, 'killRate', k, n[k] ? acc.hit/n[k]*60 : null);       // kills per predator per minute
         ema(st, 'preyMass', k, acc.hit ? acc.massS/acc.hit : null);
       } else {
@@ -855,7 +857,17 @@
     for(var i=0;i<SPECIES_IDS.length;i++){
       var id=SPECIES_IDS[i];
       var ph=popHistory[id], prev=ph.length ? ph[ph.length-1] : null;
-      if(prev>0 && !counts[id]) logEvent({ sid:id, text:'Local extinction: no '+SPECIES[id].name.toLowerCase()+' left on the range.' });
+      if(prev>0 && !counts[id]){
+        logEvent({ sid:id, text:'Local extinction: no '+SPECIES[id].name.toLowerCase()+' left on the range.' });
+        // predators that eat it get the event on their brain charts
+        if(worldMode!=='instinct') PRED_IDS.forEach(function(p){ if(SPECIES[p].prey.indexOf(id)>=0) speciesMark(p, 'no '+lower(id)+'s'); });
+      }
+      if(worldMode!=='instinct' && SPECIES[id].role==='predator'){
+        // boom marker with hysteresis: near the cap, then re-armed once well below it
+        var bm = BS[id].mark, cap = SPECIES[id].cap;
+        if(!bm.boom && counts[id] >= cap*0.9){ bm.boom = true; speciesMark(id, 'boom'); }
+        else if(bm.boom && counts[id] < cap*0.5) bm.boom = false;
+      }
       if(prev===0 && counts[id]>0) logEvent({ sid:id, text:SPECIES[id].name+' recolonised the range from the wider forest.' });
       push(popHistory[id], counts[id]||0);
       var th=traitHistory[id];
@@ -1450,7 +1462,12 @@
     html += bar('Speed', Math.round(a.speed), (a.genome.speed-TRAIT_BAND.speed[0])/(TRAIT_BAND.speed[1]-TRAIT_BAND.speed[0]), sp.color, ' px/s');
     html += bar('Sense range', Math.round(a.sense), (a.genome.sense-TRAIT_BAND.sense[0])/(TRAIT_BAND.sense[1]-TRAIT_BAND.sense[0]), sp.color, ' px');
     html += bar('Metabolism', a.genome.metab.toFixed(2), (a.genome.metab-TRAIT_BAND.metab[0])/(TRAIT_BAND.metab[1]-TRAIT_BAND.metab[0]), sp.color, '×');
-    if(sp.role==='predator') html += '<div class="note">Successful hunts: '+a.kills+'</div>';
+    if(sp.role==='predator'){
+      var L = a.lastLunge, hunt = a.strikes ? a.kills+' kills from '+a.strikes+' strikes ('+Math.round(a.kills/a.strikes*100)+'%)' : 'no strikes yet';
+      if(L) hunt += ' · last strike '+(L.hit ? 'landed' : 'missed')+' '+Math.round(simClock-L.t)+'s ago';
+      if(L && !L.hit && worldMode!=='instinct' && a.huntCd>0) hunt += ' · <b>recovering</b>, '+Math.ceil(a.huntCd)+'s until it can strike again';
+      html += '<div class="note">Hunting: '+hunt+'</div>';
+    }
     if(a.genome.brain){
       var lay=layoutOf(a.sid), o=a.bOut, O=lay.O, intents=[];
       if(sp.role==='predator'){
@@ -2798,6 +2815,7 @@
       var pct=function(v){ return Math.round(v)+'%'; }, px=function(v){ return Math.round(v)+' px'; };
       if(BS[id].role==='predator'){
         cmp(E.success.brain, ref.success, 'land <b>more</b> of their strikes', 'miss <b>more</b> of their strikes', pct, 4);
+        cmp(E.strikeRate.brain, ref.strikeRate, 'strike <b>more</b> often, paying for every lunge', 'strike <b>more selectively</b>, saving energy', function(v){ return v.toFixed(2)+'/min'; }, 0.1);
         cmp(E.killRate.brain, ref.killRate, 'kill <b>more</b> often', 'kill <b>less</b> often', function(v){ return v.toFixed(2)+'/min'; }, 0.05);
         cmp(E.preyMass.brain, ref.preyMass, 'go after <b>bigger</b> prey', 'take <b>smaller</b>, easier prey', function(v){ return v.toFixed(0)+' kg'; }, 3);
       } else {
@@ -2807,12 +2825,25 @@
       }
       cmp(E.breed.brain, ref.breed, 'wait until they\'re better fed to breed', 'breed <b>earlier</b>, at lower energy: a riskier strategy', pct, 4);
     }
+    var prey = '';
+    if(BS[id].role==='predator'){
+      // What they live on right now: lean times are when restraint pays.
+      var sp = SPECIES[id], parts = [], lean = false;
+      sp.prey.forEach(function(p){
+        var n = counts[p]||0;
+        if(n < SPECIES[p].floor*3) lean = true;
+        parts.push(n+' '+lower(p)+(n===1?'':'s'));
+      });
+      prey = '<p>Prey on the range: '+parts.join(', ')+'. '+(lean
+        ? '<b>Lean times</b>: every lunge costs energy and a miss means a long rest, so over-eager hunters starve first.'
+        : 'Food is plentiful for now.')+'</p>';
+    }
     var dd = BS[id].drift.drift, d = dd.length ? dd[dd.length-1] : 0;
     var drift = d<0.12 ? 'Their brains are still close to the hand-wired starting brain.'
               : d<0.25 ? 'Their brains have <b>noticeably</b> moved away from the starting brain.'
               : 'Their brains have changed <b>a lot</b> from the starting brain.';
     return '<p>'+lead+'</p>'+(lines.length ? '<ul><li>'+lines.slice(0,4).join('</li><li>')+'</li></ul>' :
-      (ref ? '<p>No clear behaviour differences yet. Give it a few generations.</p>' : ''))+'<p>'+drift+'</p>';
+      (ref ? '<p>No clear behaviour differences yet. Give it a few generations.</p>' : ''))+prey+'<p>'+drift+'</p>';
   }
 
   /* Plain-English top changes in one brain versus the starting brain, using the
@@ -2858,6 +2889,7 @@
 
   var BRAIN_CHARTS = [
     { key:'success', title:'Strike success', unit:'share of lunges that land', floor:30, fmt:function(v){ return Math.round(v)+'%'; } },
+    { key:'strikeRate', title:'Strike rate', unit:'lunges per predator per minute', floor:1, fmt:function(v){ return v.toFixed(2); } },
     { key:'killRate', title:'Kill rate', unit:'kills per predator per minute', floor:0.5, fmt:function(v){ return v.toFixed(2); } },
     { key:'preyMass', title:'Prey size', unit:'average body mass of prey taken', floor:10, fmt:function(v){ return v.toFixed(0)+' kg'; } },
     { key:'predRate', title:'Predation', unit:'deaths per 100 per minute', floor:5, fmt:function(v){ return v.toFixed(1); } },
