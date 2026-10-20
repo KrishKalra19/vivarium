@@ -96,27 +96,33 @@
       rSin:10, rNear:11, reach:12, ready:13, energy:14, age:15, canBreed:16, mem1:17, mem2:18 },
     { turn:0, throttle:1, lunge:2, breed:3, swap:4, mem1:5, mem2:6 });
 
-  /* Starting predator: turn onto the target and run it down (ambushers wait
-     until it's close), strike only when in reach and recovered, ease off when
-     well fed, give rivals room, breed near the species' usual threshold. */
+  /* Starting predator, wired to mimic the scripted hunter: turn onto the target
+     and run it down (ambushers wait until it's inside strike range), strike
+     whenever in reach and recovered, rest once fed past the satiety limit, give
+     rivals room, breed near the species' usual threshold. Restraint beyond that
+     (holding back a strike, picking prey) is left for selection to find. */
   PRED.seed = function(noise, sp){
     var L=PRED, I=L.I, O=L.O, w=L.blank(noise);
     var thr = sp ? sp.repro.threshold : 0.85, ambush = !!(sp && sp.ambush);
-    L.wIn(w,0,I.pSin,2.0);                                  // h0: target is to the left
+    // closeness reads 0.3 + 0.7·(1 − d/sense); this is its value at the strike range
+    var strikeNear = ambush ? 0.3 + 0.7*(1 - sp.strikeRange/sp.sense) : 0;
+    L.wIn(w,0,I.pSin,5.0);                                  // h0: target is to the left (steep, so prey behind still turns it)
     L.wIn(w,1,I.pNear,3.0);                                 // h1: a target exists / is close
-    if(ambush){ L.wIn(w,2,I.pNear,6.0); L.bIn(w,2,-3.9); }  // h2: target inside strike range
+    if(ambush){ L.wIn(w,2,I.pNear,10.0); L.bIn(w,2,-10.0*strikeNear); } // h2: target inside strike range
     else { L.wIn(w,2,I.pNear,0.5); }
-    L.wIn(w,3,I.energy,12.0); L.bIn(w,3,-8.4);              // h3: −1 hungry, +1 well fed (switches ~70%)
+    L.wIn(w,3,I.energy,12.0); L.bIn(w,3,-7.4);              // h3: −1 hungry, +1 fed (switches ~62%, just under the satiety limit)
     L.wIn(w,4,I.canBreed,2.2); L.wIn(w,4,I.energy,5.0); L.bIn(w,4,-(2.2+5*thr)); // h4: ready and at the usual breeding threshold
     L.wIn(w,5,I.reach,3.0); L.wIn(w,5,I.ready,2.0); L.bIn(w,5,-4.0); // h5: strike now
     L.wIn(w,6,I.rSin,-1.5);                                 // h6: rival to the left
     L.wIn(w,7,I.pNear,2.0); L.wIn(w,7,I.mem1,1.2); L.bIn(w,7,-0.5); // h7: still on the hunt
 
     L.wOut(w,O.turn,0,2.0); L.wOut(w,O.turn,6,0.4);
-    if(ambush){ L.wOut(w,O.throttle,2,2.6); L.wOut(w,O.throttle,1,-0.6); L.bOut(w,O.throttle,-2.9); }
-    else { L.wOut(w,O.throttle,1,2.0); L.wOut(w,O.throttle,7,0.4); L.bOut(w,O.throttle,-1.5); } // roam ~45% when hungry
-    L.wOut(w,O.throttle,3,-1.5);                            // full: stop hunting and rest
-    L.wOut(w,O.lunge,5,3.0); L.wOut(w,O.lunge,3,-4.0); L.bOut(w,O.lunge,-4.0); // strike only when hungry
+    if(ambush){ L.wOut(w,O.throttle,2,3.5); L.wOut(w,O.throttle,1,-0.6); L.bOut(w,O.throttle,-1.6); } // ambushers lie still, fed or not
+    else {
+      L.wOut(w,O.throttle,1,2.0); L.wOut(w,O.throttle,7,0.4); L.bOut(w,O.throttle,-1.5); // roam ~45% when hungry
+      L.wOut(w,O.throttle,3,-1.5);                          // fed: stop hunting and rest
+    }
+    L.wOut(w,O.lunge,5,3.0); L.bOut(w,O.lunge,-1.0);        // strike when in reach and ready
     L.wOut(w,O.breed,4,2.4);
     L.bOut(w,O.swap,-2.0); L.wOut(w,O.swap,3,0);
     L.wOut(w,O.mem1,7,1.2);

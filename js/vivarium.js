@@ -31,6 +31,11 @@
   var BREED_FLOOR = 0.45;        // brains choose when to breed, but never below this energy
   var TURN_RATE = 4.5;           // rad/s at full turn output
   var SUBSTEP = 1/30;            // largest simulated step, so fast-forward stays stable
+  /* Costlier hunting (Mixed and Brains worlds only; Instinct keeps the old costs).
+     Every lunge burns energy and a miss means a long recovery, so a predator that
+     over-hunts starves and selection, not a rule, teaches restraint. Both
+     lineages pay the same. Tunable from the console via Vivarium.hunt. */
+  var HUNT = { lungeCost:10, missRest:15 };   // × drain per lunge; seconds after a miss
 
   /* --------------------------- helpers --------------------------- */
   function randRange(lo,hi){ return lo + Math.random()*(hi-lo); }
@@ -558,6 +563,8 @@
   /* One discrete lunge, then a recovery window. Most hunts fail. */
   function lunge(a, sp, prey){
     a.huntCd = 2.5;
+    var costly = worldMode!=='instinct';
+    if(costly) a.energy -= a.drain*HUNT.lungeCost;
     var massEdge = clamp(0.42*Math.pow(a.mass/prey.mass, 0.75), 0.08, 1.2);
     var odds = sp.catchSkill * (a.speed/(a.speed+prey.speed)) * massEdge * 1.5;
     var hit = Math.random() < odds;
@@ -574,6 +581,7 @@
       die(prey,'predated',a);
     } else {
       a.energy -= a.drain*1.5;
+      if(costly) a.huntCd = HUNT.missRest;
       onMiss(a, prey);
     }
   }
@@ -646,6 +654,8 @@
     if(lk){
       var lx=lk.x-a.x, ly=lk.y-a.y;
       if(lk.dead || lx*lx+ly*ly > a.sense*a.sense*1.44) lk=null;
+      // an ambusher doesn't pursue, so a lock outside its strike range is just a prey it's watching
+      else if(sp.ambush && lx*lx+ly*ly > sp.strikeRange*sp.strikeRange) lk=null;
     }
     if(!lk) lk=c.best;
     var other = lk===c.best ? (c.big!==c.best ? c.big : null) : c.best;
@@ -2633,6 +2643,7 @@
                frameMs:+per.toFixed(2), fps:Math.round(1000/per) };
     },
     params: params,
+    hunt: HUNT,
     /* 'instinct' | 'mixed' | 'brains' — reseeds the world. */
     brainMode: function(mode){
       if(mode){ params.brainMode = mode; seedWorld(); syncBrainUI(); }
