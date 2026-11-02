@@ -17,6 +17,16 @@
   var TRAIT_BAND = { mass:[0.55,1.7], speed:[0.6,1.5], sense:[0.55,1.6], metab:[0.7,1.35] };
   /* Named subspecies that branch off as lineages drift (js/clades.js). */
   var Clades = Ludus.clades.create(TRAITS, TRAIT_BAND, SPECIES);
+  /* A recording of the whole run for the time-lapse scrubber (js/timelapse.js). */
+  var TL = Ludus.timelapse.create({ every:5 });
+  var replay = { on:false, idx:0, playing:false, color:'species', acc:0 };
+  /* Subspecies colours: the root keeps the species colour, daughters take these in order. */
+  var CLADE_PAL = ['#e4572e','#2e86ab','#7bb662','#a23b72','#3bceac','#6c4ab6','#1d3557','#d1495b','#00798c','#8d6e63'];
+  function cladeColor(c){
+    if(!c || !c.depth) return c ? SPECIES[c.sid].color : '#888';
+    var own = Clades.all().filter(function(o){ return o.sid===c.sid && o.depth; });
+    return CLADE_PAL[own.indexOf(c) % CLADE_PAL.length];
+  }
 
   var ENERGY_PER_MASS = 9;       // energy capacity per kg
   var DRAIN_K = 0.22;            // metabolic constant, applied to mass^0.75 (Kleiber)
@@ -958,6 +968,7 @@
       push(BS[id].lineage.brain, lc[id].brain); push(BS[id].lineage.instinct, lc[id].instinct);
       if(worldMode!=='instinct') sampleBrainMetrics(id, lc[id].brain, lc[id].instinct);
     });
+    TL.record(simClock, animals, SPECIES_IDS, { foliage:foliage, fruit:fruit, water:water });
     Clades.update(animals, simClock).forEach(function(b){
       logEvent({ sid:b.clade.sid, text:'New subspecies: the '+b.clade.name+' split from the '+b.parent.name+
         ' ('+Math.round(b.share*100)+'% of them, '+b.clade.n+' animals).' });
@@ -978,6 +989,8 @@
     vegHistory={ foliage:[], fruit:[] };
     resetMetrics();
     Clades.reset();
+    TL.reset();
+    if(replay.on) setReplay(false);
     sampleCount = 0;
   }
 
@@ -1086,6 +1099,85 @@
   }
   function screenToWorld(sx, sy){
     return { x: sx/camera.zoom + camera.x, y: sy/camera.zoom + camera.y };
+  }
+
+  /* --------------------------- time-lapse replay --------------------------- */
+  var tlCanvas = document.createElement('canvas'), tlCtx = tlCanvas.getContext('2d'), tlImg = null, tlPainted = -1;
+  function paintReplayPlants(f){
+    if(!tlImg || tlCanvas.width!==cols || tlCanvas.height!==rows){
+      tlCanvas.width = cols; tlCanvas.height = rows; tlImg = tlCtx.createImageData(cols, rows);
+    }
+    var d = tlImg.data, C=theme.canopyRGB, F=theme.fruitRGB, S=theme.soilRGB;
+    for(var i=0;i<f.veg.length;i++){
+      var v = f.veg[i], o = i*4, r, g, b;
+      if(v===255){ r=74; g=128; b=150; }
+      else if(v>=200){ var t=(v-200)/54*0.92; r=C.r+(F.r-C.r)*t; g=C.g+(F.g-C.g)*t; b=C.b+(F.b-C.b)*t; }
+      else { var k=v/199; r=S.r+(C.r-S.r)*k; g=S.g+(C.g-S.g)*k; b=S.b+(C.b-S.b)*k; }
+      d[o]=r; d[o+1]=g; d[o+2]=b; d[o+3]=255;
+    }
+    tlCtx.putImageData(tlImg, 0, 0);
+  }
+  function drawReplay(){
+    var f = TL.at(replay.idx);
+    if(!f) return;
+    if(tlPainted !== replay.idx){ paintReplayPlants(f); tlPainted = replay.idx; }
+    var z = camera.zoom, dpr = view.dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle = theme.surface2; ctx.fillRect(0,0,view.w,view.h);
+    ctx.save(); ctx.scale(z,z); ctx.translate(-camera.x, -camera.y);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(tlCanvas, 0, 0, world.w, world.h);
+    var byClade = replay.color==='subspecies', focus = geneSpecies, cache = {};
+    var d = f.data;
+    for(var pass=0; pass<2; pass++){          // others first, focus species on top
+      for(var i=0;i<d.length;i+=4){
+        var sid = SPECIES_IDS[d[i+2]], sp = SPECIES[sid];
+        var isFocus = sid===focus;
+        if(byClade && (pass===1) !== isFocus) continue;
+        if(!byClade && pass===1) continue;
+        var col;
+        if(!byClade) col = sp.color;
+        else if(!isFocus) col = 'rgba(40,40,40,0.18)';
+        else col = cache[d[i+3]] || (cache[d[i+3]] = cladeColor(Clades.get(d[i+3])));
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.arc(d[i], d[i+1], Math.max(byClade && isFocus ? 3.2/z : 2.2, 2.5*Math.pow(sp.mass,1/3)), 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+  function showReplay(i){
+    replay.idx = Math.max(0, Math.min(TL.count()-1, i));
+    var f = TL.at(replay.idx);
+    var sl = document.getElementById('tlSlider');
+    if(sl){ sl.max = Math.max(0, TL.count()-1); sl.value = replay.idx; }
+    var lb = document.getElementById('tlTime');
+    if(lb && f) lb.textContent = fmtTime(f.t) + ' / ' + fmtTime(simClock);
+    renderCharts();
+  }
+  function setReplay(on){
+    replay.on = !!on && TL.count() > 1;
+    replay.playing = false;
+    if(replay.on){
+      if(viewMode==='3d') setViewMode('2d');
+      showReplay(0);
+      replay.playing = true;
+    }
+    tlPainted = -1;
+    syncReplayUI();
+    renderCharts();
+  }
+  function syncReplayUI(){
+    var bar = document.getElementById('tlBar');
+    if(!bar) return;
+    bar.classList.toggle('on', replay.on);
+    document.getElementById('tlCtl').hidden = !replay.on;
+    document.getElementById('tlBtn').textContent = replay.on ? 'Back to live' : 'Time-lapse';
+    document.getElementById('tlPlay').textContent = replay.playing ? '❚❚' : '▶';
+    document.querySelectorAll('#tlColor button').forEach(function(b){ b.classList.toggle('active', b.dataset.c===replay.color); });
+    var sel = document.getElementById('tlSpecies');
+    if(sel) sel.value = geneSpecies;
   }
 
   function draw(){
@@ -1447,7 +1539,8 @@
     var th = traitHistory[geneSpecies], col = SPECIES[geneSpecies].color;
     var treeEl = document.getElementById('chartTree');
     if(treeEl && treeEl.offsetParent){
-      Clades.drawTree(treeEl, geneSpecies, simClock, theme, col);
+      Clades.drawTree(treeEl, geneSpecies, simClock, theme, col,
+        { cursor: replay.on && TL.at(replay.idx) ? TL.at(replay.idx).t : null, colorOf: replay.on && replay.color==='subspecies' ? cladeColor : null });
       var lv = Clades.living(geneSpecies).length, all = Clades.all().filter(function(c){ return c.sid===geneSpecies; }).length;
       document.getElementById('treeCaption').textContent = all > 1
         ? lv+' living lineage'+(lv===1?'':'s')+' · '+(all-1)+' subspecies so far · width = population'
@@ -1657,6 +1750,21 @@
       recount();
     }
   });
+  (function(){
+    var sel = document.getElementById('tlSpecies');
+    SPECIES_IDS.forEach(function(id){ var o=document.createElement('option'); o.value=id; o.textContent=SPECIES[id].name; sel.appendChild(o); });
+    sel.addEventListener('change', function(){ geneSpecies = sel.value; updateGeneSeg(); renderCharts(); });
+    document.getElementById('tlBtn').addEventListener('click', function(){ setReplay(!replay.on); });
+    document.getElementById('tlPlay').addEventListener('click', function(){
+      if(!replay.playing && replay.idx >= TL.count()-1) showReplay(0);
+      replay.playing = !replay.playing; syncReplayUI();
+    });
+    document.getElementById('tlSlider').addEventListener('input', function(e){ replay.playing = false; showReplay(+e.target.value); syncReplayUI(); });
+    document.querySelectorAll('#tlColor button').forEach(function(b){
+      b.addEventListener('click', function(){ replay.color = b.dataset.c; syncReplayUI(); renderCharts(); });
+    });
+    syncReplayUI();
+  })();
   document.getElementById('riverBtn').addEventListener('click', function(){
     setRiver(!RIVER.on);
     repaintPlants();
@@ -2665,14 +2773,21 @@
       var ran = turboTick();
       turboRate += ((dt>0 ? ran/dt : 0) - turboRate)*0.1;
       skipDraw = (++turboFrame % 4) !== 0;   // drawing is the other half of a frame
+    } else if(replay.on){
+      if(replay.playing){
+        replay.acc += dt;
+        if(replay.acc > 0.12){ replay.acc = 0; showReplay(replay.idx+1); if(replay.idx >= TL.count()-1) replay.playing = false; syncReplayUI(); }
+      }
     } else tick(dt);
-    watchTick(dt);
+    if(!replay.on) watchTick(dt);
     plantTimer += dt;
     if(skipDraw){
       // turbo paints every 4th frame only
     } else if(viewMode==='3d' && R3.ready){
       if(plantTimer > 0.25){ plantTimer=0; R3.repaint(); }
       R3.frame(dt);
+    } else if(replay.on){
+      drawReplay();
     } else {
       if(plantTimer > 0.2){ plantTimer=0; repaintPlants(); }
       follow2D(dt);
@@ -2715,6 +2830,17 @@
     },
     species: SPECIES,
     deaths: function(){ return Object.assign({}, deathLog); },
+    /* Time-lapse: replay(false) returns to live; replay(i, 'subspecies', sid) shows frame i. */
+    replay: function(i, color, sid){
+      if(i===false){ setReplay(false); return null; }
+      if(sid){ geneSpecies = sid; updateGeneSeg(); }
+      if(color) replay.color = color;
+      if(!replay.on) setReplay(true);
+      replay.playing = false;
+      showReplay(i==null ? TL.count()-1 : i); syncReplayUI(); drawReplay();
+      return { frames:TL.count(), idx:replay.idx, t:TL.at(replay.idx).t };
+    },
+    timelapse: TL,
     river: function(on){ if(on!=null){ setRiver(on); repaintPlants(); } return RIVER.on; },
     bankOf: function(x, y){ return bankOf(x, y); },
     clades: function(){ return Clades.all().map(function(c){

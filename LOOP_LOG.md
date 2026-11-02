@@ -3,7 +3,7 @@
 ## TL;DR
 - Loop started 2026-11-02 (night). See `LOOP_PLAN.md` for the backlog.
 - **The overnight timer never fired:** the cloud container went idle and the in-session wakeup died with it. Since 11-02 afternoon the loop re-arms with a server-side reminder instead.
-- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4). Next: time-lapse replay (5).
+- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5). Next: sexual reproduction (6).
 - Screenshots to look at: `docs/loop/`
 - **Krish feedback** (write anything here or in chat; the next cycle reads it first):
   -
@@ -38,3 +38,9 @@
   So agouti and howler lineages now split by bank (e.g. "Swift Giant Howler Monkey": 293 east / 1 west; "Swift Agouti IV": 115 east / 0 west). Screenshot: `docs/loop/c4-river-map.png`.
 - Open question: **ocelots don't respond** (~58% purity even with the river) although they're blocked. My guess is that their small, crash-prone population gets reset by immigrants dropped on both banks. Not investigated.
 - Harness caveat: runs with the same seed aren't bit-identical (the page's own frame loop draws random numbers at timing-dependent moments), and the no-river subspecies count ranged 6–23 between seeds. Compare across several seeds, never one.
+### 2026-11-02 19:30 UTC — cycle 5: time-lapse replay
+- New **Time-lapse** button under the map. It pauses the sim and replays the whole run: play/pause, a scrubber, and a **Species / Subspecies** colour toggle with a species picker. In Subspecies mode the picked species' subspecies get distinct colours and everyone else is greyed out, so you can watch, e.g., howlers split into a west-bank and an east-bank colour. The Family tree draws a cursor at the replay time. "Back to live" resumes. Vegetation, the river and fire scars are recorded too.
+- Recording (`js/timelapse.js`): every 5 sim-s, 4 × int16 per animal plus 1 byte per plant cell. At 400 frames it drops every other frame and doubles the interval, so it always covers the whole run (≈10 MB worst case). API: `Vivarium.replay(i, 'subspecies', sid)`, `Vivarium.replay(false)`, `Vivarium.timelapse`.
+- Verified headless (river on, seed 1, 1500 sim-s, no page errors): 291 frames covering 0–1498 s. Frame contents check: 325 howlers stored vs 326 alive (the one missing was born after the frame). Screenshot early vs end: `docs/loop/c5-timelapse-howler.png`.
+- Fixes found while checking: subspecies dots were sub-pixel at full-map zoom (they now have a minimum on-screen size), and a palette orange matched the agouti's own colour, so every agouti looked the same (palette changed; the new palette isn't re-screenshotted).
+- Not yet checked: phone-width layout of the bar, touch scrubbing, memory on very long runs (a cap is in place but untested past 25 min), and replay while in 3D (it switches you to Map).

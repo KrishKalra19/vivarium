@@ -140,7 +140,8 @@
     /* Family tree for one species: time runs left to right, one lane per clade,
        line width follows population, and a daughter's lane hangs off its parent
        at the moment it split. Returns the canvas height it needs in CSS px. */
-    function drawTree(el, sid, now, theme, color){
+    function drawTree(el, sid, now, theme, color, opts){
+      opts = opts || {};
       var cs = list.filter(function(c){ return c.sid === sid; });
       var kids = {}; cs.forEach(function(c){ (kids[c.parent] = kids[c.parent] || []).push(c); });
       var order = [];
@@ -160,7 +161,7 @@
       c.lineCap = 'round';
       var bg = getComputedStyle(el.parentNode).backgroundColor || theme.surface2;
       order.forEach(function(cl){
-        var y = lane[cl.id], dead = cl.died != null, col = dead ? theme.inkDim : color;
+        var y = lane[cl.id], dead = cl.died != null, col = opts.colorOf ? opts.colorOf(cl) : (dead ? theme.inkDim : color);
         if(cl.parent && lane[cl.parent] != null){
           c.strokeStyle = theme.inkDim; c.lineWidth = 1; c.setLineDash([2, 3]);
           c.beginPath(); c.moveTo(X(cl.born), lane[cl.parent]); c.lineTo(X(cl.born), y); c.stroke();
@@ -184,6 +185,10 @@
         c.strokeText(label, Math.max(L, lx), y - 8);
         c.fillText(label, Math.max(L, lx), y - 8);
       });
+      if(opts.cursor != null){
+        c.strokeStyle = theme.accent; c.lineWidth = 1.5;
+        c.beginPath(); c.moveTo(X(opts.cursor), 2); c.lineTo(X(opts.cursor), H - 2); c.stroke();
+      }
       return H;
     }
 

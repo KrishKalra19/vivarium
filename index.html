@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>99R's ludus de animalibus</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,500&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,700;1,800&display=swap">
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="css/style.css?v=6">
 <link rel="stylesheet" href="css/arena.css?v=2">
 </head>
 <body>
@@ -57,6 +57,16 @@
         <div class="cam-bar">
           <select id="camFilter" aria-label="Which predator the nature cam watches"></select>
           <button class="cam-btn" id="camBtn" aria-pressed="false"><span class="rec"></span>Nature cam</button>
+        </div>
+      </div>
+      <div class="tl-bar" id="tlBar">
+        <button class="btn" id="tlBtn">Time-lapse</button>
+        <div class="tl-ctl" id="tlCtl" hidden>
+          <button class="btn" id="tlPlay" aria-label="Play or pause">▶</button>
+          <input type="range" id="tlSlider" min="0" max="0" value="0" aria-label="Scrub through the run">
+          <span class="tl-time" id="tlTime"></span>
+          <div class="seg" id="tlColor"><button data-c="species">Species</button><button data-c="subspecies">Subspecies</button></div>
+          <select id="tlSpecies" aria-label="Species whose subspecies are coloured"></select>
         </div>
       </div>
       <div class="roster" id="roster"></div>
@@ -239,8 +249,9 @@
 <script src="js/species.js?v=2"></script>
 <script src="js/bodies.js?v=2"></script>
 <script src="js/brain.js?v=3"></script>
-<script src="js/clades.js?v=2"></script>
-<script src="js/vivarium.js?v=14"></script>
+<script src="js/clades.js?v=3"></script>
+<script src="js/timelapse.js?v=1"></script>
+<script src="js/vivarium.js?v=15"></script>
 <script src="js/tour.js?v=3"></script>
 <script src="js/arena/roster.js?v=2"></script>
 <script src="js/arena/tuning.js?v=2"></script>
