@@ -222,12 +222,45 @@
       }
     }
     for(var j=0;j<n;j++) fruit[j] = fruitCap[j]*randRange(0.3,0.8);
+    buildWater();
   }
 
   function cellAt(x,y){
     var cx = clamp(Math.floor(x/CELL),0,cols-1);
     var cy = clamp(Math.floor(y/CELL),0,rows-1);
     return cy*cols+cx;
+  }
+
+  /* River barrier (toggle in Controls). A meandering river splits the range
+     north to south. Rivers are a classic barrier for Amazonian animals (Wallace's
+     riverine-barrier hypothesis): agoutis, howlers and ocelots can't cross except at
+     rare fords; capybara, tapir, jaguar and anaconda swim it; harpies fly over. With
+     gene flow cut, each bank's population drifts on its own, which is what lets the
+     clade census see allopatric splits. */
+  var RIVER = { on:false, half:26, ford:0.002,   // ford: crossings per second of pushing at the bank
+                blocks:{ agouti:true, howler:true, ocelot:true } };
+  var water = null;   // Uint8Array per plant cell, 1 = river
+  function riverX(y){ return world.w*0.5 + 170*Math.sin(y/world.h*Math.PI*2.4 + 0.7) + 55*Math.sin(y*0.013); }
+  function bankOf(x, y){ return x < riverX(y) ? -1 : 1; }
+  function buildWater(){
+    water = new Uint8Array(cols*rows);
+    if(!RIVER.on) return;
+    for(var gy=0; gy<rows; gy++){
+      var rx = riverX((gy+0.5)*CELL);
+      for(var gx=0; gx<cols; gx++){
+        if(Math.abs((gx+0.5)*CELL - rx) < RIVER.half){ var k=gy*cols+gx; water[k]=1; foliage[k]=0; fruit[k]=0; fruitCap[k]=0; }
+      }
+    }
+  }
+  function setRiver(on){
+    RIVER.on = !!on;
+    if(!on){
+      // Let the old channel grow back (fruit trees don't return; that's fine).
+      buildWater();
+    } else buildWater();
+    terrainVersion++;
+    var btn = document.getElementById('riverBtn');
+    if(btn){ btn.setAttribute('aria-pressed', RIVER.on ? 'true' : 'false'); btn.classList.toggle('active', RIVER.on); }
   }
 
   function growthMultiplier(){
@@ -242,6 +275,7 @@
     var fm = BIOME.plants.fruit.regrow*gm*(simClock<events.mastUntil?4:1)*dt;
     if(fo<=0 && fm<=0) return;
     for(var i=0;i<foliage.length;i++){
+      if(water[i]) continue;
       var nut = 1 + nutrients[i]*0.9;
       var f = foliage[i];
       if(f<1) foliage[i] = f + fo*nut*(1-f);
@@ -358,7 +392,11 @@
     steer(a, Math.cos(a.heading)*a.speed*factor, Math.sin(a.heading)*a.speed*factor, 2.5, dt);
   }
   function move(a, dt){
+    var px = a.x, py = a.y;
     a.x += a.vx*dt; a.y += a.vy*dt;
+    if(RIVER.on && RIVER.blocks[a.sid] && bankOf(px, py) !== bankOf(a.x, a.y) && Math.random() > RIVER.ford*dt){
+      a.x = px; a.y = py; a.vx = -a.vx*0.5;
+    }
     if(a.x<0){ a.x=0; a.vx=-a.vx*0.5; }
     if(a.x>world.w){ a.x=world.w; a.vx=-a.vx*0.5; }
     if(a.y<0){ a.y=0; a.vy=-a.vy*0.5; }
@@ -403,7 +441,9 @@
     a.energy *= 0.42;
     a.cooldown = sp.repro.cooldown;
     for(var i=0;i<litter && counts[a.sid]+i<sp.cap;i++){
-      var child = spawn(a.sid, a.x+randRange(-14,14), a.y+randRange(-14,14), a.gen+1, 0, mutate(a.genome, params.mutationRate));
+      var cx = a.x+randRange(-14,14), cy = a.y+randRange(-14,14);
+      if(RIVER.on && RIVER.blocks[a.sid] && bankOf(cx, cy) !== bankOf(a.x, a.y)){ cx = a.x; cy = a.y; }
+      var child = spawn(a.sid, cx, cy, a.gen+1, 0, mutate(a.genome, params.mutationRate));
       child.energy = share/litter;
     }
   }
@@ -1004,6 +1044,7 @@
     var d = plantImg.data;
     var C=theme.canopyRGB, F=theme.fruitRGB, S=theme.soilRGB;
     for(var i=0;i<foliage.length;i++){
+      if(water[i]){ var w=i*4; d[w]=74; d[w+1]=128; d[w+2]=150; d[w+3]=255; continue; }
       var f = foliage[i], fr = fruit[i];
       var r = S.r + (C.r-S.r)*f, g = S.g + (C.g-S.g)*f, b = S.b + (C.b-S.b)*f;
       if(fr>0.02){
@@ -1616,6 +1657,12 @@
       recount();
     }
   });
+  document.getElementById('riverBtn').addEventListener('click', function(){
+    setRiver(!RIVER.on);
+    repaintPlants();
+    logEvent({ text: RIVER.on ? 'A river now splits the range. Agoutis, howlers and ocelots can only cross at rare fords.'
+                              : 'The river has dried up; the two banks are one range again.' });
+  });
   document.getElementById('cullBtn').addEventListener('click', function(){
     disease(document.getElementById('cullSelect').value);
   });
@@ -2013,7 +2060,7 @@
       var btn = e.x==null ? '<span></span>'
         : '<button data-id="'+e.id+'">'+(e.pred && !e.pred.dead ? 'Follow' : 'Go to')+'</button>';
       return '<div class="log-item"><span class="t">'+fmtTime(e.t)+'</span>'+
-        '<span class="msg"><i style="background:'+SPECIES[e.sid].color+'"></i>'+e.text+'</span>'+btn+'</div>';
+        '<span class="msg"><i style="background:'+(e.sid ? SPECIES[e.sid].color : '#4a8096')+'"></i>'+e.text+'</span>'+btn+'</div>';
     }).join('');
   }
 
@@ -2317,6 +2364,7 @@
       if(builtVersion !== terrainVersion) rebuildWorld();
       var d = texImg.data;
       for(var i=0;i<foliage.length;i++){
+        if(water[i]){ var w=i*4; d[w]=64; d[w+1]=120; d[w+2]=146; d[w+3]=255; continue; }
         var f = foliage[i], fr = fruit[i], nu = Math.min(1, nutrients[i]*0.5);
         var r = SOIL.r + (LEAF.r-SOIL.r)*f, g = SOIL.g + (LEAF.g-SOIL.g)*f, b = SOIL.b + (LEAF.b-SOIL.b)*f;
         if(fr > 0.02){
@@ -2667,6 +2715,8 @@
     },
     species: SPECIES,
     deaths: function(){ return Object.assign({}, deathLog); },
+    river: function(on){ if(on!=null){ setRiver(on); repaintPlants(); } return RIVER.on; },
+    bankOf: function(x, y){ return bankOf(x, y); },
     clades: function(){ return Clades.all().map(function(c){
       return { id:c.id, sid:c.sid, name:c.name, parent:c.parent, depth:c.depth, born:+c.born.toFixed(1),
                died:c.died==null?null:+c.died.toFixed(1), n:c.n, peak:c.peak,
