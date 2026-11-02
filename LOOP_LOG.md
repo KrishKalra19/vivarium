@@ -6,7 +6,9 @@
 - Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5), sexual reproduction (6). The core backlog is done; next come stretch items and polish (see the cycle 6 entry).
 - Screenshots to look at: `docs/loop/`
 - **Krish feedback** (write anything here or in chat; the next cycle reads it first):
-  -
+  - 11-02: subspecies pace: no opinion, so keep the current settings.
+  - 11-02: **fake-Latin names** for subspecies (replacing "Swift Giant Agouti").
+  - 11-02: do the choosiness gene, then **move past features toward data collection, so Vivarium is usable in a real ethology context**, not just as a fun project. See Phase 2 in LOOP_PLAN.md.
 
 ## Entries
 ### 2026-11-02 — setup

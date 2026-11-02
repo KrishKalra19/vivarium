@@ -26,3 +26,16 @@ measured with a headless run, not just eyeballed.
 6. **Sexual reproduction** (toggleable): mate choice and recombination, so clades only stay apart when they stop interbreeding.
 7. Stretch: CSV export, touch controls for the 3D view, a biome switcher.
 8. After 1–6: see "Ideas for the next cycles" at the bottom of LOOP_LOG.md. Default order if Krish hasn't picked: long-run test → choosiness gene → tree/time-lapse polish → share/export.
+
+## Phase 2: Vivarium as an ethology instrument (from Krish, 11-02)
+Goal: runs you can cite. Every number should be reproducible, exportable and analysable outside the browser.
+Honest framing: the parameters are hand-tuned rather than fitted to field data, so this is a **teaching lab and hypothesis testbed** (agent-based modelling), not a replacement for field data. Results are framed as "does selection on these rules reproduce known patterns?"
+
+Order:
+1. **Choosiness gene + fake-Latin names** (Krish asked). Mate pickiness evolves per animal, so sympatric speciation becomes possible. Names look like *Dasyprocta velox minor*.
+2. **Reproducibility**: a run means seed + config and produces bit-identical results (today they aren't, because the page's frame loop draws randoms). Store a run manifest (seed, params, toggles, code version) with every export.
+3. **Life-history table export (CSV)**: one row per individual: id, mother, father, species, clade, birth/death time, cause, traits, offspring, kills, lifetime time budget. That's the base table for everything else.
+4. **Ethogram + time budgets**: log each animal's behavioural state (forage, vigilant, flee, hunt, rest, mate) so the export gives classic activity budgets per species, sex or clade.
+5. **Experiment runner**: `tools/experiment.js` takes a JSON spec (conditions × replicates × duration), runs them headless and writes tidy CSV, plus a small Python/R analysis notebook with CIs.
+6. **First real experiment: the many-eyes effect.** Does individual vigilance fall as group size rises in *evolved* brains (no rule tells them to)? It's a classic, well-documented prediction (Pulliam 1973; Elgar 1989 review). Then: the marginal value theorem (patch leaving times), the selfish herd, and the predator confusion effect.
+7. Field-methods mode for teaching: focal-animal and scan sampling on virtual animals, so students can compare their sampled estimates with the ground truth.
