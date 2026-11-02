@@ -77,7 +77,10 @@ function args(){
     const banks = {};
     V.animals().forEach(a => { if(a.dead) return; const b = banks[a.genome.clade] = banks[a.genome.clade] || [0,0]; b[V.bankOf ? (V.bankOf(a.x,a.y) < 0 ? 0 : 1) : 0]++; });
     const clades = V.clades ? V.clades().map(c => Object.assign(c, { west:(banks[c.id]||[0,0])[0], east:(banks[c.id]||[0,0])[1] })) : [];
-    return { ids, samples, stuck, deaths:V.deaths(), clades, mating:V.mating ? V.mating() : null };
+    const tl = V.timelapse ? { frames:V.timelapse.count(), every:V.timelapse.every(),
+      mb:+(V.timelapse.frames().reduce((n,f) => n + f.data.byteLength + f.veg.byteLength, 0)/1048576).toFixed(2) } : null;
+    const heap = performance.memory ? +(performance.memory.usedJSHeapSize/1048576).toFixed(1) : null;
+    return { ids, samples, stuck, deaths:V.deaths(), clades, mating:V.mating ? V.mating() : null, tl, heap };
   }, opt);
   const wallSec = (Date.now() - t0) / 1000;
 
@@ -123,6 +126,7 @@ function args(){
   console.log(`subspecies founded: ${cl.length} (${cl.filter(c => c.died == null).length} alive)`);
   cl.forEach(c => console.log(`  t=${c.born} ${c.name} <- ${(result.clades.find(p => p.id === c.parent)||{}).name}  n=${c.n} (W${c.west}/E${c.east}) peak=${c.peak}${c.died != null ? ' died t=' + c.died : ''}`));
   if(result.mating && opt.sexual) console.log('mating', JSON.stringify(result.mating), 'hybrid share', (result.mating.hybrids/Math.max(1,result.mating.matings)).toFixed(3));
+  if(result.tl) console.log('time-lapse', JSON.stringify(result.tl), 'JS heap MB', result.heap);
   console.log('page errors:', errors.length ? errors : 'none');
   process.exit(errors.length ? 1 : 0);
 })();
