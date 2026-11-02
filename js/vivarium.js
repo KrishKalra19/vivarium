@@ -88,7 +88,7 @@
   var idCounter = 1;
   var maxGeneration = 0;
   var simClock = 0;
-  var params = { sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
+  var params = { traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
   var worldMode = 'instinct';   // the brain mode the current world was seeded with
   var events = { droughtUntil:0, mastUntil:0 };
   var selected = null;
@@ -128,18 +128,37 @@
   /* --------------------------- animals --------------------------- */
   function bodyMass(sp, genome){ return sp.mass*genome.mass; }
 
+  /* Trait costs (toggle; Phase 2). Without them every trait has an upside and almost no
+     downside, and a 2-hour run drove speed and metabolic efficiency to their caps in
+     most species. Each multiplier is exactly 1 for a baseline genome (all traits 1.0),
+     so the costs only bite as a trait moves away from its species' norm:
+       speed  locomotion is about half of field metabolism and its power grows ~v²:
+              drain × (0.5 + 0.5·speed²)
+       sense  neural tissue is expensive:                 drain × (0.9 + 0.1·sense²)
+       metab  a slower metabolism digests and powers muscle more slowly:
+              intake × metab, speed × metab^0.3
+       mass   bigger bodies mature and breed more slowly (allometry ~ M^0.25):
+              minimum breeding age and breeding interval × mass^0.25
+     Costs are fixed at birth, so toggling affects animals born afterwards. */
+  function costsFor(genome){
+    if(!params.traitCosts) return { drain:1, intake:1, speed:1, life:1 };
+    var sp = genome.speed, se = genome.sense;
+    return { drain:(0.5 + 0.5*sp*sp)*(0.9 + 0.1*se*se), intake:genome.metab,
+             speed:Math.pow(genome.metab, 0.3), life:Math.pow(genome.mass, 0.25) };
+  }
   function makeAnimal(id, genome, x, y, gen, energyFrac){
     var sp = SPECIES[id];
-    var mass = bodyMass(sp, genome);
+    var mass = bodyMass(sp, genome), cost = costsFor(genome);
     var maxEnergy = mass*ENERGY_PER_MASS;
     return {
       uid: idCounter++, sid:id, genome:genome,
       x:x, y:y, vx:0, vy:0, heading:Math.random()*Math.PI*2,
       mass:mass, maxEnergy:maxEnergy, energy:maxEnergy*(energyFrac==null?0.6:energyFrac),
-      speed: sp.speed*genome.speed,
+      speed: sp.speed*genome.speed*cost.speed,
       sense: sp.sense*genome.sense,
-      drain: DRAIN_K*pow75(mass)*sp.metab*genome.metab,
-      intake: INTAKE_K*pow75(mass),
+      drain: DRAIN_K*pow75(mass)*sp.metab*genome.metab*cost.drain,
+      intake: INTAKE_K*pow75(mass)*cost.intake,
+      minAge: sp.repro.minAge*cost.life, repCd: sp.repro.cooldown*cost.life,
       radius: 2.5*Math.pow(mass,1/3),
       age:0, maxAge: sp.lifespan*randRange(0.85,1.15),
       gen:gen||0, cooldown:randRange(0,sp.repro.cooldown*0.5),
@@ -475,7 +494,7 @@
     _mates.length = 0; _w.length = 0;
     var r = MATE_RADIUS[a.sid], r2 = r*r, tot = 0;
     forNearIn(sidBuckets[a.sid], a.x, a.y, r, function(o){
-      if(o===a || o.dead || o.sid!==a.sid || o.age < sp.repro.minAge) return;
+      if(o===a || o.dead || o.sid!==a.sid || o.age < o.minAge) return;
       if((o.genome.lineage||'') !== (a.genome.lineage||'')) return;
       var dx=o.x-a.x, dy=o.y-a.y;
       if(dx*dx+dy*dy > r2) return;
@@ -515,11 +534,11 @@
   function reproduce(a){
     var sp=SPECIES[a.sid];
     if(counts[a.sid] >= sp.cap) return;
-    if(sp.crowd && crowded(a, sp.crowd)){ a.cooldown = sp.repro.cooldown*0.4; return; }
+    if(sp.crowd && crowded(a, sp.crowd)){ a.cooldown = a.repCd*0.4; return; }
     var mate = null;
     if(params.sexual){
       mate = findMate(a, sp);
-      if(!mate){ if(mate===null) mating.unmated++; a.cooldown = sp.repro.cooldown*0.25; return; }
+      if(!mate){ if(mate===null) mating.unmated++; a.cooldown = a.repCd*0.25; return; }
       mating.matings++;
       if(mate.genome.clade !== a.genome.clade) mating.hybrids++;
     }
@@ -528,7 +547,7 @@
     var litter = sp.repro.litter;
     var share = a.energy*0.34;
     a.energy *= 0.42;
-    a.cooldown = sp.repro.cooldown;
+    a.cooldown = a.repCd;
     for(var i=0;i<litter && counts[a.sid]+i<sp.cap;i++){
       var cx = a.x+randRange(-14,14), cy = a.y+randRange(-14,14);
       if(RIVER.on && RIVER.blocks[a.sid] && bankOf(cx, cy) !== bankOf(a.x, a.y)){ cx = a.x; cy = a.y; }
@@ -655,7 +674,7 @@
     inp[B.crowd] = Math.min(2, crowd/(sp.crowd||10));
     inp[B.energy] = a.energy/a.maxEnergy;
     inp[B.age] = Math.min(1, a.age/a.maxAge);
-    inp[B.canBreed] = (a.cooldown<=0 && a.age>=sp.repro.minAge && a.energy>=a.maxEnergy*BREED_FLOOR) ? 1 : 0;
+    inp[B.canBreed] = (a.cooldown<=0 && a.age>=a.minAge && a.energy>=a.maxEnergy*BREED_FLOOR) ? 1 : 0;
     inp[B.mem1] = a.mem0; inp[B.mem2] = a.mem1;
 
     HB.forward(a.genome.brain, inp, a.bHid, out);
@@ -701,7 +720,7 @@
     if(a.energy<=0){ die(a,'starved'); return; }
     if(a.age>a.maxAge){ die(a,'age'); return; }
     var ready = a.genome.brain ? a.wantBreed : a.energy >= a.maxEnergy*sp.repro.threshold;
-    if(ready && a.cooldown<=0 && a.age>=sp.repro.minAge) reproduce(a);
+    if(ready && a.cooldown<=0 && a.age>=a.minAge) reproduce(a);
   }
 
   /* One discrete lunge, then a recovery window. Most hunts fail. */
@@ -819,7 +838,7 @@
     inp[I.ready] = a.huntCd<=0 ? 1 : 0;
     inp[I.energy] = a.energy/a.maxEnergy;
     inp[I.age] = Math.min(1, a.age/a.maxAge);
-    inp[I.canBreed] = (a.cooldown<=0 && a.age>=sp.repro.minAge && a.energy>=a.maxEnergy*BREED_FLOOR) ? 1 : 0;
+    inp[I.canBreed] = (a.cooldown<=0 && a.age>=a.minAge && a.energy>=a.maxEnergy*BREED_FLOOR) ? 1 : 0;
     inp[I.mem1] = a.mem0; inp[I.mem2] = a.mem1;
 
     PB.forward(a.genome.brain, inp, a.bHid, out);
@@ -855,7 +874,7 @@
     if(a.energy<=0){ die(a,'starved'); return; }
     if(a.age>a.maxAge){ die(a,'age'); return; }
     var ready = a.genome.brain ? a.wantBreed : a.energy >= a.maxEnergy*sp.repro.threshold;
-    if(ready && a.cooldown<=0 && a.age>=sp.repro.minAge) reproduce(a);
+    if(ready && a.cooldown<=0 && a.age>=a.minAge) reproduce(a);
   }
 
   /* Small, slow trickle of dispersers from the wider forest. Without it a
@@ -1854,6 +1873,16 @@
     });
     syncReplayUI();
   })();
+  function setCosts(on){
+    params.traitCosts = !!on;
+    var b = document.getElementById('costBtn');
+    if(b){ b.setAttribute('aria-pressed', params.traitCosts ? 'true' : 'false'); b.classList.toggle('active', params.traitCosts); }
+  }
+  document.getElementById('costBtn').addEventListener('click', function(){
+    setCosts(!params.traitCosts);
+    logEvent({ text: params.traitCosts ? 'Trait costs on: speed and keen senses burn energy, thrifty metabolisms digest slowly, big bodies mature late. Applies to animals born from now on.'
+                                       : 'Trait costs off for animals born from now on.' });
+  });
   function setSexual(on){
     params.sexual = !!on;
     var b = document.getElementById('sexBtn');
@@ -2946,6 +2975,7 @@
       animals = animals.filter(function(a){ return !a.dead; }); recount();
       return counts[sid]||0;
     },
+    traitCosts: function(on){ if(on!=null) setCosts(on); return params.traitCosts; },
     sexual: function(on){ if(on!=null) setSexual(on); return params.sexual; },
     mating: function(){ return Object.assign({}, mating); },
     river: function(on){ if(on!=null){ setRiver(on); repaintPlants(); } return RIVER.on; },
