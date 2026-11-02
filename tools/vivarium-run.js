@@ -72,7 +72,7 @@ function args(){
       sample();
       await new Promise(r => setTimeout(r, 0));
     }
-    return { ids, samples, stuck, deaths:V.deaths() };
+    return { ids, samples, stuck, deaths:V.deaths(), clades:V.clades ? V.clades() : [] };
   }, opt);
   const wallSec = (Date.now() - t0) / 1000;
 
@@ -114,6 +114,9 @@ function args(){
   console.log(`run ${opt.out}: ${opt.secs} sim-s, ${opt.mode}, seed ${opt.seed}, ${wallSec.toFixed(1)} s wall`);
   console.log('final counts', JSON.stringify(last.counts), 'foliage', last.foliage);
   console.log('stuck at zero (≥30 s):', Object.keys(result.stuck).length ? JSON.stringify(result.stuck) : 'none');
+  const cl = result.clades.filter(c => c.depth > 0);
+  console.log(`subspecies founded: ${cl.length} (${cl.filter(c => c.died == null).length} alive)`);
+  cl.forEach(c => console.log(`  t=${c.born} ${c.name} <- ${(result.clades.find(p => p.id === c.parent)||{}).name}  n=${c.n} peak=${c.peak}${c.died != null ? ' died t=' + c.died : ''}`));
   console.log('page errors:', errors.length ? errors : 'none');
   process.exit(errors.length ? 1 : 0);
 })();

@@ -15,6 +15,8 @@
      so a "fast agouti" is fast for an agouti, not fast for a jaguar. */
   var TRAITS = ['mass','speed','sense','metab'];
   var TRAIT_BAND = { mass:[0.55,1.7], speed:[0.6,1.5], sense:[0.55,1.6], metab:[0.7,1.35] };
+  /* Named subspecies that branch off as lineages drift (js/clades.js). */
+  var Clades = Ludus.clades.create(TRAITS, TRAIT_BAND, SPECIES);
 
   var ENERGY_PER_MASS = 9;       // energy capacity per kg
   var DRAIN_K = 0.22;            // metabolic constant, applied to mass^0.75 (Kleiber)
@@ -53,6 +55,7 @@
       out[k]=clamp(g[k] + triRand()*rate*(band[1]-band[0]), band[0], band[1]);
     }
     if(g.lineage) out.lineage = g.lineage;
+    if(g.clade) out.clade = g.clade;
     if(g.brain) out.brain = Brain.mutate(g.brain, rate);
     return out;
   }
@@ -180,6 +183,7 @@
 
   function spawn(id, x, y, gen, energyFrac, genome){
     var a = makeAnimal(id, genome||newGenome(), x, y, gen||0, energyFrac);
+    Clades.assign(id, a.genome);
     animals.push(a);
     counts[id] = (counts[id]||0)+1;
     if(a.gen>maxGeneration) maxGeneration=a.gen;
@@ -914,6 +918,10 @@
       push(BS[id].lineage.brain, lc[id].brain); push(BS[id].lineage.instinct, lc[id].instinct);
       if(worldMode!=='instinct') sampleBrainMetrics(id, lc[id].brain, lc[id].instinct);
     });
+    Clades.update(animals, simClock).forEach(function(b){
+      logEvent({ sid:b.clade.sid, text:'New subspecies: the '+b.clade.name+' split from the '+b.parent.name+
+        ' ('+Math.round(b.share*100)+'% of them, '+b.clade.n+' animals).' });
+    });
     brainTick();
     push(vegHistory.foliage, fSum/foliage.length*100);
     push(vegHistory.fruit, rCells? rSum/rCells*100 : 0);
@@ -929,6 +937,7 @@
     }
     vegHistory={ foliage:[], fruit:[] };
     resetMetrics();
+    Clades.reset();
     sampleCount = 0;
   }
 
@@ -2650,6 +2659,11 @@
     },
     species: SPECIES,
     deaths: function(){ return Object.assign({}, deathLog); },
+    clades: function(){ return Clades.all().map(function(c){
+      return { id:c.id, sid:c.sid, name:c.name, parent:c.parent, depth:c.depth, born:+c.born.toFixed(1),
+               died:c.died==null?null:+c.died.toFixed(1), n:c.n, peak:c.peak,
+               type:c.type.map(function(v){ return +v.toFixed(3); }) };
+    }); },
     animals: function(){ return animals; },
     follow: function(uid){
       var a = animals.find(function(x){ return x.uid===uid; });
