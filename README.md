@@ -182,6 +182,8 @@ for (let i = 0; i < 6000; i++) Vivarium.step(0.1);  // 600s of range time
 Vivarium.stats();         // { t, total, counts, foliage }
 Vivarium.deaths();        // death counts keyed by species:cause
 Vivarium.benchmark(240);  // ms per frame, simulation vs render
+Vivarium.reset(42);       // reseed the simulation's own generator and rebuild the world
+Vivarium.manifest();      // seed, toggles and params: everything needed to reproduce the run
 
 // Arena
 Ludus.ArenaEngine.create({ roster, seed, balanced: true }).runToEnd();  // a whole match, no rendering

@@ -3,7 +3,7 @@
 ## TL;DR
 - Loop started 2026-11-02 (night). See `LOOP_PLAN.md` for the backlog.
 - **The overnight timer never fired:** the cloud container went idle and the in-session wakeup died with it. Since 11-02 afternoon the loop re-arms with a server-side reminder instead.
-- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5), sexual reproduction (6). Cycle 7: 2-hour long-run test plus a fix for recovery after a crash. Cycle 8: choosiness gene + Latin names. Cycle 9: trait costs. **Next: reproducibility (bit-identical seeded runs + run manifest).**
+- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5), sexual reproduction (6). Cycle 7: 2-hour long-run test plus a fix for recovery after a crash. Cycle 8: choosiness gene + Latin names. Cycle 9: trait costs. Cycle 10: bit-identical seeded runs. **Next: life-history CSV export (one row per animal).**
 - Screenshots to look at: `docs/loop/`
 - **Krish feedback** (write anything here or in chat; the next cycle reads it first):
   - 11-02: subspecies pace: no opinion, so keep the current settings.
@@ -99,3 +99,9 @@ Two 7200 sim-s runs, river on, seed 1, one with mating and one without (~18 min 
   With costs on, howler speed drops from 1.22–1.41 to 1.05–1.16, and the metabolism trait now settles mid-band instead of hugging an edge. Agouti stays fast (1.42) but now pays for it, which is plausible for the prey base under the heaviest predation.
 - **Open item: harpies.** With costs v2 they end at 18 in both seeds, against 110 with no costs and 32–58 with v1. They're fast fliers preying on the fast agouti, so they likely pay the steepest speed bill. It needs a look before any experiment that leans on predator numbers. Ocelot and anaconda stay low in every variant (pre-existing).
 - Decision made (log, don't re-ask): research experiments should run with **trait costs on**; the UI default stays off so the casual mode is unchanged.
+### 2026-11-03 00:00 UTC — cycle 10: reproducibility (Phase 2 step 2)
+- The simulation now draws from **its own seeded generator** (mulberry32) instead of `Math.random`, and brain mutation shares it via `Ludus.rand`. 41 call sites moved. Only UI-only code keeps `Math.random`: the 3D hills and trees, and the nature-cam director. That director was the old leak: it ran every frame and pulled from the shared stream at timing-dependent moments.
+- New API: `Vivarium.reset(seed)` (no seed draws a fresh one), `Vivarium.seed()`, and `Vivarium.manifest()` (seed, world mode, toggles, params, hunt costs, code version). The Reset button draws a fresh seed. The harness now calls `reset(seed)`, saves `manifest` and a final-state `fingerprint` (FNV hash of every animal's id, position and energy) into run.json, and takes `--uiseed` to vary page-side randomness on purpose.
+- **Verified: bit-identical.** Same `--seed 7` with three different UI seeds (11/22/33), in the hardest setup (Mixed brains + river + mating + trait costs, 600 sim-s), gave the same fingerprint `692adfc1` all three times. The same check in instinct mode gave `25aeacb1` twice. A different seed (8) gives a different run (`5567ed4c`). No page errors.
+- Scope (important for anyone citing a run): reproducibility holds for **scripted fixed-step runs** (harness, and the experiment runner to come). An interactive browser session steps by real frame time and takes clicks at arbitrary moments, so a live session is *not* replayable from its seed. The manifest describes the setup, not the clicks.
+- The cycle 1–9 tables were measured before this change. Their numbers still stand as measured, but they can't be regenerated exactly.

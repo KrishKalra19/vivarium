@@ -14,7 +14,7 @@ const fs = require('fs');
 const { chromium } = require('playwright');
 
 function args(){
-  const a = { secs:1200, seed:1, mode:'instinct', every:10, out:null, river:0, sexual:0, costs:0 };
+  const a = { secs:1200, seed:1, mode:'instinct', every:10, out:null, river:0, sexual:0, costs:0, uiseed:0 };
   const v = process.argv.slice(2);
   for(let i=0;i<v.length;i+=2){ const k=v[i].replace(/^--/,''); a[k] = isNaN(+v[i+1]) ? v[i+1] : +v[i+1]; }
   if(!a.out) a.out = path.join('runs', `${a.mode}-s${a.seed}-${a.secs}${a.river ? '-river' : ''}${a.sexual ? '-sex' : ''}`);
@@ -42,7 +42,7 @@ function args(){
     let s = seed >>> 0 || 1;
     Math.random = function(){ s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s);
       t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-  }, opt.seed);
+  }, opt.uiseed || opt.seed);   // page-side randomness (UI); the sim has its own seeded generator
   await page.goto('file://' + path.resolve(__dirname, '..', 'index.html'));
   await page.waitForFunction(() => window.Vivarium);
 
@@ -51,7 +51,8 @@ function args(){
     const V = window.Vivarium, DT = 1/30;
     V.setPaused(true);
     if(opt.costs) V.traitCosts(true);   // before seeding, so the founders pay too
-    if(opt.mode !== 'instinct') V.brainMode(opt.mode); else V.reset();
+    V.reset(opt.seed);   // seeds the simulation's own generator
+    if(opt.mode !== 'instinct') V.brainMode(opt.mode);
     if(opt.river) V.river(true);
     if(opt.sexual) V.sexual(true);
     const ids = Object.keys(V.species), traits = ['mass','speed','sense','metab','choosy'];
@@ -81,7 +82,12 @@ function args(){
     const tl = V.timelapse ? { frames:V.timelapse.count(), every:V.timelapse.every(),
       mb:+(V.timelapse.frames().reduce((n,f) => n + f.data.byteLength + f.veg.byteLength, 0)/1048576).toFixed(2) } : null;
     const heap = performance.memory ? +(performance.memory.usedJSHeapSize/1048576).toFixed(1) : null;
-    return { ids, samples, stuck, deaths:V.deaths(), clades, mating:V.mating ? V.mating() : null, tl, heap };
+    // Fingerprint of the final state: equal fingerprints = bit-identical runs.
+    let h = 2166136261 >>> 0;
+    const mix = v => { h ^= v; h = Math.imul(h, 16777619) >>> 0; };
+    V.animals().forEach(a => { if(a.dead) return; mix(a.uid); mix(Math.round(a.x*1000)); mix(Math.round(a.y*1000)); mix(Math.round(a.energy*1000)); });
+    const manifest = V.manifest ? V.manifest() : null;
+    return { ids, samples, stuck, deaths:V.deaths(), clades, mating:V.mating ? V.mating() : null, tl, heap, manifest, fingerprint:h.toString(16) };
   }, opt);
   const wallSec = (Date.now() - t0) / 1000;
 
@@ -128,6 +134,7 @@ function args(){
   cl.forEach(c => console.log(`  t=${c.born} ${c.name} <- ${(result.clades.find(p => p.id === c.parent)||{}).name}  n=${c.n} (W${c.west}/E${c.east}) peak=${c.peak}${c.died != null ? ' died t=' + c.died : ''}`));
   if(result.mating && opt.sexual) console.log('mating', JSON.stringify(result.mating), 'hybrid share', (result.mating.hybrids/Math.max(1,result.mating.matings)).toFixed(3));
   if(result.tl) console.log('time-lapse', JSON.stringify(result.tl), 'JS heap MB', result.heap);
+  console.log('fingerprint', result.fingerprint, 'manifest', JSON.stringify(result.manifest));
   console.log('page errors:', errors.length ? errors : 'none');
   process.exit(errors.length ? 1 : 0);
 })();

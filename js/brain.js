@@ -5,7 +5,7 @@
   "use strict";
 
   function gauss(){
-    var u = 1 - Math.random(), v = Math.random();
+    var u = 1 - (L.rand ? L.rand() : Math.random()), v = (L.rand ? L.rand() : Math.random());
     return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
   }
 
@@ -136,7 +136,7 @@
     var sigma = rate*0.6;
     for(var k=0;k<w.length;k++){
       var v = w[k] + gauss()*sigma;
-      if(Math.random() < rate*0.02) v += gauss()*0.8;
+      if((L.rand ? L.rand() : Math.random()) < rate*0.02) v += gauss()*0.8;
       out[k] = v<-6 ? -6 : (v>6 ? 6 : v);
     }
     return out;

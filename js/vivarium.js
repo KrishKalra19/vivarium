@@ -50,9 +50,18 @@
   var HUNT = { lungeCost:10, missRest:15 };   // × drain per lunge; seconds after a miss
 
   /* --------------------------- helpers --------------------------- */
-  function randRange(lo,hi){ return lo + Math.random()*(hi-lo); }
+  /* The simulation has its own seeded generator, kept apart from Math.random, so
+     nothing the page does (camera director, 3D scenery, timing of frames) can shift
+     the random stream. Same seed + same settings = the same run, bit for bit.
+     UI-only code (3D hills and trees, the nature-cam director) keeps Math.random. */
+  function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a);
+    t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  var simSeed = (Math.random()*4294967296)>>>0, rand = mulberry32(simSeed);
+  function reseed(seed){ simSeed = seed>>>0; rand = mulberry32(simSeed); }
+  Ludus.rand = function(){ return rand(); };   // brain.js mutates through this
+  function randRange(lo,hi){ return lo + rand()*(hi-lo); }
   function clamp(v,lo,hi){ return v<lo?lo:(v>hi?hi:v); }
-  function triRand(){ return (Math.random()+Math.random()+Math.random()-1.5)/1.5; }
+  function triRand(){ return (rand()+rand()+rand()-1.5)/1.5; }
   function pow75(m){ return Math.pow(m,0.75); }
 
   /* Choosiness: how wide a range of partners a female accepts (see findMate). Lower is
@@ -153,7 +162,7 @@
     var maxEnergy = mass*ENERGY_PER_MASS;
     return {
       uid: idCounter++, sid:id, genome:genome,
-      x:x, y:y, vx:0, vy:0, heading:Math.random()*Math.PI*2,
+      x:x, y:y, vx:0, vy:0, heading:rand()*Math.PI*2,
       mass:mass, maxEnergy:maxEnergy, energy:maxEnergy*(energyFrac==null?0.6:energyFrac),
       speed: sp.speed*genome.speed*cost.speed,
       sense: sp.sense*genome.sense,
@@ -166,7 +175,7 @@
       huntCd:0, kills:0, strikes:0, dead:false,
       // What the animal is doing, recorded for the cameras and captions; never read by the model.
       state:'idle', target:null, lungeAt:-99, lastLunge:null, cause:null, killedBy:null,
-      ryaw:Math.random()*Math.PI*2, stride:Math.random(), alt:0,
+      ryaw:rand()*Math.PI*2, stride:rand(), alt:0,
       vigil: worldMode!=='instinct' && BRAIN_IDS.indexOf(id)>=0, headDown:false, wantBreed:false,
       bIn: genome.brain ? new Float32Array(Brain.forRole(sp.role).NI) : null,
       bHid: genome.brain ? new Float32Array(Brain.forRole(sp.role).NH) : null,
@@ -181,7 +190,7 @@
   var seedPool = null;   // { genomes:{ sid:[genome] }, generation, source }
   function brainGenome(id){
     var list = seedPool && seedPool.genomes[id];
-    if(list && list.length) return mutate(list[Math.floor(Math.random()*list.length)], params.mutationRate*0.3);
+    if(list && list.length) return mutate(list[Math.floor(rand()*list.length)], params.mutationRate*0.3);
     var g = newGenome();
     g.lineage = 'brain';
     g.brain = layoutOf(id).seed(null, SPECIES[id]);
@@ -195,7 +204,7 @@
   function bankGenome(id, g){
     var bank = BS[id].bank;
     if(bank.length < BANK_CAP) bank.push(g);
-    else bank[Math.floor(Math.random()*BANK_CAP)] = g;
+    else bank[Math.floor(rand()*BANK_CAP)] = g;
   }
 
   /* Genome for an animal arriving from outside (immigration, Release button).
@@ -208,12 +217,12 @@
       var o=animals[i];
       if(!o.dead && o.sid===id) pools[o.genome.lineage==='brain'?'brain':'instinct'].push(o);
     }
-    var pick = lineage || ((worldMode==='brains' || Math.random()<0.5) ? 'brain' : 'instinct');
+    var pick = lineage || ((worldMode==='brains' || rand()<0.5) ? 'brain' : 'instinct');
     var pool = pools[pick];
-    if(pool.length) return mutate(pool[Math.floor(Math.random()*pool.length)].genome, params.mutationRate);
+    if(pool.length) return mutate(pool[Math.floor(rand()*pool.length)].genome, params.mutationRate);
     if(pick==='brain'){
       var bank = BS[id].bank;
-      return bank.length ? mutate(bank[Math.floor(Math.random()*bank.length)], params.mutationRate) : brainGenome(id);
+      return bank.length ? mutate(bank[Math.floor(rand()*bank.length)], params.mutationRate) : brainGenome(id);
     }
     var g=newGenome(); g.lineage='instinct'; return g;
   }
@@ -242,7 +251,7 @@
     fruitPatches = [];
     terrainVersion++;
     for(var p=0;p<P.patches;p++){
-      var px = Math.random()*world.w, py = Math.random()*world.h;
+      var px = rand()*world.w, py = rand()*world.h;
       var pr = P.patchRadius*randRange(0.6,1.3);
       fruitPatches.push({ x:px, y:py, r:pr });
       var cx0 = Math.max(0,Math.floor((px-pr)/CELL)), cx1 = Math.min(cols-1,Math.ceil((px+pr)/CELL));
@@ -425,13 +434,13 @@
     steer(a, (dx/d)*a.speed, (dy/d)*a.speed, 8, dt);
   }
   function wander(a, dt, factor){
-    a.heading += (Math.random()-0.5)*2.6*dt;
+    a.heading += (rand()-0.5)*2.6*dt;
     steer(a, Math.cos(a.heading)*a.speed*factor, Math.sin(a.heading)*a.speed*factor, 2.5, dt);
   }
   function move(a, dt){
     var px = a.x, py = a.y;
     a.x += a.vx*dt; a.y += a.vy*dt;
-    if(RIVER.on && RIVER.blocks[a.sid] && bankOf(px, py) !== bankOf(a.x, a.y) && Math.random() > RIVER.ford*dt){
+    if(RIVER.on && RIVER.blocks[a.sid] && bankOf(px, py) !== bankOf(a.x, a.y) && rand() > RIVER.ford*dt){
       a.x = px; a.y = py; a.vx = -a.vx*0.5;
     }
     if(a.x<0){ a.x=0; a.vx=-a.vx*0.5; }
@@ -505,29 +514,29 @@
       _mates.push(o); _w.push(w); tot += w;
     });
     if(!_mates.length) return null;
-    var pick = Math.random()*tot, m = _mates.length-1;
+    var pick = rand()*tot, m = _mates.length-1;
     for(var i=0;i<_mates.length;i++){ pick -= _w[i]; if(pick <= 0){ m = i; break; } }
     // Choosiness has a price: she can turn down the best partner on offer and lose this
     // breeding attempt. Without that cost, pickiness would be free and always win.
-    if(Math.random() > _w[m]){ mating.rejected++; return false; }
+    if(rand() > _w[m]){ mating.rejected++; return false; }
     return _mates[m];
   }
   function crossBrain(wa, wb, lay){
     var out = new Float32Array(wa.length), NI=lay.NI, NH=lay.NH, NO=lay.NO, W1=lay.W1, h, i, o;
     for(h=0;h<NH;h++){
-      var src = Math.random()<0.5 ? wa : wb, row = h*(NI+1);
+      var src = rand()<0.5 ? wa : wb, row = h*(NI+1);
       for(i=0;i<=NI;i++) out[row+i] = src[row+i];
       for(o=0;o<NO;o++) out[W1+o*(NH+1)+h] = src[W1+o*(NH+1)+h];
     }
-    for(o=0;o<NO;o++){ var b = W1+o*(NH+1)+NH; out[b] = (Math.random()<0.5 ? wa : wb)[b]; }
+    for(o=0;o<NO;o++){ var b = W1+o*(NH+1)+NH; out[b] = (rand()<0.5 ? wa : wb)[b]; }
     return out;
   }
   function recombine(a, m){
     var g = a.genome, h = m.genome, out = {};
-    for(var i=0;i<TRAITS.length;i++){ var k=TRAITS[i]; out[k] = Math.random()<0.5 ? g[k] : h[k]; }
+    for(var i=0;i<TRAITS.length;i++){ var k=TRAITS[i]; out[k] = rand()<0.5 ? g[k] : h[k]; }
     if(g.lineage) out.lineage = g.lineage;
     if(g.clade) out.clade = g.clade;
-    out.choosy = Math.random()<0.5 ? (g.choosy||CHOOSY) : (h.choosy||CHOOSY);
+    out.choosy = rand()<0.5 ? (g.choosy||CHOOSY) : (h.choosy||CHOOSY);
     if(g.brain) out.brain = (h.brain && h.brain.length===g.brain.length) ? crossBrain(g.brain, h.brain, layoutOf(a.sid)) : g.brain;
     return out;
   }
@@ -628,7 +637,7 @@
   /* Brain locomotion: turn the body, then accelerate along it. A little heading
      noise stands in for wandering, and a wall turns the heading back inward. */
   function brainMove(a, turn, throttle, mult, dt){
-    a.heading += (turn*TURN_RATE + (Math.random()-0.5)*1.2)*dt;
+    a.heading += (turn*TURN_RATE + (rand()-0.5)*1.2)*dt;
     var ch=Math.cos(a.heading), sh=Math.sin(a.heading);
     if((a.x<=0 && ch<0) || (a.x>=world.w && ch>0)) a.heading = Math.PI - a.heading;
     if((a.y<=0 && sh<0) || (a.y>=world.h && sh>0)) a.heading = -a.heading;
@@ -731,7 +740,7 @@
     if(costly) a.energy -= a.drain*HUNT.lungeCost;
     var massEdge = clamp(0.42*Math.pow(a.mass/prey.mass, 0.75), 0.08, 1.2);
     var odds = sp.catchSkill * (a.speed/(a.speed+prey.speed)) * massEdge * 1.5;
-    var hit = Math.random() < odds;
+    var hit = rand() < odds;
     a.lungeAt = simClock;
     a.strikes++;
     a.lastLunge = { hit:hit, sid:prey.sid, mass:prey.mass, t:simClock };
@@ -884,7 +893,7 @@
      can't breed, so a species that crashed to zero could never come back (seen in a
      2-hour run: agoutis stuck at 1–2). Under mating they arrive as a small band. */
   function arrive(id, genomeFn){
-    var n = params.sexual ? params.arrivalGroup : 1, x = Math.random()*world.w, y = Math.random()*world.h;
+    var n = params.sexual ? params.arrivalGroup : 1, x = rand()*world.w, y = rand()*world.h;
     for(var k=0;k<n && (counts[id]||0) < SPECIES[id].cap;k++){
       var ax = clamp(x + randRange(-20,20), 0, world.w), ay = clamp(y + randRange(-20,20), 0, world.h);
       if(RIVER.on && RIVER.blocks[id] && bankOf(ax, ay) !== bankOf(x, y)){ ax = x; ay = y; }
@@ -901,8 +910,8 @@
           var o=animals[q];
           if(o.sid===bid && !o.dead){ if(o.genome.brain) nb++; else ni++; }
         }
-        if(nb<half && Math.random()<0.05*dt) arrive(bid, function(){ return arrivalGenome(bid,'brain'); });
-        if(ni<half && Math.random()<0.05*dt) arrive(bid, function(){ return arrivalGenome(bid,'instinct'); });
+        if(nb<half && rand()<0.05*dt) arrive(bid, function(){ return arrivalGenome(bid,'brain'); });
+        if(ni<half && rand()<0.05*dt) arrive(bid, function(){ return arrivalGenome(bid,'instinct'); });
       }
     }
     for(var i=0;i<SPECIES_IDS.length;i++){
@@ -915,7 +924,7 @@
         for(var p=0;p<sp.prey.length;p++) preyTotal += counts[sp.prey[p]]||0;
         if(preyTotal < 25) continue;
       }
-      if(Math.random() < 0.05*dt) arrive(id, function(){ return arrivalGenome(id); });
+      if(rand() < 0.05*dt) arrive(id, function(){ return arrivalGenome(id); });
     }
   }
 
@@ -1017,7 +1026,7 @@
     var drift=0, div=0, pairs=0, seed=SEEDS[id];
     for(var b=0;b<brains.length;b++) drift += Brain.distance(brains[b], seed);
     for(var p=0;p<30 && brains.length>1;p++){
-      var x=brains[Math.floor(Math.random()*brains.length)], y=brains[Math.floor(Math.random()*brains.length)];
+      var x=brains[Math.floor(rand()*brains.length)], y=brains[Math.floor(rand()*brains.length)];
       if(x!==y){ div += Brain.distance(x,y); pairs++; }
     }
     if(topGen >= st.lastGen+10){ st.lastGen = topGen - topGen%10; speciesMark(id, 'gen '+st.lastGen); }
@@ -1118,7 +1127,7 @@
           if(worldMode==='brains' || j%2===0) g = brainGenome(id);
           else { g = newGenome(); g.lineage = 'instinct'; }
         }
-        spawn(id, Math.random()*world.w, Math.random()*world.h, 0, randRange(0.45,0.8), g);
+        spawn(id, rand()*world.w, rand()*world.h, 0, randRange(0.45,0.8), g);
       }
     }
     recount();
@@ -1800,7 +1809,7 @@
 
   /* --------------------------- interventions --------------------------- */
   function wildfire(){
-    var fx=Math.random()*world.w, fy=Math.random()*world.h, fr=Math.min(world.w,world.h)*0.28;
+    var fx=rand()*world.w, fy=rand()*world.h, fr=Math.min(world.w,world.h)*0.28;
     for(var gy=0; gy<rows; gy++){
       for(var gx=0; gx<cols; gx++){
         var wx=(gx+0.5)*CELL, wy=(gy+0.5)*CELL;
@@ -1815,7 +1824,7 @@
     for(var i=0;i<animals.length;i++){
       var a=animals[i];
       var d2=Math.sqrt((a.x-fx)*(a.x-fx)+(a.y-fy)*(a.y-fy));
-      if(d2<fr && Math.random() < 0.5*(1-d2/fr)) die(a);
+      if(d2<fr && rand() < 0.5*(1-d2/fr)) die(a);
     }
     animals = animals.filter(function(a){ return !a.dead; });
     recount();
@@ -1824,7 +1833,7 @@
   function poach(){
     for(var i=0;i<animals.length;i++){
       var a=animals[i];
-      if(a.mass>=45 && Math.random()<0.45) die(a);
+      if(a.mass>=45 && rand()<0.45) die(a);
     }
     animals = animals.filter(function(a){ return !a.dead; });
     recount();
@@ -1833,7 +1842,7 @@
   function disease(id){
     for(var i=0;i<animals.length;i++){
       var a=animals[i];
-      if(a.sid===id && Math.random()<0.6) die(a);
+      if(a.sid===id && rand()<0.6) die(a);
     }
     animals = animals.filter(function(a){ return !a.dead; });
     recount();
@@ -1846,7 +1855,7 @@
       else if(e==='mast') events.mastUntil = simClock+40;
       else if(e==='fire') wildfire();
       else if(e==='poach') poach();
-      else if(e==='reset'){ seedWorld(); defaultView(); repaintPlants(); }
+      else if(e==='reset'){ reseed((Math.random()*4294967296)>>>0); seedWorld(); defaultView(); repaintPlants(); }
     });
   });
 
@@ -1855,7 +1864,7 @@
     var sp = SPECIES[id];
     var n = Math.max(4, Math.round(sp.start*0.25));
     for(var i=0;i<n && (counts[id]||0)<sp.cap;i++){
-      spawn(id, Math.random()*world.w, Math.random()*world.h, maxGeneration, 0.65, arrivalGenome(id));
+      spawn(id, rand()*world.w, rand()*world.h, maxGeneration, 0.65, arrivalGenome(id));
       recount();
     }
   });
@@ -2943,7 +2952,19 @@
   /* Public API — handy for headless tuning runs from the console. */
   window.Vivarium = {
     step: function(dt){ step(dt); },
-    reset: function(){ seedWorld(); },
+    /* reset(seed): reseed the simulation's generator, then rebuild the world.
+       With no seed, a fresh random one is drawn (and reported by manifest()). */
+    reset: function(seed){ reseed(seed==null ? (Math.random()*4294967296)>>>0 : seed); seedWorld(); return simSeed; },
+    seed: function(){ return simSeed; },
+    /* Everything needed to reproduce a run: pass it to tools/vivarium-run.js or reset(). */
+    manifest: function(){
+      var tag = document.querySelector('script[src*="vivarium.js"]');
+      return { format:'vivarium-run', version:1, code: tag ? tag.getAttribute('src') : null,
+               seed:simSeed, world:worldMode, t:+simClock.toFixed(3),
+               toggles:{ river:RIVER.on, sexual:params.sexual, traitCosts:params.traitCosts },
+               params:{ mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
+               hunt:Object.assign({}, HUNT) };
+    },
     setPaused: function(v){ params.paused=v; },
     setActive: function(v){
       active = v !== false;
@@ -2972,7 +2993,7 @@
     timelapse: TL,
     /* Kill a fraction of one species (headless experiments, e.g. crash-recovery tests). */
     cull: function(sid, frac){
-      animals.forEach(function(a){ if(a.sid===sid && Math.random() < (frac==null?1:frac)) die(a); });
+      animals.forEach(function(a){ if(a.sid===sid && rand() < (frac==null?1:frac)) die(a); });
       animals = animals.filter(function(a){ return !a.dead; }); recount();
       return counts[sid]||0;
     },
