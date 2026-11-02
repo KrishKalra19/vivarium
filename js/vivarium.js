@@ -136,14 +136,15 @@
               drain × (0.5 + 0.5·speed²)
        sense  neural tissue is expensive:                 drain × (0.9 + 0.1·sense²)
        metab  a slower metabolism digests and powers muscle more slowly:
-              intake × metab, speed × metab^0.3
+              intake × metab^0.6, speed × metab^0.3 (intake × metab overshot: in a
+              1-hour test agoutis and howlers ran to the *high* metab cap instead)
        mass   bigger bodies mature and breed more slowly (allometry ~ M^0.25):
               minimum breeding age and breeding interval × mass^0.25
      Costs are fixed at birth, so toggling affects animals born afterwards. */
   function costsFor(genome){
     if(!params.traitCosts) return { drain:1, intake:1, speed:1, life:1 };
     var sp = genome.speed, se = genome.sense;
-    return { drain:(0.5 + 0.5*sp*sp)*(0.9 + 0.1*se*se), intake:genome.metab,
+    return { drain:(0.5 + 0.5*sp*sp)*(0.9 + 0.1*se*se), intake:Math.pow(genome.metab, 0.6),
              speed:Math.pow(genome.metab, 0.3), life:Math.pow(genome.mass, 0.25) };
   }
   function makeAnimal(id, genome, x, y, gen, energyFrac){
