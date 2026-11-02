@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>99R's ludus de animalibus</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,500&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,700;1,800&display=swap">
-<link rel="stylesheet" href="css/style.css?v=4">
+<link rel="stylesheet" href="css/style.css?v=5">
 <link rel="stylesheet" href="css/arena.css?v=2">
 </head>
 <body>
@@ -180,6 +180,13 @@
           </div>
         </div>
         <div class="group">
+          <h3>Family tree</h3>
+          <span class="caption" id="treeCaption">subspecies of the selected species branch off as they drift apart</span>
+          <div class="card">
+            <canvas class="tree" id="chartTree"></canvas>
+          </div>
+        </div>
+        <div class="group">
           <h3>Trait drift</h3>
           <span class="caption">population averages for the selected species</span>
           <div class="seg" id="geneSeg"></div>
@@ -231,8 +238,8 @@
 <script src="js/species.js?v=2"></script>
 <script src="js/bodies.js?v=2"></script>
 <script src="js/brain.js?v=3"></script>
-<script src="js/clades.js?v=1"></script>
-<script src="js/vivarium.js?v=12"></script>
+<script src="js/clades.js?v=2"></script>
+<script src="js/vivarium.js?v=13"></script>
 <script src="js/tour.js?v=3"></script>
 <script src="js/arena/roster.js?v=2"></script>
 <script src="js/arena/tuning.js?v=2"></script>

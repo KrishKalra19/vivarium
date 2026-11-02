@@ -1404,6 +1404,14 @@
     }
 
     var th = traitHistory[geneSpecies], col = SPECIES[geneSpecies].color;
+    var treeEl = document.getElementById('chartTree');
+    if(treeEl && treeEl.offsetParent){
+      Clades.drawTree(treeEl, geneSpecies, simClock, theme, col);
+      var lv = Clades.living(geneSpecies).length, all = Clades.all().filter(function(c){ return c.sid===geneSpecies; }).length;
+      document.getElementById('treeCaption').textContent = all > 1
+        ? lv+' living lineage'+(lv===1?'':'s')+' · '+(all-1)+' subspecies so far · width = population'
+        : 'no subspecies yet — lineages split once a group drifts far enough from the rest';
+    }
     drawChart(el.chartMass, [{data:th.mass, color:col}], SPECIES[geneSpecies].mass*0.5);
     drawChart(el.chartSpeed, [{data:th.speed, color:col}], SPECIES[geneSpecies].speed*0.5);
     drawChart(el.chartSense, [{data:th.sense, color:col}], SPECIES[geneSpecies].sense*0.5);

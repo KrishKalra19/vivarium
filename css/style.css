@@ -340,3 +340,4 @@ canvas.chart{cursor:zoom-in;}
 .tour-btns .btn{padding:7px 12px;}
 .tour-launch{margin-top:8px;}
 @media (prefers-reduced-motion: reduce){ .tour-ring{transition:none;} }
+canvas.tree{width:100%;height:60px;display:block;}

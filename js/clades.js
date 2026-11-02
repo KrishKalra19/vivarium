@@ -100,7 +100,8 @@
         if(c.died != null && ms.length) c.died = null;   // recolonised from a stray survivor
         c.peak = Math.max(c.peak, c.n);
         c.history.push([t, c.n]);
-        if(c.history.length > 600) c.history.splice(0, c.history.length - 600);
+        // Keep the whole run at falling resolution: past 600 samples, drop every other one.
+        if(c.history.length > 600) c.history = c.history.filter(function(_, i){ return i%2===0 || i===c.history.length-1; });
         if(ms.length < MIN_GROUP || t - c.born < MIN_AGE) return;
         var far = [], fv = [];
         for(var j=0;j<ms.length;j++){
@@ -136,8 +137,59 @@
       return born;
     }
 
+    /* Family tree for one species: time runs left to right, one lane per clade,
+       line width follows population, and a daughter's lane hangs off its parent
+       at the moment it split. Returns the canvas height it needs in CSS px. */
+    function drawTree(el, sid, now, theme, color){
+      var cs = list.filter(function(c){ return c.sid === sid; });
+      var kids = {}; cs.forEach(function(c){ (kids[c.parent] = kids[c.parent] || []).push(c); });
+      var order = [];
+      (function walk(pid){ (kids[pid] || []).sort(function(a, b){ return a.born - b.born; })
+        .forEach(function(c){ order.push(c); walk(c.id); }); })(0);
+      var LANE = 30, TOP = 8, H = TOP + order.length*LANE + 14;
+      var dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(10, el.getBoundingClientRect().width);
+      el.style.height = H + 'px';
+      if(el.width !== Math.round(W*dpr) || el.height !== Math.round(H*dpr)){ el.width = Math.round(W*dpr); el.height = Math.round(H*dpr); }
+      var c = el.getContext('2d');
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.clearRect(0, 0, W, H);
+      var L = 6, R = W - 6, T = Math.max(1, now);
+      var X = function(t){ return L + t/T*(R - L); };
+      var lane = {}; order.forEach(function(cl, i){ lane[cl.id] = TOP + i*LANE + 20; });
+      var peak = 1; order.forEach(function(cl){ peak = Math.max(peak, cl.peak); });
+      c.lineCap = 'round';
+      var bg = getComputedStyle(el.parentNode).backgroundColor || theme.surface2;
+      order.forEach(function(cl){
+        var y = lane[cl.id], dead = cl.died != null, col = dead ? theme.inkDim : color;
+        if(cl.parent && lane[cl.parent] != null){
+          c.strokeStyle = theme.inkDim; c.lineWidth = 1; c.setLineDash([2, 3]);
+          c.beginPath(); c.moveTo(X(cl.born), lane[cl.parent]); c.lineTo(X(cl.born), y); c.stroke();
+          c.setLineDash([]);
+        }
+        var h = cl.history;
+        c.strokeStyle = col; c.globalAlpha = dead ? 0.55 : 1;
+        for(var i=1;i<h.length;i++){
+          var n = Math.max(h[i-1][1], h[i][1]);
+          if(!n) continue;
+          c.lineWidth = 1.5 + 9*Math.sqrt(n/peak);
+          c.beginPath(); c.moveTo(X(h[i-1][0]), y); c.lineTo(X(h[i][0]), y); c.stroke();
+        }
+        c.globalAlpha = 1;
+        if(dead){ c.fillStyle = theme.inkDim; c.font = '11px sans-serif'; c.fillText('✕', X(cl.died) + 3, y + 4); }
+        c.font = (cl.depth ? '' : '600 ') + '11px sans-serif';
+        c.fillStyle = dead ? theme.inkDim : theme.ink;
+        var label = (dead ? '† ' : '') + cl.name + (dead ? '' : ' · ' + cl.n);
+        var lx = Math.min(X(cl.born) + 2, R - c.measureText(label).width);
+        c.lineJoin = 'round'; c.lineWidth = 4; c.strokeStyle = bg;
+        c.strokeText(label, Math.max(L, lx), y - 8);
+        c.fillText(label, Math.max(L, lx), y - 8);
+      });
+      return H;
+    }
+
     reset();
     return {
+      drawTree:drawTree,
       reset:reset, assign:assign, update:update,
       all:function(){ return list; },
       get:function(id){ return byId[id]; },
