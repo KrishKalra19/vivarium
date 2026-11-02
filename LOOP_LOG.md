@@ -9,6 +9,7 @@
   - 11-02: subspecies pace: no opinion, so keep the current settings.
   - 11-02: **fake-Latin names** for subspecies (replacing "Swift Giant Agouti").
   - 11-02: do the choosiness gene, then **move past features toward data collection, so Vivarium is usable in a real ethology context**, not just as a fun project. See Phase 2 in LOOP_PLAN.md.
+  - 11-02: **lean research** (build toward the many-eyes experiment), but keep teaching (field-methods mode) on the backlog and actually get to it.
 
 ## Entries
 ### 2026-11-02 — setup
