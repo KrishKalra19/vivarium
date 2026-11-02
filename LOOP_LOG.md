@@ -3,7 +3,7 @@
 ## TL;DR
 - Loop started 2026-11-02 (night). See `LOOP_PLAN.md` for the backlog.
 - **The overnight timer never fired:** the cloud container went idle and the in-session wakeup died with it. Since 11-02 afternoon the loop re-arms with a server-side reminder instead.
-- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5), sexual reproduction (6). Cycle 7: 2-hour long-run test plus a fix for recovery after a crash. Cycle 8: choosiness gene + Latin names. **Next: Phase 2, starting with real trait trade-offs, then reproducibility.**
+- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5), sexual reproduction (6). Cycle 7: 2-hour long-run test plus a fix for recovery after a crash. Cycle 8: choosiness gene + Latin names. Cycle 9: trait costs. **Next: reproducibility (bit-identical seeded runs + run manifest).**
 - Screenshots to look at: `docs/loop/`
 - **Krish feedback** (write anything here or in chat; the next cycle reads it first):
   - 11-02: subspecies pace: no opinion, so keep the current settings.
@@ -88,3 +88,14 @@ Two 7200 sim-s runs, river on, seed 1, one with mating and one without (~18 min 
 - Verified: 3 seeds with mating + river and 1 asexual control, 1500 sim-s, no page errors, no species stuck at zero. ~26% of mating attempts end in rejection.
 - **Result: choosiness evolves away.** Mean σ rose 0.35 → 0.38–0.48 in 11 of 12 species×seed combos (agouti, howler, capybara, jaguar), while the asexual control (where the gene does nothing) wandered both ways (e.g. howler 0.36 → 0.20). This is what theory predicts: hybrids here pay no fitness cost, so pickiness is pure cost, and there's nothing for reinforcement to work with. **The interesting follow-up:** add a hybrid fitness penalty (e.g. hybrids between clades far apart have lower fertility or survival) and test whether choosiness then evolves *down*. That's the classic reinforcement experiment (Dobzhansky), and a good Phase 2 study. Added to the plan.
 - Not checked visually: the italic tree labels and the Field Log wording in a real browser.
+### 2026-11-02 23:30 UTC — cycle 9: trait costs (Phase 2 step 1b)
+- New **Trait costs** toggle (Controls → Selection pressure; `Vivarium.traitCosts(true)`; harness `--costs 1`). Every multiplier is exactly 1 for a baseline genome, so costs only bite as a trait drifts. Speed raises drain (0.5 + 0.5·speed², since locomotion power grows ~v²). Sense raises drain slightly (0.9 + 0.1·sense², for expensive neural tissue). A slow metabolism digests and powers muscle more slowly (intake × metab^0.6, speed × metab^0.3). Bigger bodies mature and re-breed later (× mass^0.25, allometric). Costs are fixed at birth. Off by default.
+- Verified: 1-hour runs (3600 sim-s), 2 seeds per variant, no page errors.
+  | 1 h | traits within 8% of a cap (of 32) | mean drift from species norm | agouti speed / metab |
+  |---|---|---|---|
+  | no costs | 2–3 | 0.19–0.20 | 1.47 / 0.76 (both pinned) |
+  | costs v1 (intake × metab) | 2 | 0.15–0.18 | 1.42 / 1.31 (metab flipped to the *other* cap) |
+  | **costs v2 (intake × metab^0.6), shipped** | **0** | 0.15–0.16 | 1.42 / 1.21 |
+  With costs on, howler speed drops from 1.22–1.41 to 1.05–1.16, and the metabolism trait now settles mid-band instead of hugging an edge. Agouti stays fast (1.42) but now pays for it, which is plausible for the prey base under the heaviest predation.
+- **Open item: harpies.** With costs v2 they end at 18 in both seeds, against 110 with no costs and 32–58 with v1. They're fast fliers preying on the fast agouti, so they likely pay the steepest speed bill. It needs a look before any experiment that leans on predator numbers. Ocelot and anaconda stay low in every variant (pre-existing).
+- Decision made (log, don't re-ask): research experiments should run with **trait costs on**; the UI default stays off so the casual mode is unchanged.
