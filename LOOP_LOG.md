@@ -3,7 +3,7 @@
 ## TL;DR
 - Loop started 2026-11-02 (night). See `LOOP_PLAN.md` for the backlog.
 - **The overnight timer never fired:** the cloud container went idle and the in-session wakeup died with it. Since 11-02 afternoon the loop re-arms with a server-side reminder instead.
-- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5), sexual reproduction (6). The core backlog is done; next come stretch items and polish (see the cycle 6 entry).
+- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5), sexual reproduction (6). Cycle 7: 2-hour long-run test plus a fix for recovery after a crash. **Next: choosiness gene + fake-Latin names, then Phase 2 (research instrument).**
 - Screenshots to look at: `docs/loop/`
 - **Krish feedback** (write anything here or in chat; the next cycle reads it first):
   - 11-02: subspecies pace: no opinion, so keep the current settings.
@@ -65,3 +65,20 @@
 - "Hide extinct" toggle and phone layout for the family tree / time-lapse bar.
 - Share a run: export the time-lapse + tree as a file, or a GIF of the replay.
 - Biome switcher (savanna) from the original roadmap.
+### 2026-11-02 21:30 UTC — cycle 7: 2-hour long-run test
+Two 7200 sim-s runs, river on, seed 1, one with mating and one without (~18 min wall each). No page errors.
+| 2 h, river on | subspecies (alive) | bank purity, blocked / free | splits per 30 min | end counts |
+|---|---|---|---|---|
+| asexual | 40 (19) | 68% / 57% | 13 / 17 / 4 / 6 | all 8 species healthy |
+| sexual | 30 (14) | **82%** / 52% | 15 / 8 / 3 / 4 | **agouti 1, harpy 2, ocelot 3** |
+- **Speciation does catch up with mating over the longer run, and it's cleaner.** Bank purity of blocked species ends at 82% with mating vs 68% without (at 25 min it was 60–71% vs 68–93%). Interbreeding within each bank keeps that bank's population cohesive, so subspecies line up with geography. One seed only, so treat this as a lead, not a result.
+- In both runs splits slow after the first hour, because traits pin against their evolvable limits (see below).
+- **Hybrid share climbed to 34% of matings** with mating on (4–8% at 25 min). As subspecies multiply, matings across them become common, so these subspecies aren't reproductively isolated. That's exactly what the choosiness gene (next) is for.
+- **Bug: Allee trap after a crash.** Agouti numbers swing in both runs, but with mating on, a crash to zero at ~6,600 s became permanent: arrivals came one at a time, and a lone arrival can't find a mate. Harpies then starved. Fix: with mating on, arrivals come as a band of 4 (`Vivarium.params.arrivalGroup`). Crash test: kill every agouti at 300 s, then watch 600 s:
+  | arrivals | seed 1 | seed 2 |
+  |---|---|---|
+  | 1 at a time | 147 after 600 s (slow) | stuck at 0–2 for 600 s |
+  | band of 4 | 492 | 563 |
+  New API: `Vivarium.cull(sid, frac)` for crash experiments.
+- **Model limitation, important for Phase 2:** by about 1 h, agouti mean mass (1.65 of a 1.70 cap) and speed (1.47 of 1.50) are pinned at the edge of their bands in *both* runs. Selection is pushing into an artificial wall, so "bigger and faster" has no real cost beyond metabolic drain. Before any research claim about trait evolution, give these traits real trade-offs (e.g. speed raises drain; mass slows maturity). Added to Phase 2.
+- Time-lapse memory over 2 h: 349 frames at 20 s spacing, 8.7 MB; total JS heap 25–28 MB. The cap works.

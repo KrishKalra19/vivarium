@@ -33,6 +33,7 @@ Honest framing: the parameters are hand-tuned rather than fitted to field data, 
 
 Order (Krish 11-02: research first, then teaching):
 1. **Choosiness gene + fake-Latin names** (Krish asked). Mate pickiness evolves per animal, so sympatric speciation becomes possible. Names look like *Dasyprocta velox minor*.
+1b. **Real trait trade-offs**: mass and speed hit their caps by ~1 h in long runs (cycle 7), so give them costs before claiming anything about trait evolution.
 2. **Reproducibility**: a run means seed + config and produces bit-identical results (today they aren't, because the page's frame loop draws randoms). Store a run manifest (seed, params, toggles, code version) with every export.
 3. **Life-history table export (CSV)**: one row per individual: id, mother, father, species, clade, birth/death time, cause, traits, offspring, kills, lifetime time budget. That's the base table for everything else.
 4. **Ethogram + time budgets**: log each animal's behavioural state (forage, vigilant, flee, hunt, rest, mate) so the export gives classic activity budgets per species, sex or clade.

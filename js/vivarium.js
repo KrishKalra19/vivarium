@@ -81,7 +81,7 @@
   var idCounter = 1;
   var maxGeneration = 0;
   var simClock = 0;
-  var params = { sexual:false, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
+  var params = { sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
   var worldMode = 'instinct';   // the brain mode the current world was seeded with
   var events = { droughtUntil:0, mastUntil:0 };
   var selected = null;
@@ -848,6 +848,17 @@
 
   /* Small, slow trickle of dispersers from the wider forest. Without it a
      random trough at zero is permanent and the range goes silent forever. */
+  /* Arrivals from the wider forest. With sexual reproduction on, a lone arrival
+     can't breed, so a species that crashed to zero could never come back (seen in a
+     2-hour run: agoutis stuck at 1–2). Under mating they arrive as a small band. */
+  function arrive(id, genomeFn){
+    var n = params.sexual ? params.arrivalGroup : 1, x = Math.random()*world.w, y = Math.random()*world.h;
+    for(var k=0;k<n && (counts[id]||0) < SPECIES[id].cap;k++){
+      var ax = clamp(x + randRange(-20,20), 0, world.w), ay = clamp(y + randRange(-20,20), 0, world.h);
+      if(RIVER.on && RIVER.blocks[id] && bankOf(ax, ay) !== bankOf(x, y)){ ax = x; ay = y; }
+      spawn(id, ax, ay, maxGeneration, 0.6, genomeFn());
+    }
+  }
   function immigration(dt){
     // Mixed worlds: each lineage gets half the floor, so a crash can't hand
     // the range to whichever lineage happened to arrive first.
@@ -858,8 +869,8 @@
           var o=animals[q];
           if(o.sid===bid && !o.dead){ if(o.genome.brain) nb++; else ni++; }
         }
-        if(nb<half && Math.random()<0.05*dt) spawn(bid, Math.random()*world.w, Math.random()*world.h, maxGeneration, 0.6, arrivalGenome(bid,'brain'));
-        if(ni<half && Math.random()<0.05*dt) spawn(bid, Math.random()*world.w, Math.random()*world.h, maxGeneration, 0.6, arrivalGenome(bid,'instinct'));
+        if(nb<half && Math.random()<0.05*dt) arrive(bid, function(){ return arrivalGenome(bid,'brain'); });
+        if(ni<half && Math.random()<0.05*dt) arrive(bid, function(){ return arrivalGenome(bid,'instinct'); });
       }
     }
     for(var i=0;i<SPECIES_IDS.length;i++){
@@ -872,9 +883,7 @@
         for(var p=0;p<sp.prey.length;p++) preyTotal += counts[sp.prey[p]]||0;
         if(preyTotal < 25) continue;
       }
-      if(Math.random() < 0.05*dt){
-        spawn(id, Math.random()*world.w, Math.random()*world.h, maxGeneration, 0.6, arrivalGenome(id));
-      }
+      if(Math.random() < 0.05*dt) arrive(id, function(){ return arrivalGenome(id); });
     }
   }
 
@@ -2919,6 +2928,12 @@
       return { frames:TL.count(), idx:replay.idx, t:TL.at(replay.idx).t };
     },
     timelapse: TL,
+    /* Kill a fraction of one species (headless experiments, e.g. crash-recovery tests). */
+    cull: function(sid, frac){
+      animals.forEach(function(a){ if(a.sid===sid && Math.random() < (frac==null?1:frac)) die(a); });
+      animals = animals.filter(function(a){ return !a.dead; }); recount();
+      return counts[sid]||0;
+    },
     sexual: function(on){ if(on!=null) setSexual(on); return params.sexual; },
     mating: function(){ return Object.assign({}, mating); },
     river: function(on){ if(on!=null){ setRiver(on); repaintPlants(); } return RIVER.on; },
