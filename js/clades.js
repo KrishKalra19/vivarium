@@ -29,6 +29,26 @@
   };
   var ROMAN = ['', ' II', ' III', ' IV', ' V', ' VI', ' VII', ' VIII', ' IX', ' X'];
 
+  /* Scientific names (Krish, 11-02: fake-Latin subspecies). Real binomials for the
+     roots; daughters get Latin epithets for the direction they drifted, agreeing in
+     gender with the genus: "Dasyprocta punctata velox", "Panthera onca minor". */
+  var BINOMIAL = {
+    agouti:['Dasyprocta','punctata','f'], howler:['Alouatta','seniculus','f'], capybara:['Hydrochoerus','hydrochaeris','m'],
+    tapir:['Tapirus','terrestris','m'], ocelot:['Leopardus','pardalis','m'], harpy:['Harpia','harpyja','f'],
+    jaguar:['Panthera','onca','f'], anaconda:['Eunectes','murinus','m']
+  };
+  var LATIN = {   // [masculine, feminine]
+    Giant:['magnus','magna'], Dwarf:['minor','minor'], Swift:['velox','velox'], Plodding:['tardus','tarda'],
+    'Keen-eyed':['oculatus','oculata'], 'Dim-eyed':['obscurus','obscura'], Frugal:['parcus','parca'], Ravenous:['vorax','vorax']
+  };
+  function sciRoot(sid, SPECIES){ var b = BINOMIAL[sid]; return b ? b[0]+' '+b[1] : SPECIES[sid].name; }
+  function sciName(sid, adj, SPECIES){
+    var b = BINOMIAL[sid];
+    if(!b) return (adj.length ? adj.join(' ')+' ' : '') + SPECIES[sid].name;
+    var g = b[2]==='f' ? 1 : 0;
+    return b[0].charAt(0)+'. '+b[1]+(adj.length ? ' '+adj.map(function(w){ return LATIN[w][g]; }).join(' ') : '');
+  }
+
   function create(TRAITS, BAND, SPECIES){
     var list = [], byId = {}, nextId = 1, rootOf = {}, nameUse = {};
 
@@ -51,8 +71,9 @@
       list = []; byId = {}; nextId = 1; rootOf = {}; nameUse = {};
       Object.keys(SPECIES).forEach(function(sid){
         var mid = TRAITS.map(function(k){ var b = BAND[k]; return (1 - b[0])/(b[1] - b[0]); });
-        rootOf[sid] = add(sid, null, mid, 0, SPECIES[sid].name);
-        nameUse[SPECIES[sid].name] = 1;   // a lineage drifting back is "Capybara II", never the root's name
+        rootOf[sid] = add(sid, null, mid, 0, sciRoot(sid, SPECIES));
+        rootOf[sid].common = SPECIES[sid].name;
+        nameUse[sciName(sid, [], SPECIES)] = 1;   // a lineage drifting back is "D. punctata II", never the root's name
       });
     }
 
@@ -76,10 +97,11 @@
       pick(moves[0]);
       if(Math.abs(moves[1].d) > SPLIT*0.6) pick(moves[1]);
       if(adj.length > 2) adj = adj.slice(adj.length - 2);
-      var base = (adj.length ? adj.join(' ') + ' ' : '') + SPECIES[parent.sid].name;
+      var common = (adj.length ? adj.join(' ') + ' ' : '') + SPECIES[parent.sid].name;
+      var base = sciName(parent.sid, adj, SPECIES);
       nameUse[base] = (nameUse[base] || 0) + 1;
-      var n = nameUse[base];
-      return { adj:adj, name:base + (n > 1 ? (ROMAN[n-1] || ' #' + n) : '') };
+      var n = nameUse[base], suffix = n > 1 ? (ROMAN[n-1] || ' #' + n) : '';
+      return { adj:adj, name:base + suffix, common:common + suffix };
     }
 
     /* Census plus split check. Returns the clades founded this call. */
@@ -126,7 +148,7 @@
         if(live >= MAX_LIVE) return;
         var nm = nameFor(c, cen);
         var d = add(c.sid, c, cen, t, nm.name);
-        d.adj = nm.adj;
+        d.adj = nm.adj; d.common = nm.common;
         group.forEach(function(a){ a.genome.clade = d.id; });
         d.n = group.length; d.peak = d.n; d.history.push([t, d.n]);
         c.n -= group.length;
@@ -177,7 +199,7 @@
         }
         c.globalAlpha = 1;
         if(dead){ c.fillStyle = theme.inkDim; c.font = '11px sans-serif'; c.fillText('✕', X(cl.died) + 3, y + 4); }
-        c.font = (cl.depth ? '' : '600 ') + '11px sans-serif';
+        c.font = 'italic ' + (cl.depth ? '' : '600 ') + '11px sans-serif';
         c.fillStyle = dead ? theme.inkDim : theme.ink;
         var label = (dead ? '† ' : '') + cl.name + (dead ? '' : ' · ' + cl.n);
         var lx = Math.min(X(cl.born) + 2, R - c.measureText(label).width);

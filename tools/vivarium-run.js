@@ -53,13 +53,13 @@ function args(){
     if(opt.mode !== 'instinct') V.brainMode(opt.mode); else V.reset();
     if(opt.river) V.river(true);
     if(opt.sexual) V.sexual(true);
-    const ids = Object.keys(V.species), traits = ['mass','speed','sense','metab'];
+    const ids = Object.keys(V.species), traits = ['mass','speed','sense','metab','choosy'];
     const samples = [], zeroRun = {}, stuck = {};
     ids.forEach(id => { zeroRun[id] = 0; });
     const sample = () => {
       const st = V.stats(), means = {};
       ids.forEach(id => { means[id] = {}; traits.forEach(k => { means[id][k] = 0; }); });
-      V.animals().forEach(a => { if(a.dead) return; traits.forEach(k => { means[a.sid][k] += a.genome[k]; }); });
+      V.animals().forEach(a => { if(a.dead) return; traits.forEach(k => { means[a.sid][k] += (a.genome[k] == null ? 0 : a.genome[k]); }); });
       ids.forEach(id => { const n = st.counts[id] || 0; traits.forEach(k => { means[id][k] = n ? +(means[id][k]/n).toFixed(4) : null; }); });
       samples.push({ t:+st.t.toFixed(1), total:st.total, counts:st.counts, foliage:+st.foliage.toFixed(3), means });
       ids.forEach(id => {

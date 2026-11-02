@@ -39,4 +39,5 @@ Order (Krish 11-02: research first, then teaching):
 4. **Ethogram + time budgets**: log each animal's behavioural state (forage, vigilant, flee, hunt, rest, mate) so the export gives classic activity budgets per species, sex or clade.
 5. **Experiment runner**: `tools/experiment.js` takes a JSON spec (conditions × replicates × duration), runs them headless and writes tidy CSV, plus a small Python/R analysis notebook with CIs.
 6. **First real experiment: the many-eyes effect.** Does individual vigilance fall as group size rises in *evolved* brains (no rule tells them to)? It's a classic, well-documented prediction (Pulliam 1973; Elgar 1989 review). Then: the marginal value theorem (patch leaving times), the selfish herd, and the predator confusion effect.
+6b. **Reinforcement experiment**: add a toggleable hybrid fitness penalty and test whether choosiness then evolves to be pickier (cycle 8 showed it evolves away when hybrids pay nothing).
 7. **(Committed, not optional; Krish 11-02)** Field-methods mode for teaching: focal-animal and scan sampling on virtual animals, so students can compare their sampled estimates with the ground truth.

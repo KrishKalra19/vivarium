@@ -55,8 +55,13 @@
   function triRand(){ return (Math.random()+Math.random()+Math.random()-1.5)/1.5; }
   function pow75(m){ return Math.pow(m,0.75); }
 
+  /* Choosiness: how wide a range of partners a female accepts (see findMate). Lower is
+     pickier. It is a gene of its own, outside TRAITS, so it never drives subspecies
+     splits; it only decides who mates with whom. */
+  var CHOOSY_BAND = [0.05, 1.0];
   function newGenome(){
-    return { mass:randRange(0.88,1.12), speed:randRange(0.88,1.12), sense:randRange(0.88,1.12), metab:randRange(0.92,1.08) };
+    return { mass:randRange(0.88,1.12), speed:randRange(0.88,1.12), sense:randRange(0.88,1.12), metab:randRange(0.92,1.08),
+             choosy:randRange(0.25,0.45) };
   }
   function mutate(g, rate){
     var out={};
@@ -66,6 +71,8 @@
     }
     if(g.lineage) out.lineage = g.lineage;
     if(g.clade) out.clade = g.clade;
+    var ch = g.choosy==null ? CHOOSY : g.choosy;
+    out.choosy = clamp(ch + triRand()*rate*(CHOOSY_BAND[1]-CHOOSY_BAND[0]), CHOOSY_BAND[0], CHOOSY_BAND[1]);
     if(g.brain) out.brain = Brain.mutate(g.brain, rate);
     return out;
   }
@@ -443,7 +450,7 @@
   /* Sexual reproduction (toggle in Controls). A breeder needs an adult of its own
      species and lineage within its species' mate radius. Among those it
      prefers genetically similar partners: each candidate is weighted by
-     exp(-(d/CHOOSY)^2), d = band-normalised trait distance, and one is drawn by
+     exp(-(d/σ)^2), σ = her own evolvable choosiness gene (default CHOOSY), d = band-normalised trait distance, and one is drawn by
      that weight. Offspring take each trait from a random parent; brains cross over
      a whole hidden neuron at a time, so co-adapted weights travel together. The
      subspecies label (clade) passes down the mother's side, so a "hybrid" is a
@@ -457,7 +464,7 @@
     var r = Math.sqrt(3*world.w*world.h/(Math.PI*SPECIES[id].start));
     MATE_RADIUS[id] = clamp(r, 110, 600);
   });
-  var mating = { matings:0, hybrids:0, unmated:0 };
+  var mating = { matings:0, hybrids:0, unmated:0, rejected:0 };
   function traitDist(g, h){
     var s = 0;
     for(var i=0;i<TRAITS.length;i++){ var k=TRAITS[i], b=TRAIT_BAND[k], d=(g[k]-h[k])/(b[1]-b[0]); s += d*d; }
@@ -473,13 +480,17 @@
       var dx=o.x-a.x, dy=o.y-a.y;
       if(dx*dx+dy*dy > r2) return;
       if(RIVER.on && RIVER.blocks[a.sid] && bankOf(o.x, o.y) !== bankOf(a.x, a.y)) return;
-      var d = traitDist(a.genome, o.genome), w = Math.exp(-(d/CHOOSY)*(d/CHOOSY));
+      var sg = a.genome.choosy || CHOOSY;
+      var d = traitDist(a.genome, o.genome), w = Math.exp(-(d/sg)*(d/sg));
       _mates.push(o); _w.push(w); tot += w;
     });
     if(!_mates.length) return null;
-    var pick = Math.random()*tot;
-    for(var i=0;i<_mates.length;i++){ pick -= _w[i]; if(pick <= 0) return _mates[i]; }
-    return _mates[_mates.length-1];
+    var pick = Math.random()*tot, m = _mates.length-1;
+    for(var i=0;i<_mates.length;i++){ pick -= _w[i]; if(pick <= 0){ m = i; break; } }
+    // Choosiness has a price: she can turn down the best partner on offer and lose this
+    // breeding attempt. Without that cost, pickiness would be free and always win.
+    if(Math.random() > _w[m]){ mating.rejected++; return false; }
+    return _mates[m];
   }
   function crossBrain(wa, wb, lay){
     var out = new Float32Array(wa.length), NI=lay.NI, NH=lay.NH, NO=lay.NO, W1=lay.W1, h, i, o;
@@ -496,6 +507,7 @@
     for(var i=0;i<TRAITS.length;i++){ var k=TRAITS[i]; out[k] = Math.random()<0.5 ? g[k] : h[k]; }
     if(g.lineage) out.lineage = g.lineage;
     if(g.clade) out.clade = g.clade;
+    out.choosy = Math.random()<0.5 ? (g.choosy||CHOOSY) : (h.choosy||CHOOSY);
     if(g.brain) out.brain = (h.brain && h.brain.length===g.brain.length) ? crossBrain(g.brain, h.brain, layoutOf(a.sid)) : g.brain;
     return out;
   }
@@ -507,7 +519,7 @@
     var mate = null;
     if(params.sexual){
       mate = findMate(a, sp);
-      if(!mate){ mating.unmated++; a.cooldown = sp.repro.cooldown*0.25; return; }
+      if(!mate){ if(mate===null) mating.unmated++; a.cooldown = sp.repro.cooldown*0.25; return; }
       mating.matings++;
       if(mate.genome.clade !== a.genome.clade) mating.hybrids++;
     }
@@ -1046,7 +1058,7 @@
     });
     TL.record(simClock, animals, SPECIES_IDS, { foliage:foliage, fruit:fruit, water:water });
     Clades.update(animals, simClock).forEach(function(b){
-      logEvent({ sid:b.clade.sid, text:'New subspecies: the '+b.clade.name+' split from the '+b.parent.name+
+      logEvent({ sid:b.clade.sid, text:'New subspecies: '+b.clade.name+' ('+b.clade.common+') split from '+b.parent.name+
         ' ('+Math.round(b.share*100)+'% of them, '+b.clade.n+' animals).' });
     });
     brainTick();
@@ -1073,7 +1085,7 @@
   /* --------------------------- world setup --------------------------- */
   function seedWorld(){
     animals=[]; idCounter=1; maxGeneration=0; simClock=0; sampleAccum=0;
-    mating.matings = mating.hybrids = mating.unmated = 0;
+    mating.matings = mating.hybrids = mating.unmated = mating.rejected = 0;
     worldMode = params.brainMode; autosaveAt = 0;
     events.droughtUntil=0; events.mastUntil=0;
     buildTerrain(); initHash(); resetHistory(); resetWatch();
@@ -2939,7 +2951,7 @@
     river: function(on){ if(on!=null){ setRiver(on); repaintPlants(); } return RIVER.on; },
     bankOf: function(x, y){ return bankOf(x, y); },
     clades: function(){ return Clades.all().map(function(c){
-      return { id:c.id, sid:c.sid, name:c.name, parent:c.parent, depth:c.depth, born:+c.born.toFixed(1),
+      return { id:c.id, sid:c.sid, name:c.name, common:c.common, parent:c.parent, depth:c.depth, born:+c.born.toFixed(1),
                died:c.died==null?null:+c.died.toFixed(1), n:c.n, peak:c.peak,
                type:c.type.map(function(v){ return +v.toFixed(3); }) };
     }); },
