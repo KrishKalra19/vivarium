@@ -14,10 +14,10 @@ const fs = require('fs');
 const { chromium } = require('playwright');
 
 function args(){
-  const a = { secs:1200, seed:1, mode:'instinct', every:10, out:null, river:0 };
+  const a = { secs:1200, seed:1, mode:'instinct', every:10, out:null, river:0, sexual:0 };
   const v = process.argv.slice(2);
   for(let i=0;i<v.length;i+=2){ const k=v[i].replace(/^--/,''); a[k] = isNaN(+v[i+1]) ? v[i+1] : +v[i+1]; }
-  if(!a.out) a.out = path.join('runs', `${a.mode}-s${a.seed}-${a.secs}${a.river ? '-river' : ''}`);
+  if(!a.out) a.out = path.join('runs', `${a.mode}-s${a.seed}-${a.secs}${a.river ? '-river' : ''}${a.sexual ? '-sex' : ''}`);
   return a;
 }
 
@@ -52,6 +52,7 @@ function args(){
     V.setPaused(true);
     if(opt.mode !== 'instinct') V.brainMode(opt.mode); else V.reset();
     if(opt.river) V.river(true);
+    if(opt.sexual) V.sexual(true);
     const ids = Object.keys(V.species), traits = ['mass','speed','sense','metab'];
     const samples = [], zeroRun = {}, stuck = {};
     ids.forEach(id => { zeroRun[id] = 0; });
@@ -76,7 +77,7 @@ function args(){
     const banks = {};
     V.animals().forEach(a => { if(a.dead) return; const b = banks[a.genome.clade] = banks[a.genome.clade] || [0,0]; b[V.bankOf ? (V.bankOf(a.x,a.y) < 0 ? 0 : 1) : 0]++; });
     const clades = V.clades ? V.clades().map(c => Object.assign(c, { west:(banks[c.id]||[0,0])[0], east:(banks[c.id]||[0,0])[1] })) : [];
-    return { ids, samples, stuck, deaths:V.deaths(), clades };
+    return { ids, samples, stuck, deaths:V.deaths(), clades, mating:V.mating ? V.mating() : null };
   }, opt);
   const wallSec = (Date.now() - t0) / 1000;
 
@@ -121,6 +122,7 @@ function args(){
   const cl = result.clades.filter(c => c.depth > 0);
   console.log(`subspecies founded: ${cl.length} (${cl.filter(c => c.died == null).length} alive)`);
   cl.forEach(c => console.log(`  t=${c.born} ${c.name} <- ${(result.clades.find(p => p.id === c.parent)||{}).name}  n=${c.n} (W${c.west}/E${c.east}) peak=${c.peak}${c.died != null ? ' died t=' + c.died : ''}`));
+  if(result.mating && opt.sexual) console.log('mating', JSON.stringify(result.mating), 'hybrid share', (result.mating.hybrids/Math.max(1,result.mating.matings)).toFixed(3));
   console.log('page errors:', errors.length ? errors : 'none');
   process.exit(errors.length ? 1 : 0);
 })();

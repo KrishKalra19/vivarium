@@ -25,3 +25,4 @@ measured with a headless run, not just eyeballed.
 5. **Time-lapse replay**: record compact snapshots and scrub through a run with the tree in sync.
 6. **Sexual reproduction** (toggleable): mate choice and recombination, so clades only stay apart when they stop interbreeding.
 7. Stretch: CSV export, touch controls for the 3D view, a biome switcher.
+8. After 1–6: see "Ideas for the next cycles" at the bottom of LOOP_LOG.md. Default order if Krish hasn't picked: long-run test → choosiness gene → tree/time-lapse polish → share/export.

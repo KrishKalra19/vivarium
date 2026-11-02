@@ -81,7 +81,7 @@
   var idCounter = 1;
   var maxGeneration = 0;
   var simClock = 0;
-  var params = { mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
+  var params = { sexual:false, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
   var worldMode = 'instinct';   // the brain mode the current world was seeded with
   var events = { droughtUntil:0, mastUntil:0 };
   var selected = null;
@@ -440,10 +440,77 @@
     return n > limit;
   }
 
+  /* Sexual reproduction (toggle in Controls). A breeder needs an adult of its own
+     species and lineage within its species' mate radius. Among those it
+     prefers genetically similar partners: each candidate is weighted by
+     exp(-(d/CHOOSY)^2), d = band-normalised trait distance, and one is drawn by
+     that weight. Offspring take each trait from a random parent; brains cross over
+     a whole hidden neuron at a time, so co-adapted weights travel together. The
+     subspecies label (clade) passes down the mother's side, so a "hybrid" is a
+     mating whose parents carry different clades. */
+  var CHOOSY = 0.3;
+  /* Mate search radius per species, sized so that at its starting density about
+     three adults are in range: agoutis look ~110 px around them, jaguars ~480 px.
+     A fixed radius made rare predators unable to find mates and collapse. */
+  var MATE_RADIUS = {};
+  SPECIES_IDS.forEach(function(id){
+    var r = Math.sqrt(3*world.w*world.h/(Math.PI*SPECIES[id].start));
+    MATE_RADIUS[id] = clamp(r, 110, 600);
+  });
+  var mating = { matings:0, hybrids:0, unmated:0 };
+  function traitDist(g, h){
+    var s = 0;
+    for(var i=0;i<TRAITS.length;i++){ var k=TRAITS[i], b=TRAIT_BAND[k], d=(g[k]-h[k])/(b[1]-b[0]); s += d*d; }
+    return Math.sqrt(s);
+  }
+  var _mates = [], _w = [];
+  function findMate(a, sp){
+    _mates.length = 0; _w.length = 0;
+    var r = MATE_RADIUS[a.sid], r2 = r*r, tot = 0;
+    forNearIn(sidBuckets[a.sid], a.x, a.y, r, function(o){
+      if(o===a || o.dead || o.sid!==a.sid || o.age < sp.repro.minAge) return;
+      if((o.genome.lineage||'') !== (a.genome.lineage||'')) return;
+      var dx=o.x-a.x, dy=o.y-a.y;
+      if(dx*dx+dy*dy > r2) return;
+      if(RIVER.on && RIVER.blocks[a.sid] && bankOf(o.x, o.y) !== bankOf(a.x, a.y)) return;
+      var d = traitDist(a.genome, o.genome), w = Math.exp(-(d/CHOOSY)*(d/CHOOSY));
+      _mates.push(o); _w.push(w); tot += w;
+    });
+    if(!_mates.length) return null;
+    var pick = Math.random()*tot;
+    for(var i=0;i<_mates.length;i++){ pick -= _w[i]; if(pick <= 0) return _mates[i]; }
+    return _mates[_mates.length-1];
+  }
+  function crossBrain(wa, wb, lay){
+    var out = new Float32Array(wa.length), NI=lay.NI, NH=lay.NH, NO=lay.NO, W1=lay.W1, h, i, o;
+    for(h=0;h<NH;h++){
+      var src = Math.random()<0.5 ? wa : wb, row = h*(NI+1);
+      for(i=0;i<=NI;i++) out[row+i] = src[row+i];
+      for(o=0;o<NO;o++) out[W1+o*(NH+1)+h] = src[W1+o*(NH+1)+h];
+    }
+    for(o=0;o<NO;o++){ var b = W1+o*(NH+1)+NH; out[b] = (Math.random()<0.5 ? wa : wb)[b]; }
+    return out;
+  }
+  function recombine(a, m){
+    var g = a.genome, h = m.genome, out = {};
+    for(var i=0;i<TRAITS.length;i++){ var k=TRAITS[i]; out[k] = Math.random()<0.5 ? g[k] : h[k]; }
+    if(g.lineage) out.lineage = g.lineage;
+    if(g.clade) out.clade = g.clade;
+    if(g.brain) out.brain = (h.brain && h.brain.length===g.brain.length) ? crossBrain(g.brain, h.brain, layoutOf(a.sid)) : g.brain;
+    return out;
+  }
+
   function reproduce(a){
     var sp=SPECIES[a.sid];
     if(counts[a.sid] >= sp.cap) return;
     if(sp.crowd && crowded(a, sp.crowd)){ a.cooldown = sp.repro.cooldown*0.4; return; }
+    var mate = null;
+    if(params.sexual){
+      mate = findMate(a, sp);
+      if(!mate){ mating.unmated++; a.cooldown = sp.repro.cooldown*0.25; return; }
+      mating.matings++;
+      if(mate.genome.clade !== a.genome.clade) mating.hybrids++;
+    }
     if(a.genome.brain) bankGenome(a.sid, a.genome);
     if(a.vigil){ var bacc=BS[a.sid].acc[lineageOf(a)]; bacc.breedS += a.energy/a.maxEnergy; bacc.breedN++; }
     var litter = sp.repro.litter;
@@ -453,7 +520,7 @@
     for(var i=0;i<litter && counts[a.sid]+i<sp.cap;i++){
       var cx = a.x+randRange(-14,14), cy = a.y+randRange(-14,14);
       if(RIVER.on && RIVER.blocks[a.sid] && bankOf(cx, cy) !== bankOf(a.x, a.y)){ cx = a.x; cy = a.y; }
-      var child = spawn(a.sid, cx, cy, a.gen+1, 0, mutate(a.genome, params.mutationRate));
+      var child = spawn(a.sid, cx, cy, a.gen+1, 0, mutate(mate ? recombine(a, mate) : a.genome, params.mutationRate));
       child.energy = share/litter;
     }
   }
@@ -997,6 +1064,7 @@
   /* --------------------------- world setup --------------------------- */
   function seedWorld(){
     animals=[]; idCounter=1; maxGeneration=0; simClock=0; sampleAccum=0;
+    mating.matings = mating.hybrids = mating.unmated = 0;
     worldMode = params.brainMode; autosaveAt = 0;
     events.droughtUntil=0; events.mastUntil=0;
     buildTerrain(); initHash(); resetHistory(); resetWatch();
@@ -1765,6 +1833,16 @@
     });
     syncReplayUI();
   })();
+  function setSexual(on){
+    params.sexual = !!on;
+    var b = document.getElementById('sexBtn');
+    if(b){ b.setAttribute('aria-pressed', params.sexual ? 'true' : 'false'); b.classList.toggle('active', params.sexual); }
+  }
+  document.getElementById('sexBtn').addEventListener('click', function(){
+    setSexual(!params.sexual);
+    logEvent({ text: params.sexual ? 'Sexual reproduction: animals now need a nearby mate, prefer similar partners, and mix traits.'
+                                   : 'Back to asexual reproduction: each parent clones itself with mutation.' });
+  });
   document.getElementById('riverBtn').addEventListener('click', function(){
     setRiver(!RIVER.on);
     repaintPlants();
@@ -2841,6 +2919,8 @@
       return { frames:TL.count(), idx:replay.idx, t:TL.at(replay.idx).t };
     },
     timelapse: TL,
+    sexual: function(on){ if(on!=null) setSexual(on); return params.sexual; },
+    mating: function(){ return Object.assign({}, mating); },
     river: function(on){ if(on!=null){ setRiver(on); repaintPlants(); } return RIVER.on; },
     bankOf: function(x, y){ return bankOf(x, y); },
     clades: function(){ return Clades.all().map(function(c){

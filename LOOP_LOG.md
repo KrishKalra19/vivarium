@@ -3,7 +3,7 @@
 ## TL;DR
 - Loop started 2026-11-02 (night). See `LOOP_PLAN.md` for the backlog.
 - **The overnight timer never fired:** the cloud container went idle and the in-session wakeup died with it. Since 11-02 afternoon the loop re-arms with a server-side reminder instead.
-- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5). Next: sexual reproduction (6).
+- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5), sexual reproduction (6). The core backlog is done; next come stretch items and polish (see the cycle 6 entry).
 - Screenshots to look at: `docs/loop/`
 - **Krish feedback** (write anything here or in chat; the next cycle reads it first):
   -
@@ -44,3 +44,21 @@
 - Verified headless (river on, seed 1, 1500 sim-s, no page errors): 291 frames covering 0–1498 s. Frame contents check: 325 howlers stored vs 326 alive (the one missing was born after the frame). Screenshot early vs end: `docs/loop/c5-timelapse-howler.png`.
 - Fixes found while checking: subspecies dots were sub-pixel at full-map zoom (they now have a minimum on-screen size), and a palette orange matched the agouti's own colour, so every agouti looked the same (palette changed; the new palette isn't re-screenshotted).
 - Not yet checked: phone-width layout of the bar, touch scrubbing, memory on very long runs (a cap is in place but untested past 25 min), and replay while in 3D (it switches you to Map).
+### 2026-11-02 20:15 UTC — cycle 6: sexual reproduction
+- New **Sexual reproduction** toggle in Controls → Selection pressure, also `Vivarium.sexual(true)`. A breeder needs an adult of its own species and lineage within its species' mate radius, and not across the river for river-blocked species. It prefers genetically similar partners: candidates are weighted by exp(−(d/0.3)²) and one is drawn by weight. Each trait comes from a random parent, and brains cross over one whole hidden neuron at a time. The subspecies label passes down the mother's side; a mating between different subspecies counts as a hybrid. Stats: `Vivarium.mating()`. Off by default.
+- **Bug caught by measurement:** with a fixed 160 px mate search, jaguars (16 on the map, ~490 px apart) died of old age without breeding, in every seed (end counts: jaguar 2–4, ocelot 4–7). The mate radius now scales with each species' starting density so that ~3 adults are in range (agouti ~110 px, jaguar ~480 px). After the fix, jaguars end at 37–42, the same as asexual runs.
+- Verified: 3 seeds with river + mating at 1500 sim-s, plus a 600 s Mixed (brains) run that exercises brain crossover. No page errors and no species stuck at zero. ~21k matings per run; 4–8% are between different subspecies.
+- **Finding: mating slows speciation in a 25-minute run.**
+  | river on | subspecies founded | bank purity (blocked species) |
+  |---|---|---|
+  | asexual (cycle 4) | 14–21 | 68–93% |
+  | sexual | 9 (all 3 seeds) | 60–71% |
+  Interbreeding keeps each population cohesive, so a sub-group rarely gets 0.22 away from the rest. This is plausibly real biology (gene flow opposes divergence), but it may just need longer runs. **Untested: a 2-hour sexual + river run**, which is the next thing to measure.
+- Pre-existing, not caused by this change: Mixed mode with or without mating ends at 600 s with very few harpies (3–8) and jaguars (3–4).
+
+## Ideas for the next cycles (stretch, no order yet; Krish, pick any)
+- Long-run test: 2 hours of sexual + river. Does speciation catch up? Also tests time-lapse memory.
+- Reproductive isolation as its own evolving trait (a "choosiness" gene), so sympatric speciation becomes possible.
+- "Hide extinct" toggle and phone layout for the family tree / time-lapse bar.
+- Share a run: export the time-lapse + tree as a file, or a GIF of the replay.
+- Biome switcher (savanna) from the original roadmap.
