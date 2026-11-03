@@ -256,3 +256,13 @@ Two 7200 sim-s runs, river on, seed 1, one with mating and one without (~18 min 
 - **The floor didn't lift.** Overall vigilance at 0.2 is 0.8–3.1% (agouti 1.69 / 0.84%, howler 1.99 / 3.05%, no alarm / graded), the same range as at 0.4 (0.9–3.2%). What changed is fleeing: agoutis flee 3.5–4.7% of the time vs 5.7–8.0% at 0.4. Animals just detect fewer predators; selection over ~60 agouti generations didn't buy more scanning.
 - Food-adjusted slopes: all intervals span 0 except **agouti with graded alarm, −0.23 (−0.44 to −0.03), 4/4 replicates negative**, the first in six pilots. Not a finding yet: it's 1 of 8 tests here, and agoutis without predators showed a similar negative slope at 0.4 (pilot 3, −0.45). A no-predator control at 0.2 is needed.
 - `docs/many-eyes-findings.md` updated: pilot 6 row; floor effect "isn't only about payoff"; next steps (no-predator control at 0.2; longer evolution or a network probe to see why vigilance won't evolve up).
+### 2026-11-03 16:00 UTC — cycle 26: control for the pilot 6 agouti hint
+- **No new pilot needed.** With no predators, `headDownSense` can't matter: it only scales threat detection, and there are no threats. So pilot 3's no-predator runs (same seeds 1000–1003, same setup) already are the control at 0.2. **Verified rather than assumed:** re-running pilot 3's no-predator replicate 0 with the current code and `headDownSense: 0.2` gave fingerprint `3abaea12`, identical to pilot 3's (also confirming that every change since cycle 15 leaves default runs unchanged).
+- **Paired comparison by seed** (food-adjusted slope, pp per doubling):
+  | | seed 1000 | 1001 | 1002 | 1003 | paired (pred + graded alarm) − (no predators) |
+  |---|---|---|---|---|---|
+  | agouti, predators + graded alarm (hd 0.2) | −0.07 | −0.30 | −0.36 | −0.20 | |
+  | agouti, no predators | −0.29 | −0.58 | −0.65 | −0.30 | **+0.22 (+0.09 to +0.35), 0/4 < 0** |
+  | howler, predators + graded alarm | −0.06 | +0.53 | +0.13 | +0.36 | |
+  | howler, no predators | −0.21 | −0.33 | −0.30 | −0.58 | **+0.59 (+0.00 to +1.18), 0/4 < 0** |
+- **Conclusion: pilot 6's agouti hint is not the many-eyes effect.** The decline with group size is there without predators, and adding predators plus alarm makes it *shallower* in every seed, the opposite of the prediction. Recorded in `docs/many-eyes-findings.md` (pilot 6 row, interpretation point 4, with a candidate mechanism: predators target dense groups, which would push vigilance *up* in groups).
