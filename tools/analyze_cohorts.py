@@ -20,14 +20,21 @@ comparison suffers immortal-time bias: an animal that lives longer gets more sca
 chances to log any vigilance, which makes a little vigilance look protective. Per cell: predation
 hazard (predation deaths per 1000 sim-s lived; the benefit side) and mean lifetime offspring (net).
 Still correlational: an animal's vigilance is partly its circumstances, not only its genes.
+With --food, vigilance and the 20-scan threshold use only scans where there was food to eat
+(life-table columns scan_feed_food / scan_vigilant_food, code v33+): head up on bare ground is
+an animal with nothing to eat, not one choosing to scan, and in cycles 29-30 that was 50-90% of
+all 'vigilant' scans.
 Standard library only. Prints one table per file.
 """
 import csv, sys, math, statistics as st, collections
+FEED, VIG = 'scan_feed', 'scan_vigilant'
 
 def arg(k, d):
     return sys.argv[sys.argv.index(k)+1] if k in sys.argv else d
 
 def main():
+    global FEED, VIG
+    if '--food' in sys.argv: FEED, VIG = 'scan_feed_food', 'scan_vigilant_food'
     files = [a for a in sys.argv[1:] if a.endswith('.csv')]
     binw = float(arg('--bin', 900)); species = arg('--species', 'agouti,howler,capybara,tapir').split(',')
     for f in files:
@@ -40,12 +47,12 @@ def main():
                 if r['species'] == sp: by[int(float(r['born']) // binw)].append(r)
             for c in sorted(by):
                 R = by[c]
-                feed = sum(int(r['scan_feed']) for r in R); vig = sum(int(r['scan_vigilant']) for r in R)
+                feed = sum(int(r[FEED]) for r in R); vig = sum(int(r[VIG]) for r in R)
                 coh_v = vig/(feed+vig) if feed+vig else float('nan')
-                D = [r for r in R if r['died'] != '' and int(r['scan_feed']) + int(r['scan_vigilant']) >= 20]
+                D = [r for r in R if r['died'] != '' and int(r[FEED]) + int(r[VIG]) >= 20]
                 sel = ci = '—'; mo = '—'
                 if len(D) >= 30:
-                    v = [int(r['scan_vigilant'])/(int(r['scan_feed'])+int(r['scan_vigilant'])) for r in D]
+                    v = [int(r[VIG])/(int(r[FEED])+int(r[VIG])) for r in D]
                     w = [int(r['children']) for r in D]; mw = st.mean(w)
                     if mw > 0 and st.pstdev(v) > 0:
                         sd = st.pstdev(v); mv = st.mean(v); z = [(x - mv)/sd for x in v]; rw = [x/mw for x in w]
@@ -64,9 +71,9 @@ def main():
                 acc = collections.defaultdict(lambda: [0, 0.0, 0, 0])
                 for r in rows:
                     if r['species'] != sp or r['died'] == '': continue
-                    n = int(r['scan_feed']) + int(r['scan_vigilant'])
+                    n = int(r[FEED]) + int(r[VIG])
                     if n < 20: continue
-                    v = int(r['scan_vigilant'])/n
+                    v = int(r[VIG])/n
                     g = 'none (0%)' if v == 0 else 'low (<2.5%)' if v < 0.025 else 'high (>=2.5%)'
                     bi = next(i for i, (lo, hi) in enumerate(bands) if lo <= n < hi)
                     x = acc[(bi, g)]; x[0] += 1; x[1] += float(r['age']); x[2] += r['cause'] == 'predated'; x[3] += int(r['children'])

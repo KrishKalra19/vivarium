@@ -178,7 +178,7 @@
       huntCd:0, kills:0, strikes:0, dead:false,
       // life-history bookkeeping (life table export)
       born:simClock, origin:'arrival', mother:0, father:0, litters:0, children:0, birthClade:0, birthBank:0,
-      eth:new Uint16Array(9), gsum:0, gn:0,
+      eth:new Uint16Array(9), ethF:new Uint16Array(2), gsum:0, gn:0,
       // What the animal is doing, recorded for the cameras and captions; never read by the model.
       state:'idle', target:null, lungeAt:-99, lastLunge:null, cause:null, killedBy:null,
       ryaw:rand()*Math.PI*2, stride:rand(), alt:0,
@@ -572,6 +572,9 @@
       });
       if(g < 1) g = 1;   // newborns aren't in the hash until the next rebuild; count self
       if(a.eth[k] < 65535) a.eth[k]++;
+      // feed/vigilant again, counting only scans where there is food to eat (>= the first food
+      // edge): head up on bare ground is "nothing to eat here", not a choice to scan.
+      if(k <= 1 && foodAt(SPECIES[a.sid], cellAt(a.x, a.y)) >= FOOD_EDGES[0] && a.ethF[k] < 65535) a.ethF[k]++;
       a.gsum += g; a.gn++;
       if(!tally) continue;
       etho.budget[a.sid][k]++;
@@ -591,7 +594,8 @@
   var LIFE_COLS = ['uid','species','origin','mother','father','generation','lineage','clade_at_birth','clade',
     'born','died','age','cause','killer','killer_uid','bank_at_birth','x','y','mass_kg','speed','sense','metab_gene',
     'mass_gene','speed_gene','sense_gene','choosy_gene','litters','children','kills','strikes',
-    'scans','scan_feed','scan_vigilant','scan_forage','scan_flee','scan_chase','scan_stalk','scan_lurk','scan_search','scan_travel','group_mean'];
+    'scans','scan_feed','scan_vigilant','scan_forage','scan_flee','scan_chase','scan_stalk','scan_lurk','scan_search','scan_travel','group_mean',
+    'scan_feed_food','scan_vigilant_food'];
   var lifeRows = null;   // null = not recording
   function lifeRow(a){
     var g = a.genome, k = a.killedBy;
@@ -600,7 +604,7 @@
       k ? k.sid : '', k ? k.uid : '', a.birthBank, +a.x.toFixed(1), +a.y.toFixed(1), +a.mass.toFixed(3),
       +a.speed.toFixed(2), +a.sense.toFixed(2), +g.metab.toFixed(4), +g.mass.toFixed(4), +g.speed.toFixed(4),
       +g.sense.toFixed(4), g.choosy==null ? '' : +g.choosy.toFixed(4), a.litters, a.children, a.kills, a.strikes,
-      a.gn, a.eth[0], a.eth[1], a.eth[2], a.eth[3], a.eth[4], a.eth[5], a.eth[6], a.eth[7], a.eth[8], a.gn ? +(a.gsum/a.gn).toFixed(2) : ''];
+      a.gn, a.eth[0], a.eth[1], a.eth[2], a.eth[3], a.eth[4], a.eth[5], a.eth[6], a.eth[7], a.eth[8], a.gn ? +(a.gsum/a.gn).toFixed(2) : '', a.ethF[0], a.ethF[1]];
   }
   function lifeCSV(){
     var out = [LIFE_COLS.join(',')];
