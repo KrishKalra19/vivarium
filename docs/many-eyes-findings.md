@@ -1,6 +1,6 @@
 # Does an evolved many-eyes effect emerge in Vivarium?
 
-*A pilot series, cycles 13–16, 20, 25–28 (Nov 2026). Methods note plus results; about 10 minutes to read.*
+*A pilot series, cycles 13–16, 20, 25–29 (Nov 2026). Methods note plus results; about 10 minutes to read.*
 
 ## Question
 
@@ -57,12 +57,41 @@ Each pilot changed the interpretation, and each time for a reason we measured.
 
 **This is the mechanism behind the floor.** The networks are *reactive*: they eat head-down until a threat is sensed, then look up (96–100% do). Because head-down detection is reduced but never zero (40%, or 20% in pilot 6), threats still get noticed, so "eat until you notice, then react" works and proactive scanning never pays. Group inputs barely move the decision, and where they do (tapirs) crowded animals are *more* often head-up, the opposite of many-eyes. Raw probe output: `experiments/out/brain-probe/`.
 
-**The decisive test is blind feeding** (head-down detection 0). Then the only ways to spot a predator are looking up first or being warned by others, which is the situation the many-eyes effect is about.
+**The decisive test is blind feeding** (head-down detection 0). Then the only ways to spot a predator are looking up first or being warned by others, which is the situation the many-eyes effect is about. Pilot 7 ran it: the floor held.
+
+### Can vigilance evolve, and which way is selection pushing? (cycle 29)
+Four 2-hour blind-feeding runs (headDownSense 0, no alarm, predators on; mutation rate 0.07 and 0.15 × seeds 1000, 1001), life table on, analysed with `tools/analyze_cohorts.py`. Every herbivore's lifetime scans are in its life-table row, so vigilance can be followed across **birth cohorts** (15 sim-min bins), and each animal's own vigilance set against its lifetime offspring.
+
+**Vigilance evolves, but downward.** Cohort vigilance, first → last 15-min cohort (four runs):
+
+| species | m 0.07, s1000 | m 0.07, s1001 | m 0.15, s1000 | m 0.15, s1001 |
+|---|---|---|---|---|
+| agouti | 2.1% → 0.1% | 1.5% → 0.7% | 2.8% → 0.1% | 2.3% → 0.3% |
+| howler | 1.7% → 0.3% | 2.0% → 3.0% (peak 5.8%) | 2.9% → 0.9% | 2.1% → 0.8% |
+| capybara | 2.8% → 1.2% | 2.8% → 1.2% | 2.9% → 1.5% | 3.1% → 0.7% |
+| tapir | 9.4% → 2.0% | 9.0% → 6.2% | 9.1% → 3.1% | 9.2% → 1.2% |
+
+So the network/mutation regime *can* move vigilance quickly (tapirs shed three quarters of theirs in under an hour). The floor isn't a failure of evolvability; it's where selection puts it. Predators didn't vanish: agoutis were killed 22,000–40,000 times per run, their main cause of death.
+
+**Selection on individual vigilance is negative** in all 128 cohort × species × run cells (standardized selection differential −0.01 to −0.28; 95% CI entirely below 0 in 115). More vigilant animals leave fewer offspring.
+
+**Why: scanning works, but it costs more than it saves.** Animals matched for observed lifespan (same band of foraging scans, which removes the immortal-time bias described below), pooled over the four runs:
+
+| species, 80–160 scans | predation deaths / 1000 s lived: none / low / high vigilance | lifetime offspring: none / low / high |
+|---|---|---|
+| agouti | 0.82 / 0.59 / 0.52 | 1.82 / 1.72 / 1.54 |
+| howler | 0.59 / 0.46 / 0.34 | 1.20 / 1.19 / 1.01 |
+| capybara | 0.48 / 0.32 / 0.36 | 1.06 / 1.08 / 0.95 |
+| tapir | 0.74 / 0.50 / 0.40 | 0.56 / 0.69 / 0.53 |
+
+(low = under 2.5% of foraging scans vigilant, high = 2.5% or more.) The same ordering holds in the other scan bands: high scanners' predation hazard is 15–67% below non-scanners' in every band and species, but they leave 5–25% fewer offspring (all bands where animals breed, except capybaras at 40–80 scans, no difference). A head-up animal can't eat, and in this model the food it misses costs more reproduction than the predation it avoids.
+
+**A measurement trap worth teaching.** Unstratified, low scanners appear to have the *most* offspring in all 16 run × species combinations (agouti 1.61 vs 1.38 for non-scanners), suggesting stabilizing selection with an optimum near 1%. That is mostly **immortal-time bias**: an animal that lives longer gets more scans, so more chances to log a single vigilant one; "has any vigilance" is partly a marker of having survived. Comparing animals within the same scan band removes most of the effect. Field studies that classify animals by a behaviour accumulated over their lives face the same bias.
 
 ## Interpretation
 
 1. **No evolved many-eyes effect under these conditions.** With predators, vigilance doesn't reliably fall with group size once food is controlled for: not without alarm, not with instant alarm, and not with graded alarm at two rates.
-1b. **Most likely reason: a floor effect, and it isn't only about payoff.** Pilot 6 made head-down twice as blind and vigilance still didn't rise. Evolved vigilance sits at only **1–2% of foraging time in every condition**, which leaves almost no room for a decline. Head-down only shrinks threat detection to 40% (and alarm covers much of the rest), so scanning barely pays and selection pushes it towards zero. In real systems vigilance is often 10–50% of foraging time. The informative next test is to make head-down costlier (e.g. detection at 20%) so baseline vigilance rises and a gradient has room to appear.
+1b. **Most likely reason: a floor effect set by the price of looking up.** Evolved vigilance sits at only **1–2% of foraging time in every condition**, which leaves almost no room for a decline. Making head-down blinder (pilots 6–7) didn't lift it, and cycle 29 showed why: vigilance is evolvable and does protect, but scanning means not eating, and in this model that cost outweighs the survival benefit, so selection drives vigilance down. In real systems vigilance is often 10–50% of foraging time, partly because animals scan while chewing, so looking up costs little intake. The model has no such overlap: every head-up second is a second of zero intake.
 2. **The mechanism matters, and the model makes it testable.** The many-eyes effect needs collective detection: neighbours' vigilance has to benefit you. Without alarm contagion it doesn't (pilot 3). With alarm it does, and animals respond by cutting vigilance substantially. But the benefit saturates at a single neighbour (one fleeing conspecific within 80 px is enough), so a bigger group adds nothing further. Real collective detection improves with every extra watcher (earlier detection, more directions covered). The current alarm doesn't model that, which is the most likely reason the gradient is absent.
 3. **Measurement choices could have produced a false positive twice.** Counting head-up travel as vigilance (pilot 1) and ignoring the food confound (pilots 1–2) would each have produced a convincing but wrong "many-eyes effect". Field studies face the same two traps (vigilance definitions and resource-dependent group size), which is part of why this is useful for teaching.
 4. **A residual group-size effect exists without predators** (agoutis and howlers, pilot 3), and predators make it *weaker*, not stronger (cycle 26: paired by seed, 4/4 for both species). It isn't anti-predator by construction. One possibility worth testing: under predation, groups are where predators hunt (they target dense prey), which would push vigilance *up* in groups and offset a non-predator decline. Its cause in the networks isn't identified; the herbivore networks see kin direction, kin proximity and crowding, and any of those could tie head-up stillness to group size.
@@ -77,7 +106,7 @@ Each pilot changed the interpretation, and each time for a reason we measured.
 
 ## Next steps
 
-1b. **Is vigilance evolving at all?** Blind feeding (pilot 7) didn't lift it either, so the remaining question is evolvability: run blind feeding for 2 h with the life table on and compare vigilance across birth cohorts. A flat trend means selection can't find more scanning in this network/mutation regime, rather than that it doesn't pay.
+1b. ~~Is vigilance evolving at all?~~ Yes, downward (cycle 29). **Next: make scanning cheaper, not blindness costlier.** Add a toggleable "scan while chewing" parameter (a fraction of intake kept while head-up and still, default 0, so existing runs don't change) and repeat blind feeding. If vigilance then evolves up off the floor, re-run the many-eyes test where a gradient has room to appear.
 2. **Power.** 10+ replicates and ~1 h runs, after sizing from these pilots' variance.
 3. **The no-predator residual.** Probe the evolved networks' response to group-size inputs directly (hold everything else fixed and vary the kin and crowding inputs).
 

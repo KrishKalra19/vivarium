@@ -57,4 +57,5 @@ Order (Krish 11-02: research first, then teaching):
 2. ~~Many-eyes pilot 7~~: done analytically in cycle 26 (pilot 3 is the control, verified bit-identical). Not many-eyes.
 3. ~~Network probe~~: done in cycle 27 (reactive, not proactive).
 4. ~~Pilot 7 blind feeding~~: done in cycle 28, floor holds.
-5. Evolvability: 2 h blind-feeding run(s) with the life table; vigilance by birth cohort.
+5. ~~Evolvability~~: done in cycle 29. Vigilance evolves *down*; scanning protects but costs more intake than it saves.
+6. **Scan while chewing**: toggleable `params.scanIntake` (share of grazing intake kept while head-up and still; default 0). Pilot 8: blind feeding at 0 vs 0.5; does vigilance evolve up? If so, many-eyes test on top.
