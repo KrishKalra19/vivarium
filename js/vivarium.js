@@ -97,7 +97,7 @@
   var idCounter = 1;
   var maxGeneration = 0;
   var simClock = 0;
-  var params = { alarm:false, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
+  var params = { alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
   var worldMode = 'instinct';   // the brain mode the current world was seeded with
   var events = { droughtUntil:0, mastUntil:0 };
   var selected = null;
@@ -400,19 +400,33 @@
      so brain layouts and saved brains are unchanged. Off by default; it draws no random
      numbers, so runs with it off are unchanged. */
   var ALARM_R = 80;
-  var alarmStats = { own:0, alarm:0 };
-  function perceivedThreat(a, mult){
+  var alarmStats = { own:0, alarm:0, graded:new Array(10).fill(0) };
+  /* Graded alarm (params.alarmRate > 0; cycle 20). Instant alarm (rate 0) saturates at one
+     neighbour, so group size can't matter (pilot 4). Graded: each fleeing first-hand detector
+     within ALARM_R passes the alarm at alarmRate per second, so with k of them the alarm
+     arrives at rate alarmRate*k: more watchers, faster warning. Once alarmed, an animal
+     keeps that threat for ALARM_HOLD seconds so it doesn't flicker between steps. */
+  var ALARM_HOLD = 1.5;
+  function perceivedThreat(a, mult, dt){
     var own = nearestThreat(a, mult);
     a.sawThreat = !!own;
     if(own || !params.alarm){ if(own) alarmStats.own++; return own; }
-    var best = null, bestD = ALARM_R*ALARM_R;
+    if(params.alarmRate > 0 && a.alarmUntil > simClock && a.alarmThreat && !a.alarmThreat.dead){ alarmStats.alarm++; return a.alarmThreat; }
+    var best = null, bestD = ALARM_R*ALARM_R, k = 0;
     forNearIn(sidBuckets[a.sid], a.x, a.y, ALARM_R, function(o){
       // Only first-hand detectors raise the alarm. A version that let alarmed animals pass it on
       // made pairs keep each other fleeing indefinitely (alarm detections ran 10x own sightings).
       if(o===a || o.dead || o.sid!==a.sid || o.state!=='flee' || !o.sawThreat || !o.target || o.target.dead) return;
       var dx=o.x-a.x, dy=o.y-a.y, d=dx*dx+dy*dy;
+      k++;
       if(d<bestD){ bestD=d; best=o.target; }
     });
+    if(best && params.alarmRate > 0){
+      // Poisson arrival: P(heard this step) = 1 - exp(-rate * k * dt)
+      if(rand() >= 1 - Math.exp(-params.alarmRate*k*(dt||SUBSTEP))) return null;
+      a.alarmUntil = simClock + ALARM_HOLD; a.alarmThreat = best;
+      alarmStats.graded[Math.min(k, 9)]++;
+    }
     if(best) alarmStats.alarm++;
     return best;
   }
@@ -741,7 +755,7 @@
   }
 
   function instinctHerbivore(a, sp, dt){
-    var threat = perceivedThreat(a, a.headDown ? HEAD_DOWN_SENSE : 1);
+    var threat = perceivedThreat(a, a.headDown ? HEAD_DOWN_SENSE : 1, dt);
     a.target = threat;
     var prev = a.state;
     a.state = threat ? 'flee' : 'forage';
@@ -795,7 +809,7 @@
     var HB=Brain.herbivore, B=HB.I, inp=a.bIn, out=a.bOut, dx, dy, d;
     var mult = a.headDown ? HEAD_DOWN_SENSE : 1;
     var range = a.sense*sp.panic*mult;
-    var threat = perceivedThreat(a, mult);
+    var threat = perceivedThreat(a, mult, dt);
     a.target = threat;
     if(threat){
       dx=threat.x-a.x; dy=threat.y-a.y; d=Math.sqrt(dx*dx+dy*dy)||1;
@@ -1265,7 +1279,7 @@
     mating.matings = mating.hybrids = mating.unmated = mating.rejected = 0;
     if(lifeRows) lifeRows = [];
     etho = newEtho();
-    alarmStats.own = alarmStats.alarm = 0;
+    alarmStats.own = alarmStats.alarm = 0; alarmStats.graded = new Array(10).fill(0);
     deathLog = {};   // was never cleared, so deaths() carried counts over from the previous world
     worldMode = params.brainMode; autosaveAt = 0;
     events.droughtUntil=0; events.mastUntil=0;
@@ -3178,7 +3192,7 @@
       return { format:'vivarium-run', version:1, code: tag ? tag.getAttribute('src') : null,
                seed:simSeed, world:worldMode, t:+simClock.toFixed(3),
                toggles:{ river:RIVER.on, sexual:params.sexual, traitCosts:params.traitCosts, predators:params.predators, alarm:params.alarm },
-               params:{ ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
+               params:{ alarmRate:params.alarmRate, ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
                hunt:Object.assign({}, HUNT) };
     },
     setPaused: function(v){ params.paused=v; },
@@ -3217,7 +3231,7 @@
     sexual: function(on){ if(on!=null) setSexual(on); return params.sexual; },
     mating: function(){ return Object.assign({}, mating); },
     /* Threat detections per herbivore-step: own = sensed itself; alarm = only via a fleeing neighbour. */
-    alarmStats: function(){ return Object.assign({}, alarmStats); },
+    alarmStats: function(){ return { own:alarmStats.own, alarm:alarmStats.alarm, graded:alarmStats.graded.slice() }; },
     river: function(on){ if(on!=null){ setRiver(on); repaintPlants(); } return RIVER.on; },
     bankOf: function(x, y){ return bankOf(x, y); },
     clades: function(){ return Clades.all().map(function(c){

@@ -1,0 +1,10 @@
+{
+  "name": "many-eyes-pilot5",
+  "about": "Pilot 5: graded collective detection. Each fleeing first-hand detector within 80 px passes the alarm at rate lambda per second, so k detectors warn at rate lambda*k (more watchers, faster warning). Same seeds and setup as pilot 4 (alarm off / instant alarm), so the four alarm variants are directly comparable. Prediction: a negative food-adjusted vigilance slope once alarm is graded.",
+  "secs": 2400,
+  "every": 30,
+  "replicates": 4,
+  "seed0": 1000,
+  "base": { "mode": "brains", "costs": 1, "set": { "capScale": 1.6, "ethoFrom": 1500, "alarm": true } },
+  "conditions": [ { "name": "graded-1", "set": { "alarmRate": 1 } }, { "name": "graded-4", "set": { "alarmRate": 4 } } ]
+}
