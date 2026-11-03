@@ -3,7 +3,7 @@
 ## TL;DR
 - Loop started 2026-11-02 (night). See `LOOP_PLAN.md` for the backlog.
 - **The overnight timer never fired:** the cloud container went idle and the in-session wakeup died with it. Since 11-02 afternoon the loop re-arms with a server-side reminder instead.
-- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5), sexual reproduction (6). Cycle 7: 2-hour long-run test plus a fix for recovery after a crash. Cycle 8: choosiness gene + Latin names. Cycle 9: trait costs. Cycle 10: bit-identical seeded runs. Cycle 11: life table CSV. Cycle 12: scan-sampled ethogram. Cycle 13: experiment runner + many-eyes pilot. **Next: fix the vigilance definition (stationary head-up only), then the real many-eyes experiment with controls.**
+- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5), sexual reproduction (6). Cycle 7: 2-hour long-run test plus a fix for recovery after a crash. Cycle 8: choosiness gene + Latin names. Cycle 9: trait costs. Cycle 10: bit-identical seeded runs. Cycle 11: life table CSV. Cycle 12: scan-sampled ethogram. Cycle 13: experiment runner + many-eyes pilot. Cycle 14: vigilance fixed, predator-removal control, and **the control shows the falling vigilance isn't caused by predators**. **Next: record food at each scan (the likely confound), then longer runs.**
 - Screenshots to look at: `docs/loop/`
 - **Krish feedback** (write anything here or in chat; the next cycle reads it first):
   - 11-02: subspecies pace: no opinion, so keep the current settings.
@@ -138,3 +138,20 @@ Two 7200 sim-s runs, river on, seed 1, one with mating and one without (~18 min 
   2. *Crowding confound.* Capybara (750) and tapir (190) sit at their population caps in every replicate, so large groups there mean saturation and depleted food, not a chosen group size.
   3. *Weak, uneven predation.* In brains mode harpies end at 0–8 and jaguars at 2–4 (pre-existing), so the predation that should drive vigilance mostly comes from ocelots.
 - Plan for the real experiment: fixed ethogram; a **predator-removal control condition** (vigilance shouldn't depend on group size without predators, so a slope that persists there is an artefact); 10+ replicates, ~1 h each; check the population caps.
+### 2026-11-03 03:30 UTC — cycle 14: fixed vigilance + predator-removal control (many-eyes pilot 2)
+- **Ethogram fix:** *vigilant* now means head up **and** below 25% of top speed (a scan, as field observers define it). Head up and moving is a new **travel** state, with a 9th scan column in the life table and a `travel` column in vigilance.csv. The analysis also prints the old head-up slope, so the effect of the fix is visible.
+- **New experiment options** (`--set` / spec `set`): `predators:false` removes all predators (no founders, no immigrants), and `capScale` multiplies population caps. Both are recorded in the manifest.
+- **Pilot 2** (`experiments/many-eyes-pilot2.json`: brains, trait costs, caps ×1.6, 4 paired replicates × 900 sim-s per condition, 8 runs, 9.8 min, 0 failures). Report: `experiments/out/many-eyes-pilot2/report.md`.
+  | species | with predators: slope (95% CI) | **no predators**: slope (95% CI) | old head-up definition (pred / no pred) |
+  |---|---|---|---|
+  | agouti | −0.49 (−0.75 to −0.22) | **−0.78 (−1.03 to −0.53)** | −1.71 / −2.90 |
+  | howler | −0.51 (−0.74 to −0.28) | **−0.84 (−0.93 to −0.76)** | −1.14 / −2.57 |
+  | capybara | +0.42 (+0.28 to +0.56) | +0.52 (+0.29 to +0.75) | +4.09 / +4.48 |
+  | tapir | −0.06 (−0.68 to +0.57) | −0.32 (−0.94 to +0.30) | +2.17 / +2.25 |
+  (pp of vigilance per doubling of group size)
+- **What it shows:**
+  1. **The definition fix mattered most.** True scanning is only 1–8% of time; head-up *travel* is 4–27%. Under the old definition, capybara's "rising vigilance" (+4.1) was almost entirely walking; it's +0.4 now. Tapir's +2.2 was entirely walking (now ~0, CI spans 0).
+  2. **The control falsifies the naive reading.** Agoutis and howlers show vigilance falling with group size *even with no predators at all*, and more steeply. So it isn't a many-eyes (anti-predator) effect; something else couples group size and head-up time. Leading suspect: frugivores clump at rich fruit patches, where they spend more time head-down feeding. That's a food confound, which field studies also have to control for.
+  3. 15 minutes is short for evolution. Brains here are close to their hand-wired seed, so this mostly measures the seed's behaviour, not evolved vigilance.
+- **Still open:** capybara sits at its raised cap (1200) in every run. Predators remain sparse in brains mode (harpies 0–3, jaguars 1–5).
+- **Next steps for a real test:** (a) record local food at each scan and compare vigilance at equal food levels; (b) evolve first, then measure (e.g. 1 h runs, scoring only the last 15 min); (c) then predators vs no predators again. The many-eyes prediction only survives if, at equal food, the slope is negative with predators *and* flat without them.
