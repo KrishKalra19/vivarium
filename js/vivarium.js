@@ -175,6 +175,7 @@
       huntCd:0, kills:0, strikes:0, dead:false,
       // life-history bookkeeping (life table export)
       born:simClock, origin:'arrival', mother:0, father:0, litters:0, children:0, birthClade:0, birthBank:0,
+      eth:new Uint16Array(8), gsum:0, gn:0,
       // What the animal is doing, recorded for the cameras and captions; never read by the model.
       state:'idle', target:null, lungeAt:-99, lastLunge:null, cause:null, killedBy:null,
       ryaw:rand()*Math.PI*2, stride:rand(), alt:0,
@@ -453,6 +454,64 @@
     if(a.y>world.h){ a.y=world.h; a.vy=-a.vy*0.5; }
   }
 
+  /* Ethogram by scan sampling (Phase 2). Once per sim-second, the way a field observer
+     scans a group, every animal's current behaviour is recorded as one of ETHO, along
+     with its group size: conspecifics within GROUP_R px, itself included.
+       feed      head down eating (evolved-brain herbivores: can't watch while eating)
+       vigilant  head up while foraging, scanning for predators (brain herbivores)
+       forage    moving and eating; instinct herbivores, which have no head-down choice
+       flee      running from a predator
+       chase     predator moving at >=60% top speed and closing on its target
+       stalk     predator with a target that it isn't chasing
+       lurk      ambusher waiting with no target;  search: no target
+     Per animal the counts go into the life table; per species they make time budgets;
+     and for brain herbivores that are foraging (not fleeing) the feed-vs-vigilant
+     split is tallied by group size, the data behind the many-eyes test. */
+  var ETHO = ['feed','vigilant','forage','flee','chase','stalk','lurk','search'];
+  var GROUP_R = 60, GROUP_MAX = 30;
+  var etho = null;
+  function newEtho(){
+    var e = { scans:0, budget:{}, eyes:{} };
+    SPECIES_IDS.forEach(function(id){ e.budget[id] = new Array(ETHO.length).fill(0); e.eyes[id] = { feed:new Array(GROUP_MAX+1).fill(0), vigilant:new Array(GROUP_MAX+1).fill(0) }; });
+    return e;
+  }
+  function ethoState(a){
+    var st = a.state;
+    if(SPECIES[a.sid].role==='predator'){
+      // Scored from behaviour, not intent, the way an observer would: the sim's own
+      // 'chase' label means "locked on and moving", which brain predators are ~90% of the time.
+      var t = a.target;
+      if(t && !t.dead){
+        var dx = t.x-a.x, dy = t.y-a.y, d = Math.sqrt(dx*dx+dy*dy) || 1;
+        var v = Math.sqrt(a.vx*a.vx+a.vy*a.vy), closing = (a.vx*dx + a.vy*dy)/d;
+        if(v >= 0.6*a.speed && closing > 0.5*v) return 4;   // chase: fast and heading at it
+        return 5;                                           // stalk: has a target, not pursuing
+      }
+      return st==='lurk' ? 6 : 7;
+    }
+    if(st==='flee') return 3;
+    if(!a.vigil) return 2;
+    return a.headDown ? 0 : 1;
+  }
+  function ethoScan(){
+    if(!etho) etho = newEtho();
+    etho.scans++;
+    var R2 = GROUP_R*GROUP_R;
+    for(var i=0;i<animals.length;i++){
+      var a = animals[i];
+      if(a.dead) continue;
+      var k = ethoState(a), g = 0;
+      forNearIn(sidBuckets[a.sid], a.x, a.y, GROUP_R, function(o){
+        if(!o.dead && o.sid===a.sid){ var dx=o.x-a.x, dy=o.y-a.y; if(dx*dx+dy*dy <= R2) g++; }
+      });
+      if(g < 1) g = 1;   // newborns aren't in the hash until the next rebuild; count self
+      if(a.eth[k] < 65535) a.eth[k]++;
+      a.gsum += g; a.gn++;
+      etho.budget[a.sid][k]++;
+      if(k <= 1){ var e = etho.eyes[a.sid]; (k===0 ? e.feed : e.vigilant)[Math.min(g, GROUP_MAX)]++; }
+    }
+  }
+
   var deathLog = {};
   /* Life table (Phase 2): one row per animal, written when it dies (and for the living
      on export). Opt-in, because a 2-hour run produces ~100k animals. Columns are
@@ -460,7 +519,8 @@
      offspring as either parent (mother = the breeder, father = the chosen mate). */
   var LIFE_COLS = ['uid','species','origin','mother','father','generation','lineage','clade_at_birth','clade',
     'born','died','age','cause','killer','killer_uid','bank_at_birth','x','y','mass_kg','speed','sense','metab_gene',
-    'mass_gene','speed_gene','sense_gene','choosy_gene','litters','children','kills','strikes'];
+    'mass_gene','speed_gene','sense_gene','choosy_gene','litters','children','kills','strikes',
+    'scans','scan_feed','scan_vigilant','scan_forage','scan_flee','scan_chase','scan_stalk','scan_lurk','scan_search','group_mean'];
   var lifeRows = null;   // null = not recording
   function lifeRow(a){
     var g = a.genome, k = a.killedBy;
@@ -468,7 +528,8 @@
       +a.born.toFixed(2), a.dead ? +simClock.toFixed(2) : '', +a.age.toFixed(2), a.dead ? a.cause : '',
       k ? k.sid : '', k ? k.uid : '', a.birthBank, +a.x.toFixed(1), +a.y.toFixed(1), +a.mass.toFixed(3),
       +a.speed.toFixed(2), +a.sense.toFixed(2), +g.metab.toFixed(4), +g.mass.toFixed(4), +g.speed.toFixed(4),
-      +g.sense.toFixed(4), g.choosy==null ? '' : +g.choosy.toFixed(4), a.litters, a.children, a.kills, a.strikes];
+      +g.sense.toFixed(4), g.choosy==null ? '' : +g.choosy.toFixed(4), a.litters, a.children, a.kills, a.strikes,
+      a.gn, a.eth[0], a.eth[1], a.eth[2], a.eth[3], a.eth[4], a.eth[5], a.eth[6], a.eth[7], a.gn ? +(a.gsum/a.gn).toFixed(2) : ''];
   }
   function lifeCSV(){
     var out = [LIFE_COLS.join(',')];
@@ -993,7 +1054,7 @@
     recount();
 
     sampleAccum += dt;
-    if(sampleAccum >= 1){ sampleAccum = 0; sample(); }
+    if(sampleAccum >= 1 - 1e-9){ sampleAccum -= 1; sample(); }   // was '= 0': float drift made samples every ~1.033 s
     if(prof) lap('sample+cleanup', t);
   }
 
@@ -1115,6 +1176,7 @@
       push(BS[id].lineage.brain, lc[id].brain); push(BS[id].lineage.instinct, lc[id].instinct);
       if(worldMode!=='instinct') sampleBrainMetrics(id, lc[id].brain, lc[id].instinct);
     });
+    ethoScan();
     TL.record(simClock, animals, SPECIES_IDS, { foliage:foliage, fruit:fruit, water:water });
     Clades.update(animals, simClock).forEach(function(b){
       logEvent({ sid:b.clade.sid, text:'New subspecies: '+b.clade.name+' ('+b.clade.common+') split from '+b.parent.name+
@@ -1146,6 +1208,7 @@
     animals=[]; idCounter=1; maxGeneration=0; simClock=0; sampleAccum=0;
     mating.matings = mating.hybrids = mating.unmated = mating.rejected = 0;
     if(lifeRows) lifeRows = [];
+    etho = newEtho();
     deathLog = {};   // was never cleared, so deaths() carried counts over from the previous world
     worldMode = params.brainMode; autosaveAt = 0;
     events.droughtUntil=0; events.mastUntil=0;
@@ -3017,6 +3080,10 @@
     lifeTable: function(on){ if(on!=null) lifeRows = on ? (lifeRows||[]) : null; return lifeRows ? lifeRows.length : null; },
     lifeTableCSV: function(){ return lifeCSV(); },
     lifeColumns: LIFE_COLS,
+    /* Scan-sampled ethogram: { states, scans, groupRadius, budget:{sid:[counts per state]},
+       eyes:{sid:{feed:[by group size], vigilant:[by group size]}} } (group size capped at 30). */
+    ethogram: function(){ return { states:ETHO.slice(), scans:etho ? etho.scans : 0, groupRadius:GROUP_R,
+      budget:JSON.parse(JSON.stringify(etho ? etho.budget : {})), eyes:JSON.parse(JSON.stringify(etho ? etho.eyes : {})) }; },
     /* Everything needed to reproduce a run: pass it to tools/vivarium-run.js or reset(). */
     manifest: function(){
       var tag = document.querySelector('script[src*="vivarium.js"]');

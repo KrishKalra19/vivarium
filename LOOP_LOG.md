@@ -3,7 +3,7 @@
 ## TL;DR
 - Loop started 2026-11-02 (night). See `LOOP_PLAN.md` for the backlog.
 - **The overnight timer never fired:** the cloud container went idle and the in-session wakeup died with it. Since 11-02 afternoon the loop re-arms with a server-side reminder instead.
-- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5), sexual reproduction (6). Cycle 7: 2-hour long-run test plus a fix for recovery after a crash. Cycle 8: choosiness gene + Latin names. Cycle 9: trait costs. Cycle 10: bit-identical seeded runs. Cycle 11: life table CSV. **Next: ethogram + time budgets.**
+- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5), sexual reproduction (6). Cycle 7: 2-hour long-run test plus a fix for recovery after a crash. Cycle 8: choosiness gene + Latin names. Cycle 9: trait costs. Cycle 10: bit-identical seeded runs. Cycle 11: life table CSV. Cycle 12: scan-sampled ethogram. **Next: experiment runner (JSON spec → replicates → tidy CSV + analysis).**
 - Screenshots to look at: `docs/loop/`
 - **Krish feedback** (write anything here or in chat; the next cycle reads it first):
   - 11-02: subspecies pace: no opinion, so keep the current settings.
@@ -110,3 +110,15 @@ Two 7200 sim-s runs, river on, seed 1, one with mating and one without (~18 min 
 - How to get it: Census tab → **Data** → "Record life table" (resets the range with a fresh seed so the founders are included), then "Download life table (CSV)", which also saves a manifest .json. Headless: `--lifetable 1` writes `life.csv` and `manifest.json`. API: `Vivarium.lifeTable(true)`, `Vivarium.lifeTableCSV()`.
 - **Verified by integrity checks** (seed 3, 900 sim-s, river + mating + costs; 14,468 rows, 2.1 MB): uids unique; living rows = final census; every born animal's mother and father exist and share its species; the `children` column matches the pedigree for every row (0 mismatches); `kills` matches victims for every predator (0 mismatches); all 5,848 predation deaths have a killer; age = died − born to within 0.04 s.
 - **Pre-existing bug found by those checks:** the death counter (`Vivarium.deaths()`) was never cleared on reset, so counts carried over from the previous world. That slightly inflated death counts in some earlier cycle numbers, by the handful of deaths before the harness paused the auto-started world. Fixed. Fingerprint unchanged (`6639f12b` before and after), which proves the fix doesn't touch the simulation and the run is still bit-identical.
+### 2026-11-03 01:45 UTC — cycle 12: ethogram + time budgets (Phase 2 step 4)
+- **Scan sampling at 1 Hz**, the standard field method: every sim-second each animal is scored in one of 8 states (feed, vigilant, forage, flee, chase, stalk, lurk, search), along with its group size (conspecifics within 60 px, itself included). Each animal's counts go into 10 new life-table columns. Per-species time budgets, plus a **vigilance-by-group-size table** for brain herbivores, come from `Vivarium.ethogram()` / `ethogram.json`. Definitions are in `docs/life-table.md`.
+- **Two measurement problems caught and fixed:**
+  1. *Predator "chase" was meaningless for brains.* The sim's own label means "locked on and moving", so brain predators scored chase 82–95% of the time. The ethogram now scores from motion: chase = ≥60% top speed **and** heading at the target. After the fix, brain predators show chase ~50%, stalk ~45–50%; instinct predators show search ~82%, chase 12–16%.
+  2. *Samples weren't 1 Hz.* The sampler reset its accumulator to 0 instead of subtracting 1, so float drift made it fire every ~1.033 s (871 samples in 900 s). Fixed: 901 in 900 s, and every animal's scan count is within 1 of its age. This also shifts the timing of census, clade and time-lapse samples slightly, so fingerprints from cycles 10–11 won't match new runs (they're still deterministic, just different).
+- Verified (seed 3; brains + costs 900 s, instinct 300 s; no page errors): per-species budget totals equal the life table's scan totals (2.0M and 0.57M scans), and every row's state counts sum to its scans.
+- **Unplanned first look at many-eyes** (brains mode, one seed, preliminary). Share of foraging scans spent vigilant, by group size 1 / 2–3 / 4–7 / 8–15 / 16–30:
+  - agouti 8% / 6% / 5% / 4% / 1%: falls, as the many-eyes effect predicts
+  - howler 7% / 7% / 7% / 5% / 4%: falls
+  - capybara 6% / 13% / 17% / 20% / 20%: **rises**
+  - tapir 29% / 32% / 34% / 40%: **rises**
+  Opposite patterns in small vs large herbivores. An obvious confound: groups may be bigger where predators are, or at fruit patches. That's exactly what the experiment runner plus replicates (next) has to sort out. Not a result yet.

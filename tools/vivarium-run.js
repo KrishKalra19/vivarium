@@ -89,11 +89,13 @@ function args(){
     V.animals().forEach(a => { if(a.dead) return; mix(a.uid); mix(Math.round(a.x*1000)); mix(Math.round(a.y*1000)); mix(Math.round(a.energy*1000)); });
     const manifest = V.manifest ? V.manifest() : null;
     const life = opt.lifetable ? V.lifeTableCSV() : null;
-    return { life, ids, samples, stuck, deaths:V.deaths(), clades, mating:V.mating ? V.mating() : null, tl, heap, manifest, fingerprint:h.toString(16) };
+    const ethogram = V.ethogram ? V.ethogram() : null;
+    return { life, ethogram, ids, samples, stuck, deaths:V.deaths(), clades, mating:V.mating ? V.mating() : null, tl, heap, manifest, fingerprint:h.toString(16) };
   }, opt);
   const wallSec = (Date.now() - t0) / 1000;
 
   if(result.life){ fs.writeFileSync(path.join(opt.out, 'life.csv'), result.life); delete result.life; }
+  if(result.ethogram){ fs.writeFileSync(path.join(opt.out, 'ethogram.json'), JSON.stringify(result.ethogram)); delete result.ethogram; }
   if(result.manifest) fs.writeFileSync(path.join(opt.out, 'manifest.json'), JSON.stringify(result.manifest, null, 2));
   fs.writeFileSync(path.join(opt.out, 'run.json'), JSON.stringify({ opt, wallSec, errors, ...result }));
   await page.screenshot({ path:path.join(opt.out, 'map.png') });

@@ -24,6 +24,22 @@ Times are sim-seconds. Traits are given twice: the *expressed* value (after spec
 | `litters` | breeding events as the mother |
 | `children` | offspring as either parent |
 | `kills`, `strikes` | successful and total lunges (predators) |
+| `scans` | number of 1 Hz scan samples the animal was alive for (≈ age) |
+| `scan_feed` … `scan_search` | scans spent in each ethogram state (see below); they sum to `scans` |
+| `group_mean` | mean group size across its scans: conspecifics within 60 px, itself included |
+
+## Ethogram (scan sampling, 1 Hz)
+Every sim-second each living animal is scored in exactly one state:
+- **feed**: head down eating (evolved-brain herbivores only; they can't watch while eating)
+- **vigilant**: head up while foraging, i.e. scanning (brain herbivores)
+- **forage**: moving and eating (instinct herbivores, which have no head-down choice)
+- **flee**: running from a predator
+- **chase**: predator moving at ≥60% of top speed and closing on its target (scored from motion, not intent)
+- **stalk**: predator with a target that it isn't chasing
+- **lurk**: ambusher waiting, no target
+- **search**: predator with no target
+
+Per-species totals and the vigilance-by-group-size table: `Vivarium.ethogram()`, or `ethogram.json` from a headless run.
 
 ## Integrity checks (cycle 11, seed 3, 900 sim-s, river + mating + trait costs)
 All passed on 14,468 rows: uids unique; dead rows = `Vivarium.deaths()` total; living rows = final census; every `born` row's mother and father exist in the table and share its species; each row's `children` equals the number of rows naming it as a parent; each predator's `kills` equals the number of rows naming it as `killer_uid`; every `predated` death has a killer; `|died − born − age| ≤ 0.04`.
