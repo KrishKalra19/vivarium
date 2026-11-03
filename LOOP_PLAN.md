@@ -54,3 +54,5 @@ Order (Krish 11-02: research first, then teaching):
 
 ## Phase 4 (after cycle 24)
 1. Many-eyes pilot 6: make `HEAD_DOWN_SENSE` a param, then compare 0.4 vs 0.2 with graded alarm; does baseline vigilance rise off the floor and a gradient appear?
+2. Many-eyes pilot 7: no-predator control at headDownSense 0.2 (same seeds), to check pilot 6's agouti hint.
+3. Network probe: after evolution, does the head-down output respond to the threat inputs at all?
