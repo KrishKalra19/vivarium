@@ -1,0 +1,127 @@
+{
+  "result": {
+    "agouti": {
+      "n": 300,
+      "evolved": {
+        "headDownNoThreat": 0.8833333333333333,
+        "headDownThreatAhead": 0.03333333333333333,
+        "headDownThreatBehind": 0.04,
+        "liftsHeadForThreat": 0.9622641509433962,
+        "meanOutNoThreat": 0.6880035752740999,
+        "meanOutThreat": -0.820154697454224,
+        "headDownAlone": 0.9,
+        "headDownCrowded": 0.89
+      },
+      "seed": {
+        "headDownNoThreat": 0.92,
+        "headDownThreatAhead": 0,
+        "headDownThreatBehind": 0,
+        "liftsHeadForThreat": 1,
+        "meanOutNoThreat": 0.7543558060657233,
+        "meanOutThreat": -0.9101737642288208,
+        "headDownAlone": 0.9266666666666666,
+        "headDownCrowded": 0.9266666666666666
+      }
+    },
+    "howler": {
+      "n": 300,
+      "evolved": {
+        "headDownNoThreat": 0.8733333333333333,
+        "headDownThreatAhead": 0.023333333333333334,
+        "headDownThreatBehind": 0.013333333333333334,
+        "liftsHeadForThreat": 0.9732824427480916,
+        "meanOutNoThreat": 0.6186570374419292,
+        "meanOutThreat": -0.868394893790828,
+        "headDownAlone": 0.9033333333333333,
+        "headDownCrowded": 0.84
+      },
+      "seed": {
+        "headDownNoThreat": 0.99,
+        "headDownThreatAhead": 0,
+        "headDownThreatBehind": 0,
+        "liftsHeadForThreat": 1,
+        "meanOutNoThreat": 0.9286502999835647,
+        "meanOutThreat": -0.9712375692526499,
+        "headDownAlone": 0.9666666666666667,
+        "headDownCrowded": 0.9933333333333333
+      }
+    },
+    "capybara": {
+      "n": 300,
+      "evolved": {
+        "headDownNoThreat": 0.85,
+        "headDownThreatAhead": 0.013333333333333334,
+        "headDownThreatBehind": 0.016666666666666666,
+        "liftsHeadForThreat": 0.984313725490196,
+        "meanOutNoThreat": 0.5588560882542515,
+        "meanOutThreat": -0.8904527419929703,
+        "headDownAlone": 0.85,
+        "headDownCrowded": 0.8433333333333334
+      },
+      "seed": {
+        "headDownNoThreat": 0.9233333333333333,
+        "headDownThreatAhead": 0,
+        "headDownThreatBehind": 0,
+        "liftsHeadForThreat": 1,
+        "meanOutNoThreat": 0.7742138186469674,
+        "meanOutThreat": -0.9622794141372045,
+        "headDownAlone": 0.9133333333333333,
+        "headDownCrowded": 0.9233333333333333
+      }
+    },
+    "tapir": {
+      "n": 213,
+      "evolved": {
+        "headDownNoThreat": 0.647887323943662,
+        "headDownThreatAhead": 0,
+        "headDownThreatBehind": 0,
+        "liftsHeadForThreat": 1,
+        "meanOutNoThreat": 0.29030930789563575,
+        "meanOutThreat": -0.9452536737135319,
+        "headDownAlone": 0.8028169014084507,
+        "headDownCrowded": 0.5915492957746479
+      },
+      "seed": {
+        "headDownNoThreat": 0.8028169014084507,
+        "headDownThreatAhead": 0,
+        "headDownThreatBehind": 0,
+        "liftsHeadForThreat": 1,
+        "meanOutNoThreat": 0.5319037096374865,
+        "meanOutThreat": -0.9589188454296668,
+        "headDownAlone": 0.8685446009389671,
+        "headDownCrowded": 0.755868544600939
+      }
+    }
+  },
+  "manifest": {
+    "format": "vivarium-run",
+    "version": 1,
+    "code": "js/vivarium.js?v=31",
+    "seed": 1000,
+    "world": "brains",
+    "t": 1500,
+    "toggles": {
+      "river": false,
+      "sexual": false,
+      "traitCosts": true,
+      "predators": true,
+      "alarm": false
+    },
+    "params": {
+      "headDownSense": 0.4,
+      "hybridPenalty": 0,
+      "riverOffAt": 0,
+      "alarmRate": 0,
+      "ethoFrom": 0,
+      "capScale": 1.6,
+      "mutationRate": 0.07,
+      "growth": 1,
+      "satiety": 0.65,
+      "arrivalGroup": 4
+    },
+    "hunt": {
+      "lungeCost": 10,
+      "missRest": 15
+    }
+  }
+}

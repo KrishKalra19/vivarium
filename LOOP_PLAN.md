@@ -55,4 +55,5 @@ Order (Krish 11-02: research first, then teaching):
 ## Phase 4 (after cycle 24)
 1. Many-eyes pilot 6: make `HEAD_DOWN_SENSE` a param, then compare 0.4 vs 0.2 with graded alarm; does baseline vigilance rise off the floor and a gradient appear?
 2. ~~Many-eyes pilot 7~~: done analytically in cycle 26 (pilot 3 is the control, verified bit-identical). Not many-eyes.
-3. Network probe: after evolution, does the head-down output respond to the threat inputs at all?
+3. ~~Network probe~~: done in cycle 27 (reactive, not proactive).
+4. Many-eyes pilot 7: blind feeding (headDownSense 0), no alarm vs graded alarm λ = 1, same seeds.
