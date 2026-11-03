@@ -51,3 +51,6 @@ Order (Krish 11-02: research first, then teaching):
 2. Reinforcement experiment (hybrid penalty → does choosiness evolve up?), plan item 6b.
 3. Harpy decline under trait costs (cycle 9 open item).
 4. Scan-sampling mode for the Field tab (count head-down vs head-up animals in a circle), the second classic field method.
+
+## Phase 4 (after cycle 24)
+1. Many-eyes pilot 6: make `HEAD_DOWN_SENSE` a param, then compare 0.4 vs 0.2 with graded alarm; does baseline vigilance rise off the floor and a gradient appear?

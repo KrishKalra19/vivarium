@@ -140,6 +140,40 @@ Past about 2,000 animals a frame no longer fits in 16 ms (60 fps), and it's the 
 
 ---
 
+### Evolution you can watch
+
+- **Subspecies.** When a group drifts far enough from the rest of its lineage it splits off as a named subspecies, with Latin trinomials for the direction it moved (*Dasyprocta punctata velox* is a swift agouti). **Genetics → Family tree** shows the branching over time, with line width for population and extinct lineages greyed out.
+- **River barrier** (Controls → Interventions). Agoutis, howlers and ocelots can't cross except at rare fords, so lineages split by bank (Wallace's riverine-barrier hypothesis).
+- **Sexual reproduction** (Controls). Breeders need a nearby mate and prefer similar partners through an evolvable **choosiness** gene; offspring mix both parents' traits and brains.
+- **Trait costs** (Controls). Speed, keen senses, a thrifty metabolism and size each carry a price, so traits stop running to their limits.
+- **Time-lapse** (under the map). Replay the whole run and colour animals by subspecies to watch a split happen.
+
+## Vivarium as a research instrument
+
+Runs are **bit-for-bit reproducible** from a seed: the simulation has its own seeded generator, separate from anything the page does. `Vivarium.manifest()` records everything needed to repeat a run.
+
+| tool | what it gives you |
+|---|---|
+| `tools/vivarium-run.js` | one headless run: census, trait means, a final-state fingerprint, charts and map, plus optional life table and ethogram |
+| **Life table** (Census → Data, or `--lifetable 1`) | one CSV row per animal: parents, birth and death, cause and killer, subspecies, traits, offspring, kills, and time spent in each behaviour. Columns: `docs/life-table.md` |
+| **Ethogram** (`Vivarium.ethogram()`) | 1 Hz scan sampling of every animal (feed, vigilant, travel, flee, chase, stalk, lurk, search) with group size and food underfoot |
+| `tools/experiment.js` | conditions × paired replicates from a JSON spec, run in parallel and resumable, into tidy CSVs. How-to: `docs/experiments.md` |
+| `tools/analyze_vigilance.py`, `tools/analyze_choosiness.py` | many-eyes and reinforcement analyses with the replicate run as the unit of analysis |
+
+Experiment switches: predators on/off, population caps, alarm contagion (instant or graded), hybrid penalty, timed secondary contact, a measurement window, and any `Vivarium.params` value through `--set`.
+
+**What it has been used for so far** (pilots; see the write-ups):
+- [`docs/many-eyes-findings.md`](docs/many-eyes-findings.md): does evolved vigilance fall with group size? Five pilots; the controls and covariates matter more than the headline.
+- Reinforcement (`experiments/out/reinforcement-pilot/`): does a hybrid penalty make mate choice evolve to be pickier? Not with these costs: hybrids are too rare and choosiness too expensive.
+
+## Teaching field methods
+
+The **Field** tab is a practice range for behavioural observation, scored against ground truth no real field site can give you:
+- **Focal sampling**: follow one animal and record what it's doing at each sample point. Scored with % agreement, Cohen's κ, a confusion table, and observer error separated from sampling error.
+- **Scan sampling**: count heads up vs down in a circle. Scored for counting error and for placement error.
+
+Guide and discussion prompts: [`docs/teaching-field-methods.md`](docs/teaching-field-methods.md).
+
 ## Project layout
 
 ```
@@ -149,6 +183,9 @@ css/arena.css           the Arena's look
 js/species.js           Vivarium biome and species table
 js/bodies.js            low-poly 3D body plans, shared by both modes
 js/vivarium.js          ecosystem simulation, charts, Map and 3D views
+js/clades.js            subspecies census, Latin names and the family tree
+js/timelapse.js         compact recording of a run for the time-lapse scrubber
+js/fieldstudy.js        Field tab: focal and scan sampling scored against ground truth
 js/app.js               the Vivarium / Arena switch
 js/arena/roster.js      arena species and combat stats
 js/arena/tuning.js      generated Balanced-mode corrections
@@ -167,6 +204,11 @@ js/arena/results.js     victory, Play of the Game, highlights, recap, awards
 js/arena/lobby.js       roster, rules, odds and predictions
 js/arena/audio.js       sound, synthesised with the Web Audio API
 tools/arena-sim.js      headless balance runner
+tools/vivarium-run.js   headless Vivarium run (seeded, fingerprinted)
+tools/experiment.js     experiment runner: conditions × replicates → tidy CSVs
+tools/analyze_*.py      analyses for the experiments (stdlib only)
+experiments/            experiment specs, and committed results under out/
+docs/                   write-ups, column reference, teaching guide
 ```
 
 Everything is plain scripts sharing a `Ludus` namespace — still no build step.
@@ -204,8 +246,8 @@ Ludus.ArenaResults.debugFrame(0);  // draw a frame of Play of the Game
 - [ ] Touch controls for the Vivarium 3D view
 - [ ] Biome switcher (savanna, temperate forest, reef) for both modes
 - [ ] Pack hunters (giant otters here; lions or wild dogs on a savanna)
-- [ ] Sexual reproduction and lineage trees in the Vivarium
-- [ ] Save/load a run, and export population data as CSV
+- [x] Sexual reproduction and lineage trees in the Vivarium
+- [x] Export run data as CSV (life table, ethogram, experiments) and reproduce any run from its seed
 
 ## License
 
