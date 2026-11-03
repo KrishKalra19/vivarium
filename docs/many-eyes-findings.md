@@ -54,7 +54,7 @@ Each pilot changed the interpretation, and each time for a reason we measured.
 
 - n = 4 replicates per condition; several intervals are wide (howler, with predators). These are pilots, intended to size a real experiment.
 - 25 sim-minutes of evolution is short: roughly 60 agouti generations by the code's own estimate (~25 per 10 sim-minutes), and far fewer for the slow breeders (tapirs, predators). Brains may still be close to their hand-wired starting weights.
-- Predation in brains mode is sparse and uneven (harpies 4–16 and jaguars 2–9 at the end of the pilot 3–4 predator runs), so selection for vigilance is weaker than in a real predator-rich system.
+- Predation in brains mode is sparse and uneven (cycle 22 traced the harpy part of this to a bottom-up cascade: under trait costs agouti productivity falls ~30% and harpies, already starvation-limited, drop below replacement); harpies 4–16 and jaguars 2–9 at the end of the pilot 3–4 predator runs), so selection for vigilance is weaker than in a real predator-rich system.
 - Capybaras sit at their (raised) population cap throughout, so their group sizes partly reflect saturation.
 - Parameters are hand-tuned rather than fitted to field data. Results are statements about this model's selection dynamics, not about real agoutis.
 
