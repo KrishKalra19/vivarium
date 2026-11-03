@@ -14,7 +14,7 @@ const fs = require('fs');
 const { chromium } = require('playwright');
 
 function args(){
-  const a = { secs:1200, seed:1, mode:'instinct', every:10, out:null, river:0, sexual:0, costs:0, uiseed:0, lifetable:0 };
+  const a = { secs:1200, seed:1, mode:'instinct', every:10, out:null, river:0, sexual:0, costs:0, uiseed:0, lifetable:0, set:'' };
   const v = process.argv.slice(2);
   for(let i=0;i<v.length;i+=2){ const k=v[i].replace(/^--/,''); a[k] = isNaN(+v[i+1]) ? v[i+1] : +v[i+1]; }
   if(!a.out) a.out = path.join('runs', `${a.mode}-s${a.seed}-${a.secs}${a.river ? '-river' : ''}${a.sexual ? '-sex' : ''}`);
@@ -50,6 +50,8 @@ function args(){
   const result = await page.evaluate(async opt => {
     const V = window.Vivarium, DT = 1/30;
     V.setPaused(true);
+    // --set '{"mutationRate":0.1,"hunt":{"lungeCost":12}}': overrides for Vivarium.params / Vivarium.hunt
+    if(opt.set){ const o = JSON.parse(opt.set); Object.keys(o).forEach(k => { if(k==='hunt') Object.assign(V.hunt, o.hunt); else V.params[k] = o[k]; }); }
     if(opt.costs) V.traitCosts(true);   // before seeding, so the founders pay too
     if(opt.lifetable) V.lifeTable(true);
     V.reset(opt.seed);   // seeds the simulation's own generator

@@ -1,0 +1,10 @@
+{
+  "name": "many-eyes-pilot",
+  "about": "Pilot for the many-eyes test: does evolved vigilance fall with group size? Brains mode (vigilance is evolved, not scripted), trait costs on. 4 paired replicates, 15 sim-minutes each. A pilot sizes the real experiment; it is not the result.",
+  "secs": 900,
+  "every": 10,
+  "replicates": 4,
+  "seed0": 1000,
+  "base": { "mode": "brains", "costs": 1 },
+  "conditions": [ { "name": "brains" } ]
+}

@@ -9,3 +9,4 @@ desktop.ini
 # local tooling
 .claude/
 runs/
+experiments/out/*/runs/
