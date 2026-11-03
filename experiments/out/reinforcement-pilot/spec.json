@@ -1,0 +1,33 @@
+{
+  "name": "reinforcement-pilot",
+  "about": "Reinforcement pilot: does a hybrid penalty make choosiness evolve upward (pickier, lower sigma)? Sexual reproduction with the evolvable choosiness gene; the river splits the range for 30 sim-min (allopatric divergence into subspecies), then dries up (secondary contact) for 30 sim-min. Hybrids = offspring of parents from different subspecies; with penalty 0.8 they fail 80% of the time. Control: penalty 0 (cycle 8: choosiness then drifts towards less picky). Instinct mode, trait costs on, 4 paired replicates.",
+  "secs": 3600,
+  "every": 30,
+  "replicates": 4,
+  "seed0": 2000,
+  "base": {
+    "mode": "instinct",
+    "costs": 1,
+    "river": 1,
+    "sexual": 1,
+    "set": {
+      "riverOffAt": 1800
+    }
+  },
+  "conditions": [
+    {
+      "name": "no-penalty",
+      "set": {
+        "hybridPenalty": 0
+      }
+    },
+    {
+      "name": "penalty-0.8",
+      "set": {
+        "hybridPenalty": 0.8
+      }
+    }
+  ],
+  "_code": "js/vivarium.js?v=29",
+  "_started": "2026-11-03T10:41:20.852Z"
+}
