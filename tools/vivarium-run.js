@@ -14,7 +14,7 @@ const fs = require('fs');
 const { chromium } = require('playwright');
 
 function args(){
-  const a = { secs:1200, seed:1, mode:'instinct', every:10, out:null, river:0, sexual:0, costs:0, uiseed:0 };
+  const a = { secs:1200, seed:1, mode:'instinct', every:10, out:null, river:0, sexual:0, costs:0, uiseed:0, lifetable:0 };
   const v = process.argv.slice(2);
   for(let i=0;i<v.length;i+=2){ const k=v[i].replace(/^--/,''); a[k] = isNaN(+v[i+1]) ? v[i+1] : +v[i+1]; }
   if(!a.out) a.out = path.join('runs', `${a.mode}-s${a.seed}-${a.secs}${a.river ? '-river' : ''}${a.sexual ? '-sex' : ''}`);
@@ -51,6 +51,7 @@ function args(){
     const V = window.Vivarium, DT = 1/30;
     V.setPaused(true);
     if(opt.costs) V.traitCosts(true);   // before seeding, so the founders pay too
+    if(opt.lifetable) V.lifeTable(true);
     V.reset(opt.seed);   // seeds the simulation's own generator
     if(opt.mode !== 'instinct') V.brainMode(opt.mode);
     if(opt.river) V.river(true);
@@ -87,10 +88,13 @@ function args(){
     const mix = v => { h ^= v; h = Math.imul(h, 16777619) >>> 0; };
     V.animals().forEach(a => { if(a.dead) return; mix(a.uid); mix(Math.round(a.x*1000)); mix(Math.round(a.y*1000)); mix(Math.round(a.energy*1000)); });
     const manifest = V.manifest ? V.manifest() : null;
-    return { ids, samples, stuck, deaths:V.deaths(), clades, mating:V.mating ? V.mating() : null, tl, heap, manifest, fingerprint:h.toString(16) };
+    const life = opt.lifetable ? V.lifeTableCSV() : null;
+    return { life, ids, samples, stuck, deaths:V.deaths(), clades, mating:V.mating ? V.mating() : null, tl, heap, manifest, fingerprint:h.toString(16) };
   }, opt);
   const wallSec = (Date.now() - t0) / 1000;
 
+  if(result.life){ fs.writeFileSync(path.join(opt.out, 'life.csv'), result.life); delete result.life; }
+  if(result.manifest) fs.writeFileSync(path.join(opt.out, 'manifest.json'), JSON.stringify(result.manifest, null, 2));
   fs.writeFileSync(path.join(opt.out, 'run.json'), JSON.stringify({ opt, wallSec, errors, ...result }));
   await page.screenshot({ path:path.join(opt.out, 'map.png') });
 

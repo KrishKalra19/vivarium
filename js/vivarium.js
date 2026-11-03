@@ -173,6 +173,8 @@
       age:0, maxAge: sp.lifespan*randRange(0.85,1.15),
       gen:gen||0, cooldown:randRange(0,sp.repro.cooldown*0.5),
       huntCd:0, kills:0, strikes:0, dead:false,
+      // life-history bookkeeping (life table export)
+      born:simClock, origin:'arrival', mother:0, father:0, litters:0, children:0, birthClade:0, birthBank:0,
       // What the animal is doing, recorded for the cameras and captions; never read by the model.
       state:'idle', target:null, lungeAt:-99, lastLunge:null, cause:null, killedBy:null,
       ryaw:rand()*Math.PI*2, stride:rand(), alt:0,
@@ -230,6 +232,8 @@
   function spawn(id, x, y, gen, energyFrac, genome){
     var a = makeAnimal(id, genome||newGenome(), x, y, gen||0, energyFrac);
     Clades.assign(id, a.genome);
+    a.birthClade = a.genome.clade || 0;
+    a.birthBank = RIVER.on ? bankOf(a.x, a.y) : 0;
     animals.push(a);
     counts[id] = (counts[id]||0)+1;
     if(a.gen>maxGeneration) maxGeneration=a.gen;
@@ -450,11 +454,34 @@
   }
 
   var deathLog = {};
+  /* Life table (Phase 2): one row per animal, written when it dies (and for the living
+     on export). Opt-in, because a 2-hour run produces ~100k animals. Columns are
+     LIFE_COLS; parents are uids, so pedigrees can be rebuilt. "children" counts
+     offspring as either parent (mother = the breeder, father = the chosen mate). */
+  var LIFE_COLS = ['uid','species','origin','mother','father','generation','lineage','clade_at_birth','clade',
+    'born','died','age','cause','killer','killer_uid','bank_at_birth','x','y','mass_kg','speed','sense','metab_gene',
+    'mass_gene','speed_gene','sense_gene','choosy_gene','litters','children','kills','strikes'];
+  var lifeRows = null;   // null = not recording
+  function lifeRow(a){
+    var g = a.genome, k = a.killedBy;
+    return [a.uid, a.sid, a.origin, a.mother, a.father, a.gen, g.brain ? 'brain' : 'instinct', a.birthClade, g.clade||0,
+      +a.born.toFixed(2), a.dead ? +simClock.toFixed(2) : '', +a.age.toFixed(2), a.dead ? a.cause : '',
+      k ? k.sid : '', k ? k.uid : '', a.birthBank, +a.x.toFixed(1), +a.y.toFixed(1), +a.mass.toFixed(3),
+      +a.speed.toFixed(2), +a.sense.toFixed(2), +g.metab.toFixed(4), +g.mass.toFixed(4), +g.speed.toFixed(4),
+      +g.sense.toFixed(4), g.choosy==null ? '' : +g.choosy.toFixed(4), a.litters, a.children, a.kills, a.strikes];
+  }
+  function lifeCSV(){
+    var out = [LIFE_COLS.join(',')];
+    var rows = (lifeRows||[]).concat(animals.filter(function(a){ return !a.dead; }).map(lifeRow));
+    for(var i=0;i<rows.length;i++) out.push(rows[i].join(','));
+    return out.join('\n') + '\n';
+  }
   function die(a, cause, killer){
     if(a.dead) return;
     a.dead = true;
     a.cause = cause||'other';
     if(killer){ a.killedBy = killer; onKill(killer, a); }
+    if(lifeRows) lifeRows.push(lifeRow(a));
     counts[a.sid] = Math.max(0, (counts[a.sid]||0)-1);
     var k = a.sid+':'+(cause||'other');
     deathLog[k] = (deathLog[k]||0)+1;
@@ -558,10 +585,13 @@
     var share = a.energy*0.34;
     a.energy *= 0.42;
     a.cooldown = a.repCd;
+    a.litters++;
     for(var i=0;i<litter && counts[a.sid]+i<sp.cap;i++){
       var cx = a.x+randRange(-14,14), cy = a.y+randRange(-14,14);
       if(RIVER.on && RIVER.blocks[a.sid] && bankOf(cx, cy) !== bankOf(a.x, a.y)){ cx = a.x; cy = a.y; }
       var child = spawn(a.sid, cx, cy, a.gen+1, 0, mutate(mate ? recombine(a, mate) : a.genome, params.mutationRate));
+      child.origin = 'born'; child.mother = a.uid; child.father = mate ? mate.uid : 0;
+      a.children++; if(mate) mate.children++;
       child.energy = share/litter;
     }
   }
@@ -1115,6 +1145,8 @@
   function seedWorld(){
     animals=[]; idCounter=1; maxGeneration=0; simClock=0; sampleAccum=0;
     mating.matings = mating.hybrids = mating.unmated = mating.rejected = 0;
+    if(lifeRows) lifeRows = [];
+    deathLog = {};   // was never cleared, so deaths() carried counts over from the previous world
     worldMode = params.brainMode; autosaveAt = 0;
     events.droughtUntil=0; events.mastUntil=0;
     buildTerrain(); initHash(); resetHistory(); resetWatch();
@@ -1127,7 +1159,7 @@
           if(worldMode==='brains' || j%2===0) g = brainGenome(id);
           else { g = newGenome(); g.lineage = 'instinct'; }
         }
-        spawn(id, rand()*world.w, rand()*world.h, 0, randRange(0.45,0.8), g);
+        spawn(id, rand()*world.w, rand()*world.h, 0, randRange(0.45,0.8), g).origin = 'founder';
       }
     }
     recount();
@@ -1893,6 +1925,30 @@
     logEvent({ text: params.traitCosts ? 'Trait costs on: speed and keen senses burn energy, thrifty metabolisms digest slowly, big bodies mature late. Applies to animals born from now on.'
                                        : 'Trait costs off for animals born from now on.' });
   });
+  function download(name, text, type){
+    var url = URL.createObjectURL(new Blob([text], { type:type }));
+    var link = document.createElement('a'); link.href = url; link.download = name;
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }
+  function syncLifeUI(){
+    var b = document.getElementById('lifeRecBtn'), sub = document.getElementById('lifeRecSub');
+    if(!b) return;
+    b.setAttribute('aria-pressed', lifeRows ? 'true' : 'false'); b.classList.toggle('active', !!lifeRows);
+    sub.textContent = lifeRows ? 'recording · '+lifeRows.length+' deaths so far' : 'off · starts on the next reset so founders are included';
+  }
+  document.getElementById('lifeRecBtn').addEventListener('click', function(){
+    if(lifeRows){ lifeRows = null; }
+    else { lifeRows = []; reseed((Math.random()*4294967296)>>>0); seedWorld(); defaultView(); repaintPlants();
+           logEvent({ text:'Life table recording: the range was reset (seed '+simSeed+') so every animal is on record from birth.' }); }
+    syncLifeUI();
+  });
+  document.getElementById('lifeDlBtn').addEventListener('click', function(){
+    var stamp = 'vivarium-seed'+simSeed+'-t'+Math.round(simClock);
+    download(stamp+'-life.csv', lifeCSV(), 'text/csv');
+    download(stamp+'-manifest.json', JSON.stringify(window.Vivarium.manifest(), null, 2), 'application/json');
+  });
+  setInterval(syncLifeUI, 2000);
   function setSexual(on){
     params.sexual = !!on;
     var b = document.getElementById('sexBtn');
@@ -2956,6 +3012,11 @@
        With no seed, a fresh random one is drawn (and reported by manifest()). */
     reset: function(seed){ reseed(seed==null ? (Math.random()*4294967296)>>>0 : seed); seedWorld(); return simSeed; },
     seed: function(){ return simSeed; },
+    /* Life table: lifeTable(true) starts recording (call before reset() to include the
+       founders' deaths); lifeTableCSV() returns every recorded death plus the living. */
+    lifeTable: function(on){ if(on!=null) lifeRows = on ? (lifeRows||[]) : null; return lifeRows ? lifeRows.length : null; },
+    lifeTableCSV: function(){ return lifeCSV(); },
+    lifeColumns: LIFE_COLS,
     /* Everything needed to reproduce a run: pass it to tools/vivarium-run.js or reset(). */
     manifest: function(){
       var tag = document.querySelector('script[src*="vivarium.js"]');
