@@ -500,6 +500,10 @@
      and for brain herbivores that are foraging (not fleeing) the feed-vs-vigilant
      split is tallied by group size, the data behind the many-eyes test. */
   var ETHO = ['feed','vigilant','forage','flee','chase','stalk','lurk','search','travel'];
+  /* Field-methods teaching mode (js/fieldstudy.js): hides the giveaways (caption, sensor
+     ring, threat line) and draws a posture cue on the focal animal instead, so the
+     observer has to judge behaviour from what an animal looks like. */
+  var fieldMode = false;
   var STILL = 0.25;   // vigilant = head up AND below this fraction of top speed
   var GROUP_R = 60, GROUP_MAX = 30;
   var etho = null;
@@ -1447,6 +1451,21 @@
     if(sel) sel.value = geneSpecies;
   }
 
+  /* Posture cue for field mode: a head dot held out in front when the head is up, tucked
+     onto the muzzle when it's down. Facing follows motion, or the last heading when still. */
+  function drawPosture(a, r, z){
+    var vl = Math.sqrt(a.vx*a.vx+a.vy*a.vy), hx, hy;
+    if(vl > 2){ hx = a.vx/vl; hy = a.vy/vl; a.faceX = hx; a.faceY = hy; }
+    else if(a.faceX != null){ hx = a.faceX; hy = a.faceY; }
+    else { hx = Math.cos(a.heading); hy = Math.sin(a.heading); }
+    var down = a.headDown, d = down ? r*0.7 : r*1.55, hr = Math.max(1.2, r*(down ? 0.38 : 0.45));
+    if(!down){
+      ctx.beginPath(); ctx.strokeStyle = 'rgba(30,20,10,0.75)'; ctx.lineWidth = Math.max(0.8, r*0.22);
+      ctx.moveTo(a.x + hx*r*0.8, a.y + hy*r*0.8); ctx.lineTo(a.x + hx*d, a.y + hy*d); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.fillStyle = down ? 'rgba(40,25,10,0.9)' : '#3a2a18';
+    ctx.arc(a.x + hx*d, a.y + hy*d, hr, 0, Math.PI*2); ctx.fill();
+  }
   function draw(){
     var z = camera.zoom, dpr = view.dpr;
     ctx.setTransform(dpr,0,0,dpr,0,0);
@@ -1473,7 +1492,7 @@
     }
 
     var watched = follow.a;
-    if(watched && watched.target && !watched.target.dead){
+    if(!fieldMode && watched && watched.target && !watched.target.dead){
       ctx.save();
       ctx.setLineDash([6/z, 5/z]);
       ctx.strokeStyle = SPECIES[watched.sid].role==='predator' ? theme.danger : theme.accent;
@@ -1486,7 +1505,7 @@
     }
 
     var sa = selected && !selected.dead && selected.genome.brain ? selected : null;
-    if(sa) drawSensors(sa, z);
+    if(sa && !fieldMode) drawSensors(sa, z);
 
     for(var i=0;i<animals.length;i++){
       var a = animals[i];
@@ -1530,7 +1549,15 @@
         ctx.arc(a.x, a.y, r+6/z, 0, Math.PI*2);
         ctx.stroke();
       }
-      if(watched && watched.target===a){
+      if(fieldMode && (selected===a || watched===a)){
+        drawPosture(a, r, z);
+        // focal marker: in brains mode every animal wears a brain ring, so the usual selection ring is lost
+        ctx.save(); ctx.setLineDash([5/z, 4/z]); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5/z;
+        ctx.beginPath(); ctx.arc(a.x, a.y, r + 14/z, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+        ctx.font = (12/z) + 'px sans-serif'; ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center';
+        ctx.fillText('focal', a.x, a.y - r - 18/z); ctx.textAlign = 'start';
+      }
+      if(!fieldMode && watched && watched.target===a){
         ctx.beginPath();
         ctx.strokeStyle = theme.danger;
         ctx.lineWidth = 2/z;
@@ -2319,7 +2346,7 @@
     followAnimal(a, false);
     renderSpecimen();
     renderCaption();
-    document.querySelector('.tab[data-tab="specimen"]').click();
+    if(!fieldMode) document.querySelector('.tab[data-tab="specimen"]').click();   // the Specimen card would give the answers away
   }
 
   function huntScore(a){
@@ -2407,7 +2434,7 @@
     var card = document.getElementById('captionCard');
     var subj = follow.a || (follow.site ? follow.last : null);
     document.getElementById('viewHint').hidden = !!(subj || follow.auto);
-    if(!subj && !follow.auto){ card.hidden = true; return; }
+    if((!subj && !follow.auto) || fieldMode){ card.hidden = true; return; }
     card.hidden = false;
     var sw = document.getElementById('capSwatch'), who = document.getElementById('capWho');
     var uid = document.getElementById('capUid'), what = document.getElementById('capWhat');
@@ -3129,6 +3156,11 @@
        With no seed, a fresh random one is drawn (and reported by manifest()). */
     reset: function(seed){ reseed(seed==null ? (Math.random()*4294967296)>>>0 : seed); seedWorld(); return simSeed; },
     seed: function(){ return simSeed; },
+    /* Field-methods mode hooks (js/fieldstudy.js). */
+    fieldMode: function(on){ if(on!=null){ fieldMode = !!on; if(on && follow.auto) setNatureCam(false); renderCaption(); } return fieldMode; },
+    truthState: function(uid){ var a = animals.find(function(x){ return x.uid===uid; }); return a && !a.dead ? ETHO[ethoState(a)] : null; },
+    animal: function(uid){ return animals.find(function(x){ return x.uid===uid; }) || null; },
+    ethoStates: ETHO,
     /* Life table: lifeTable(true) starts recording (call before reset() to include the
        founders' deaths); lifeTableCSV() returns every recorded death plus the living. */
     lifeTable: function(on){ if(on!=null) lifeRows = on ? (lifeRows||[]) : null; return lifeRows ? lifeRows.length : null; },

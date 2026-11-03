@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>99R's ludus de animalibus</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,500&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,700;1,800&display=swap">
-<link rel="stylesheet" href="css/style.css?v=6">
+<link rel="stylesheet" href="css/style.css?v=7">
 <link rel="stylesheet" href="css/arena.css?v=2">
 </head>
 <body>
@@ -54,6 +54,10 @@
           </div>
           <button class="x" id="capStop" title="Stop following (Esc)" aria-label="Stop following">×</button>
         </div>
+        <div class="fs-prompt" id="fsPrompt" hidden>
+          <div class="fs-q">What is your focal animal doing <b>right now</b>? <span class="fs-n" id="fsPromptN"></span></div>
+          <div class="fs-buttons" id="fsButtons"></div>
+        </div>
         <div class="cam-bar">
           <select id="camFilter" aria-label="Which predator the nature cam watches"></select>
           <button class="cam-btn" id="camBtn" aria-pressed="false"><span class="rec"></span>Nature cam</button>
@@ -79,6 +83,7 @@
         <button class="tab" data-tab="genetics">Genetics</button>
         <button class="tab" data-tab="specimen">Specimen</button>
         <button class="tab" data-tab="log">Log</button>
+        <button class="tab" data-tab="field">Field</button>
       </nav>
 
       <div class="panel" data-panel="controls">
@@ -232,6 +237,30 @@
         </div>
       </div>
 
+      <div class="panel" data-panel="field" hidden>
+        <div class="group">
+          <h3>Field study</h3>
+          <span class="caption">practise instantaneous focal sampling, then see how your record compares with what really happened</span>
+          <p class="hint">Pick a species and start. The range zooms onto one animal, your <b>focal</b>. Every few sim-seconds it pauses and asks what the animal is doing at that instant. Judge from what you can see: the dark dot is its head (held out in front = head up; tucked onto the body = head down, feeding), plus how it moves and what's nearby. Keys 1–4 answer, 0 = lost sight. Needs Mixed A/B or Brains mode.</p>
+          <div class="slider-row">
+            <div class="top"><b>Species</b></div>
+            <select id="fsSpecies" aria-label="Focal species"></select>
+          </div>
+          <div class="slider-row">
+            <div class="top"><b>Samples</b></div>
+            <select id="fsSamples" aria-label="Number of samples"><option>10</option><option selected>20</option><option>40</option></select>
+          </div>
+          <div class="slider-row">
+            <div class="top"><b>Interval</b></div>
+            <select id="fsInterval" aria-label="Seconds between samples"><option value="5">every 5 sim-s</option><option value="15" selected>every 15 sim-s</option><option value="30">every 30 sim-s</option></select>
+          </div>
+          <button class="btn wide" id="fsStart">Start focal follow</button>
+          <button class="btn quiet wide" id="fsStop" disabled>Stop early</button>
+          <span class="caption" id="fsStatus"></span>
+          <div id="fsResults"></div>
+        </div>
+      </div>
+
       <div class="panel" data-panel="log" hidden>
         <div class="group">
           <h3>Field log</h3>
@@ -259,8 +288,9 @@
 <script src="js/brain.js?v=4"></script>
 <script src="js/clades.js?v=4"></script>
 <script src="js/timelapse.js?v=1"></script>
-<script src="js/vivarium.js?v=25"></script>
+<script src="js/vivarium.js?v=27"></script>
 <script src="js/tour.js?v=3"></script>
+<script src="js/fieldstudy.js?v=3"></script>
 <script src="js/arena/roster.js?v=2"></script>
 <script src="js/arena/tuning.js?v=2"></script>
 <script src="js/arena/engine.js?v=2"></script>
