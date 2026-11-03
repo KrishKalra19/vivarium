@@ -1,0 +1,31 @@
+{
+  "name": "many-eyes-pilot7",
+  "about": "Pilot 7: blind feeding. The cycle 27 probe showed evolved herbivores are reactive (eat until a threat is sensed, then look up), which works because head-down detection was never zero. Here headDownSense = 0: a feeding animal detects nothing, so the only defences are proactive scanning and (with alarm) warnings from others, the situation the many-eyes effect is about. No alarm vs graded alarm (lambda 1/s); same seeds and setup as pilots 3-6; pilot 3's no-predator runs are the control. Predictions: vigilance rises off the 1-3% floor; with graded alarm, a negative food-adjusted slope steeper than the no-predator control.",
+  "secs": 2400,
+  "every": 30,
+  "replicates": 4,
+  "seed0": 1000,
+  "base": {
+    "mode": "brains",
+    "costs": 1,
+    "set": {
+      "capScale": 1.6,
+      "ethoFrom": 1500,
+      "headDownSense": 0
+    }
+  },
+  "conditions": [
+    {
+      "name": "blind-no-alarm"
+    },
+    {
+      "name": "blind-graded-1",
+      "set": {
+        "alarm": true,
+        "alarmRate": 1
+      }
+    }
+  ],
+  "_code": "js/vivarium.js?v=31",
+  "_started": "2026-11-03T17:17:26.998Z"
+}
