@@ -97,7 +97,7 @@
   var idCounter = 1;
   var maxGeneration = 0;
   var simClock = 0;
-  var params = { predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
+  var params = { ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
   var worldMode = 'instinct';   // the brain mode the current world was seeded with
   var events = { droughtUntil:0, mastUntil:0 };
   var selected = null;
@@ -477,9 +477,18 @@
   var STILL = 0.25;   // vigilant = head up AND below this fraction of top speed
   var GROUP_R = 60, GROUP_MAX = 30;
   var etho = null;
+  /* Food under the animal at the scan, in 4 levels (diet-weighted plant energy, 0..~2).
+     Cycle 14 found the group-size pattern persists without predators; frugivores crowd
+     at rich fruit patches, so the analysis compares vigilance at equal food. */
+  var FOOD_EDGES = [0.15, 0.4, 0.8];   // bins: <0.15, 0.15–0.4, 0.4–0.8, ≥0.8
+  function foodBin(v){ return v < FOOD_EDGES[0] ? 0 : v < FOOD_EDGES[1] ? 1 : v < FOOD_EDGES[2] ? 2 : 3; }
+  function newEyes(){ return { feed:new Array(GROUP_MAX+1).fill(0), vigilant:new Array(GROUP_MAX+1).fill(0), travel:new Array(GROUP_MAX+1).fill(0) }; }
   function newEtho(){
-    var e = { scans:0, budget:{}, eyes:{} };
-    SPECIES_IDS.forEach(function(id){ e.budget[id] = new Array(ETHO.length).fill(0); e.eyes[id] = { feed:new Array(GROUP_MAX+1).fill(0), vigilant:new Array(GROUP_MAX+1).fill(0), travel:new Array(GROUP_MAX+1).fill(0) }; });
+    var e = { scans:0, budget:{}, eyes:{}, eyesFood:{} };
+    SPECIES_IDS.forEach(function(id){
+      e.budget[id] = new Array(ETHO.length).fill(0); e.eyes[id] = newEyes();
+      e.eyesFood[id] = [newEyes(), newEyes(), newEyes(), newEyes()];
+    });
     return e;
   }
   function ethoState(a){
@@ -503,7 +512,10 @@
   }
   function ethoScan(){
     if(!etho) etho = newEtho();
-    etho.scans++;
+    // Per-animal counts always run (life table); the population tallies only from
+    // params.ethoFrom on, so an experiment can let brains evolve before measuring.
+    var tally = simClock >= params.ethoFrom;
+    if(tally) etho.scans++;
     var R2 = GROUP_R*GROUP_R;
     for(var i=0;i<animals.length;i++){
       var a = animals[i];
@@ -515,8 +527,13 @@
       if(g < 1) g = 1;   // newborns aren't in the hash until the next rebuild; count self
       if(a.eth[k] < 65535) a.eth[k]++;
       a.gsum += g; a.gn++;
+      if(!tally) continue;
       etho.budget[a.sid][k]++;
-      if(k <= 1 || k === 8){ var e = etho.eyes[a.sid]; (k===0 ? e.feed : k===1 ? e.vigilant : e.travel)[Math.min(g, GROUP_MAX)]++; }
+      if(k <= 1 || k === 8){
+        var key = k===0 ? 'feed' : k===1 ? 'vigilant' : 'travel', gi = Math.min(g, GROUP_MAX);
+        etho.eyes[a.sid][key][gi]++;
+        etho.eyesFood[a.sid][foodBin(foodAt(SPECIES[a.sid], cellAt(a.x, a.y)))][key][gi]++;
+      }
     }
   }
 
@@ -3093,14 +3110,16 @@
     /* Scan-sampled ethogram: { states, scans, groupRadius, budget:{sid:[counts per state]},
        eyes:{sid:{feed:[by group size], vigilant:[by group size]}} } (group size capped at 30). */
     ethogram: function(){ return { states:ETHO.slice(), scans:etho ? etho.scans : 0, groupRadius:GROUP_R,
-      budget:JSON.parse(JSON.stringify(etho ? etho.budget : {})), eyes:JSON.parse(JSON.stringify(etho ? etho.eyes : {})) }; },
+      from:params.ethoFrom, foodEdges:FOOD_EDGES.slice(),
+      budget:JSON.parse(JSON.stringify(etho ? etho.budget : {})), eyes:JSON.parse(JSON.stringify(etho ? etho.eyes : {})),
+      eyesFood:JSON.parse(JSON.stringify(etho ? etho.eyesFood : {})) }; },
     /* Everything needed to reproduce a run: pass it to tools/vivarium-run.js or reset(). */
     manifest: function(){
       var tag = document.querySelector('script[src*="vivarium.js"]');
       return { format:'vivarium-run', version:1, code: tag ? tag.getAttribute('src') : null,
                seed:simSeed, world:worldMode, t:+simClock.toFixed(3),
                toggles:{ river:RIVER.on, sexual:params.sexual, traitCosts:params.traitCosts, predators:params.predators },
-               params:{ capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
+               params:{ ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
                hunt:Object.assign({}, HUNT) };
     },
     setPaused: function(v){ params.paused=v; },

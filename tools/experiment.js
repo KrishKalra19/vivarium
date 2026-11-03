@@ -89,7 +89,7 @@ function collect(){
   const runs = [['condition','replicate','seed','fingerprint','wall_s','sim_s','subspecies','page_errors']];
   const pops = [['condition','replicate','t','species','count']];
   const budgets = [['condition','replicate','species','state','scans']];
-  const vig = [['condition','replicate','species','group_size','feed','vigilant','travel']];
+  const vig = [['condition','replicate','species','food_bin','group_size','feed','vigilant','travel']];
   let species = null, missing = 0;
   for(const job of jobs){
     let run, eth;
@@ -105,9 +105,11 @@ function collect(){
     for(const smp of run.samples) for(const s of species) pops.push([job.cond, job.r, smp.t, s, smp.counts[s] || 0]);
     if(eth){
       for(const s of Object.keys(eth.budget)) eth.budget[s].forEach((n, k) => budgets.push([job.cond, job.r, s, eth.states[k], n]));
+      // One row per species × food level × group size (food_bin 'all' when the run predates food bins).
       for(const s of Object.keys(eth.eyes)){
-        const e = eth.eyes[s];
-        for(let g=1; g<e.feed.length; g++) if(e.feed[g] || e.vigilant[g] || (e.travel && e.travel[g])) vig.push([job.cond, job.r, s, g, e.feed[g], e.vigilant[g], e.travel ? e.travel[g] : '']);
+        const levels = eth.eyesFood && eth.eyesFood[s] ? eth.eyesFood[s].map((e, i) => [i, e]) : [['all', eth.eyes[s]]];
+        for(const [fb, e] of levels)
+          for(let g=1; g<e.feed.length; g++) if(e.feed[g] || e.vigilant[g] || (e.travel && e.travel[g])) vig.push([job.cond, job.r, s, fb, g, e.feed[g], e.vigilant[g], e.travel ? e.travel[g] : '']);
       }
     }
   }
