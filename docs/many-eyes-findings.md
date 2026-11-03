@@ -1,6 +1,6 @@
 # Does an evolved many-eyes effect emerge in Vivarium?
 
-*A pilot series, cycles 13–16 (Nov 2026). Methods note plus results; about 10 minutes to read.*
+*A pilot series, cycles 13–16 and 20 (Nov 2026). Methods note plus results; about 10 minutes to read.*
 
 ## Question
 
@@ -36,6 +36,7 @@ Each pilot changed the interpretation, and each time for a reason we measured.
 | 2 (cycle 14) | vigilance redefined as head-up **and still**; **no-predator control** | Most of the old "vigilance" was **walking** (travel is 4–27% of time; real scanning 1–8%). Capybara's "rising vigilance" collapsed from +4.1 to +0.4 pp. And agoutis and howlers showed the falling pattern **even with no predators** (−0.8 pp both), so it was never anti-predator. |
 | 3 (cycle 15) | **food covariate**; 25 min of evolution before measuring | Group size and food are confounded: agoutis are on rich food in 6% of solo scans but 28% of scans in groups of 8–15. Food-adjusted, with predators: **no reliable slope** in any species. Without predators, agoutis (−0.45, CI −0.75 to −0.16) and howlers (−0.35, −0.60 to −0.10) still decline. |
 | 4 (cycle 16) | **alarm contagion**: a herbivore that sees a fleeing conspecific perceives its predator | Alarm **roughly halves vigilance at every group size** (agouti 1.4% → 0.8%, howler 1.7% → 0.9%) and **protects howlers** (0/4 population crashes vs 2/4). But there is **still no group-size gradient**: every food-adjusted slope's interval spans 0. |
+| 5 (cycle 20) | **graded alarm**: each fleeing detector passes the warning at rate λ, so k detectors warn k× faster (λ = 1 and 4 per s) | **Still no gradient**: all food-adjusted intervals span 0 at both rates (agouti −0.17, −0.44 to +0.09 at λ = 4; howler −0.03, −0.15 to +0.09 at λ = 1). Howlers again avoid crashes (120–999 at the end vs 3–356 without alarm). |
 
 ![Vigilance by group size](figures/many-eyes.svg)
 
@@ -43,7 +44,8 @@ Each pilot changed the interpretation, and each time for a reason we measured.
 
 ## Interpretation
 
-1. **No evolved many-eyes effect under these conditions.** With predators, vigilance doesn't reliably fall with group size, with or without alarm, once food is controlled for.
+1. **No evolved many-eyes effect under these conditions.** With predators, vigilance doesn't reliably fall with group size once food is controlled for: not without alarm, not with instant alarm, and not with graded alarm at two rates.
+1b. **Most likely reason: a floor effect.** Evolved vigilance sits at only **1–2% of foraging time in every condition**, which leaves almost no room for a decline. Head-down only shrinks threat detection to 40% (and alarm covers much of the rest), so scanning barely pays and selection pushes it towards zero. In real systems vigilance is often 10–50% of foraging time. The informative next test is to make head-down costlier (e.g. detection at 20%) so baseline vigilance rises and a gradient has room to appear.
 2. **The mechanism matters, and the model makes it testable.** The many-eyes effect needs collective detection: neighbours' vigilance has to benefit you. Without alarm contagion it doesn't (pilot 3). With alarm it does, and animals respond by cutting vigilance substantially. But the benefit saturates at a single neighbour (one fleeing conspecific within 80 px is enough), so a bigger group adds nothing further. Real collective detection improves with every extra watcher (earlier detection, more directions covered). The current alarm doesn't model that, which is the most likely reason the gradient is absent.
 3. **Measurement choices could have produced a false positive twice.** Counting head-up travel as vigilance (pilot 1) and ignoring the food confound (pilots 1–2) would each have produced a convincing but wrong "many-eyes effect". Field studies face the same two traps (vigilance definitions and resource-dependent group size), which is part of why this is useful for teaching.
 4. **A residual group-size effect exists without predators** (agoutis and howlers, pilot 3). It isn't anti-predator by construction. Its cause in the networks isn't identified; the herbivore networks see kin direction, kin proximity and crowding, and any of those could tie head-up stillness to group size.
@@ -58,7 +60,7 @@ Each pilot changed the interpretation, and each time for a reason we measured.
 
 ## Next steps
 
-1. **Graded collective detection.** Make the chance of hearing an alarm, or its earliness, rise with the number of vigilant neighbours, then re-run alarm on/off. The prediction stands as before: a negative food-adjusted slope only with predators and graded alarm.
+1. **Raise the price of not looking.** Graded collective detection was tried (pilot 5) and didn't help. The floor effect is the next suspect: lower head-down detection (`HEAD_DOWN_SENSE` 0.4 → 0.2) and re-run graded alarm vs no alarm.
 2. **Power.** 10+ replicates and ~1 h runs, after sizing from these pilots' variance.
 3. **The no-predator residual.** Probe the evolved networks' response to group-size inputs directly (hold everything else fixed and vary the kin and crowding inputs).
 
