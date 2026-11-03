@@ -97,7 +97,7 @@
   var idCounter = 1;
   var maxGeneration = 0;
   var simClock = 0;
-  var params = { headDownSense:0.4, hybridPenalty:0, riverOffAt:0, alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
+  var params = { headDownSense:0.4, scanIntake:0, hybridPenalty:0, riverOffAt:0, alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
   var worldMode = 'instinct';   // the brain mode the current world was seeded with
   var events = { droughtUntil:0, mastUntil:0 };
   var selected = null;
@@ -883,11 +883,15 @@
     var wantFoliage = foliage[cell]*sp.diet.foliage;
     var wantFruit = fruit[cell]*sp.diet.fruit;
     var avail = wantFoliage + wantFruit;
-    if(avail > 0.01 && (!a.vigil || a.headDown)){
+    // Head-up animals don't eat, except that with params.scanIntake > 0 a *scanning* animal
+    // (head up and nearly still: the ethogram's 'vigilant') keeps that share of its intake,
+    // like an ungulate chewing a mouthful while it looks around. Default 0 = old behaviour.
+    var eatK = (!a.vigil || a.headDown) ? 1 : (params.scanIntake > 0 && ethoState(a) === 1 ? params.scanIntake : 0);
+    if(avail > 0.01 && eatK > 0){
       // Holling type II: intake saturates, so thinning vegetation really does
       // starve a herd instead of feeding it at full rate down to the last leaf.
       var response = avail/(0.35+avail);
-      var gain = a.intake*response*dt;
+      var gain = a.intake*response*dt*eatK;
       var fPart = wantFoliage/avail;
       var fEat = Math.min(foliage[cell], gain*fPart/BIOME.plants.foliage.energy);
       var rEat = Math.min(fruit[cell], gain*(1-fPart)/BIOME.plants.fruit.energy);
@@ -3234,7 +3238,7 @@
       return { format:'vivarium-run', version:1, code: tag ? tag.getAttribute('src') : null,
                seed:simSeed, world:worldMode, t:+simClock.toFixed(3),
                toggles:{ river:RIVER.on, sexual:params.sexual, traitCosts:params.traitCosts, predators:params.predators, alarm:params.alarm },
-               params:{ headDownSense:params.headDownSense, hybridPenalty:params.hybridPenalty, riverOffAt:params.riverOffAt, alarmRate:params.alarmRate, ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
+               params:{ headDownSense:params.headDownSense, scanIntake:params.scanIntake, hybridPenalty:params.hybridPenalty, riverOffAt:params.riverOffAt, alarmRate:params.alarmRate, ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
                hunt:Object.assign({}, HUNT) };
     },
     setPaused: function(v){ params.paused=v; },
