@@ -97,7 +97,7 @@
   var idCounter = 1;
   var maxGeneration = 0;
   var simClock = 0;
-  var params = { alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
+  var params = { hybridPenalty:0, riverOffAt:0, alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
   var worldMode = 'instinct';   // the brain mode the current world was seeded with
   var events = { droughtUntil:0, mastUntil:0 };
   var selected = null;
@@ -650,7 +650,7 @@
     var r = Math.sqrt(3*world.w*world.h/(Math.PI*SPECIES[id].start));
     MATE_RADIUS[id] = clamp(r, 110, 600);
   });
-  var mating = { matings:0, hybrids:0, unmated:0, rejected:0 };
+  var mating = { matings:0, hybrids:0, unmated:0, rejected:0, inviable:0 };
   function traitDist(g, h){
     var s = 0;
     for(var i=0;i<TRAITS.length;i++){ var k=TRAITS[i], b=TRAIT_BAND[k], d=(g[k]-h[k])/(b[1]-b[0]); s += d*d; }
@@ -716,7 +716,17 @@
     a.energy *= 0.42;
     a.cooldown = a.repCd;
     a.litters++;
+    /* Hybrid penalty (reinforcement experiment, cycle 21): offspring of parents from
+       different subspecies (clades) fail with probability hybridPenalty, a stand-in for
+       Dobzhansky-Muller incompatibility between diverged lineages. It's what gives
+       choosiness something to protect (cycle 8: without it, choosiness evolves away).
+       A first version scaled the penalty with trait distance instead; ordinary within-
+       population mates are ~0.15 apart, so ~35% of all offspring failed: outbreeding
+       depression, not a hybrid penalty. */
+    var inviable = 0;
+    if(mate && params.hybridPenalty > 0 && mate.genome.clade !== a.genome.clade) inviable = params.hybridPenalty;
     for(var i=0;i<litter && counts[a.sid]+i<capOf(a.sid);i++){
+      if(inviable > 0 && rand() < inviable){ mating.inviable++; continue; }
       var cx = a.x+randRange(-14,14), cy = a.y+randRange(-14,14);
       if(RIVER.on && RIVER.blocks[a.sid] && bankOf(cx, cy) !== bankOf(a.x, a.y)){ cx = a.x; cy = a.y; }
       var child = spawn(a.sid, cx, cy, a.gen+1, 0, mutate(mate ? recombine(a, mate) : a.genome, params.mutationRate));
@@ -1101,6 +1111,9 @@
   function step(dt){
     var t = prof ? performance.now() : 0;
     simClock += dt;
+    // Secondary contact (experiments): the river dries up at riverOffAt sim-seconds.
+    if(RIVER.on && params.riverOffAt > 0 && simClock >= params.riverOffAt){ setRiver(false); repaintPlants();
+      logEvent({ text:'The river has dried up: the two banks meet again (secondary contact).' }); }
     growPlants(dt);
     if(prof) t = lap('plants', t);
     rebuildHash();
@@ -1276,7 +1289,7 @@
   /* --------------------------- world setup --------------------------- */
   function seedWorld(){
     animals=[]; idCounter=1; maxGeneration=0; simClock=0; sampleAccum=0;
-    mating.matings = mating.hybrids = mating.unmated = mating.rejected = 0;
+    mating.matings = mating.hybrids = mating.unmated = mating.rejected = mating.inviable = 0;
     if(lifeRows) lifeRows = [];
     etho = newEtho();
     alarmStats.own = alarmStats.alarm = 0; alarmStats.graded = new Array(10).fill(0);
@@ -3192,7 +3205,7 @@
       return { format:'vivarium-run', version:1, code: tag ? tag.getAttribute('src') : null,
                seed:simSeed, world:worldMode, t:+simClock.toFixed(3),
                toggles:{ river:RIVER.on, sexual:params.sexual, traitCosts:params.traitCosts, predators:params.predators, alarm:params.alarm },
-               params:{ alarmRate:params.alarmRate, ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
+               params:{ hybridPenalty:params.hybridPenalty, riverOffAt:params.riverOffAt, alarmRate:params.alarmRate, ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
                hunt:Object.assign({}, HUNT) };
     },
     setPaused: function(v){ params.paused=v; },

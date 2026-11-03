@@ -86,8 +86,9 @@ const csv = rows => rows.map(r => r.map(v => {
 }).join(',')).join('\n') + '\n';
 
 function collect(){
-  const runs = [['condition','replicate','seed','fingerprint','wall_s','sim_s','subspecies','page_errors']];
+  const runs = [['condition','replicate','seed','fingerprint','wall_s','sim_s','subspecies','page_errors','matings','hybrid_matings','rejected','inviable']];
   const pops = [['condition','replicate','t','species','count']];
+  const traits = [['condition','replicate','t','species','mass','speed','sense','metab','choosy']];
   const budgets = [['condition','replicate','species','state','scans']];
   const vig = [['condition','replicate','species','food_bin','group_size','feed','vigilant','travel']];
   let species = null, missing = 0;
@@ -97,12 +98,17 @@ function collect(){
     catch(e){ missing++; continue; }
     try { eth = JSON.parse(fs.readFileSync(path.join(job.dir, 'ethogram.json'), 'utf8')); } catch(e){ eth = null; }
     species = species || run.ids;
-    if(runs[0].length === 8) species.forEach(s => runs[0].push('final_' + s));
+    if(runs[0].length === 12) species.forEach(s => runs[0].push('final_' + s));
     const last = run.samples[run.samples.length-1];
     runs.push([job.cond, job.r, job.seed, run.fingerprint, run.wallSec.toFixed(1), last.t,
-               (run.clades || []).filter(c => c.depth > 0).length, (run.errors || []).length]
+               (run.clades || []).filter(c => c.depth > 0).length, (run.errors || []).length,
+               ...(m => [m.matings, m.hybrids, m.rejected, m.inviable == null ? '' : m.inviable])(run.mating || {})]
                .concat(species.map(s => last.counts[s] || 0)));
-    for(const smp of run.samples) for(const s of species) pops.push([job.cond, job.r, smp.t, s, smp.counts[s] || 0]);
+    for(const smp of run.samples) for(const s of species){
+      pops.push([job.cond, job.r, smp.t, s, smp.counts[s] || 0]);
+      const m = smp.means && smp.means[s];
+      if(m && m.mass != null) traits.push([job.cond, job.r, smp.t, s, m.mass, m.speed, m.sense, m.metab, m.choosy == null ? '' : m.choosy]);
+    }
     if(eth){
       for(const s of Object.keys(eth.budget)) eth.budget[s].forEach((n, k) => budgets.push([job.cond, job.r, s, eth.states[k], n]));
       // One row per species × food level × group size (food_bin 'all' when the run predates food bins).
@@ -115,6 +121,7 @@ function collect(){
   }
   fs.writeFileSync(path.join(outDir, 'runs.csv'), csv(runs));
   fs.writeFileSync(path.join(outDir, 'populations.csv'), csv(pops));
+  fs.writeFileSync(path.join(outDir, 'traits.csv'), csv(traits));
   fs.writeFileSync(path.join(outDir, 'budgets.csv'), csv(budgets));
   fs.writeFileSync(path.join(outDir, 'vigilance.csv'), csv(vig));
   return { runs:runs.length-1, missing };
