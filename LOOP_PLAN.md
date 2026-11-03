@@ -45,3 +45,9 @@ Order (Krish 11-02: research first, then teaching):
 6b. **Reinforcement experiment**: add a toggleable hybrid fitness penalty and test whether choosiness then evolves to be pickier (cycle 8 showed it evolves away when hybrids pay nothing).
 6c. **Write-up** (next): `docs/many-eyes-findings.md`, the whole pilot series as a short methods + results note a professor can read in 10 minutes.
 7. **(Done in cycle 18)** Field-methods mode for teaching: focal-animal and scan sampling on virtual animals, so students can compare their sampled estimates with the ground truth.
+
+## Phase 3 candidates (after cycle 19; default order unless Krish picks)
+1. **Graded collective detection**: alarm reach/probability grows with the number of vigilant neighbours; re-run the many-eyes test (pilot 4 found alarm saturates at one neighbour).
+2. Reinforcement experiment (hybrid penalty → does choosiness evolve up?), plan item 6b.
+3. Harpy decline under trait costs (cycle 9 open item).
+4. Scan-sampling mode for the Field tab (count head-down vs head-up animals in a circle), the second classic field method.
