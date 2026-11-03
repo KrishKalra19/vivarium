@@ -92,7 +92,7 @@ function args(){
     const manifest = V.manifest ? V.manifest() : null;
     const life = opt.lifetable ? V.lifeTableCSV() : null;
     const ethogram = V.ethogram ? V.ethogram() : null;
-    return { life, ethogram, ids, samples, stuck, deaths:V.deaths(), clades, mating:V.mating ? V.mating() : null, tl, heap, manifest, fingerprint:h.toString(16) };
+    return { life, ethogram, ids, samples, stuck, deaths:V.deaths(), clades, mating:V.mating ? V.mating() : null, alarm:V.alarmStats ? V.alarmStats() : null, tl, heap, manifest, fingerprint:h.toString(16) };
   }, opt);
   const wallSec = (Date.now() - t0) / 1000;
 
