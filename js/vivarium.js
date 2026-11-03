@@ -39,7 +39,7 @@
   var Brain = Ludus.brain;
   var BRAIN_IDS = SPECIES_IDS.slice();   // every species can carry a brain
   function layoutOf(id){ return Brain.forRole(SPECIES[id].role); }
-  var HEAD_DOWN_SENSE = 0.4, HEAD_DOWN_SPEED = 0.35;
+  var HEAD_DOWN_SPEED = 0.35;   // head-down threat detection is params.headDownSense (default 0.4; experiments vary it)
   var BREED_FLOOR = 0.45;        // brains choose when to breed, but never below this energy
   var TURN_RATE = 4.5;           // rad/s at full turn output
   var SUBSTEP = 1/30;            // largest simulated step, so fast-forward stays stable
@@ -97,7 +97,7 @@
   var idCounter = 1;
   var maxGeneration = 0;
   var simClock = 0;
-  var params = { hybridPenalty:0, riverOffAt:0, alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
+  var params = { headDownSense:0.4, hybridPenalty:0, riverOffAt:0, alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
   var worldMode = 'instinct';   // the brain mode the current world was seeded with
   var events = { droughtUntil:0, mastUntil:0 };
   var selected = null;
@@ -767,7 +767,7 @@
   }
 
   function instinctHerbivore(a, sp, dt){
-    var threat = perceivedThreat(a, a.headDown ? HEAD_DOWN_SENSE : 1, dt);
+    var threat = perceivedThreat(a, a.headDown ? params.headDownSense : 1, dt);
     a.target = threat;
     var prev = a.state;
     a.state = threat ? 'flee' : 'forage';
@@ -819,7 +819,7 @@
 
   function brainHerbivore(a, sp, dt){
     var HB=Brain.herbivore, B=HB.I, inp=a.bIn, out=a.bOut, dx, dy, d;
-    var mult = a.headDown ? HEAD_DOWN_SENSE : 1;
+    var mult = a.headDown ? params.headDownSense : 1;
     var range = a.sense*sp.panic*mult;
     var threat = perceivedThreat(a, mult, dt);
     a.target = threat;
@@ -1616,7 +1616,7 @@
   /* What the selected brain animal is sensing: its threat radius (which shrinks
      while grazing head-down) and lines to the threat, food target and nearest kin. */
   function drawSensors(a, z){
-    var sp=SPECIES[a.sid], range = sp.role==='predator' ? a.sense : a.sense*sp.panic*(a.headDown?HEAD_DOWN_SENSE:1);
+    var sp=SPECIES[a.sid], range = sp.role==='predator' ? a.sense : a.sense*sp.panic*(a.headDown?params.headDownSense:1);
     ctx.save();
     ctx.lineWidth = 1.5/z;
     ctx.setLineDash([4/z, 4/z]);
@@ -2967,7 +2967,7 @@
       COL_FOOD.set(theme.fruit || '#e0a040');
       var y0 = heightAt(a.x, a.y) + a.alt + 0.4;
       var sp3 = SPECIES[a.sid];
-      var range = (sp3.role==='predator' ? a.sense : a.sense*sp3.panic*(a.headDown ? HEAD_DOWN_SENSE : 1))*S;
+      var range = (sp3.role==='predator' ? a.sense : a.sense*sp3.panic*(a.headDown ? params.headDownSense : 1))*S;
       vigilRing.visible = true;
       vigilRing.material.color.set(a.headDown ? 0xff5a44 : 0xffffff);
       vigilRing.position.set(toX(a.x), y0 - 0.25, toZ(a.y));
@@ -3234,7 +3234,7 @@
       return { format:'vivarium-run', version:1, code: tag ? tag.getAttribute('src') : null,
                seed:simSeed, world:worldMode, t:+simClock.toFixed(3),
                toggles:{ river:RIVER.on, sexual:params.sexual, traitCosts:params.traitCosts, predators:params.predators, alarm:params.alarm },
-               params:{ hybridPenalty:params.hybridPenalty, riverOffAt:params.riverOffAt, alarmRate:params.alarmRate, ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
+               params:{ headDownSense:params.headDownSense, hybridPenalty:params.hybridPenalty, riverOffAt:params.riverOffAt, alarmRate:params.alarmRate, ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
                hunt:Object.assign({}, HUNT) };
     },
     setPaused: function(v){ params.paused=v; },
