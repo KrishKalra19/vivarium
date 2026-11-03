@@ -518,6 +518,8 @@
      ring, threat line) and draws a posture cue on the focal animal instead, so the
      observer has to judge behaviour from what an animal looks like. */
   var fieldMode = false;
+  var fieldScan = null;   // { x, y, r, sid }: scan-sampling circle (Field tab, scan mode)
+  function inScan(a){ if(!fieldScan || a.sid!==fieldScan.sid) return false; var dx=a.x-fieldScan.x, dy=a.y-fieldScan.y; return dx*dx+dy*dy <= fieldScan.r*fieldScan.r; }
   var STILL = 0.25;   // vigilant = head up AND below this fraction of top speed
   var GROUP_R = 60, GROUP_MAX = 30;
   var etho = null;
@@ -1576,7 +1578,8 @@
         ctx.arc(a.x, a.y, r+6/z, 0, Math.PI*2);
         ctx.stroke();
       }
-      if(fieldMode && (selected===a || watched===a)){
+      if(fieldMode && fieldScan && inScan(a)) drawPosture(a, r, z);
+      if(fieldMode && !fieldScan && (selected===a || watched===a)){
         drawPosture(a, r, z);
         // focal marker: in brains mode every animal wears a brain ring, so the usual selection ring is lost
         ctx.save(); ctx.setLineDash([5/z, 4/z]); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5/z;
@@ -1593,6 +1596,10 @@
       }
     }
 
+    if(fieldMode && fieldScan){
+      ctx.save(); ctx.setLineDash([8/z, 6/z]); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5/z;
+      ctx.beginPath(); ctx.arc(fieldScan.x, fieldScan.y, fieldScan.r, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+    }
     var nowR = nowReal();
     for(var b=0;b<bursts.length;b++){
       var bu=bursts[b], k=(nowR-bu.t0)/0.9;
@@ -3184,6 +3191,28 @@
     reset: function(seed){ reseed(seed==null ? (Math.random()*4294967296)>>>0 : seed); seedWorld(); return simSeed; },
     seed: function(){ return simSeed; },
     /* Field-methods mode hooks (js/fieldstudy.js). */
+    /* Scan sampling: fieldScan({x,y,r,sid}) draws the circle and centres the map on it;
+       fieldScan(null) clears it. scanTruth() counts the brain animals of that species in the
+       circle with head down vs up (fleeing ones counted separately), and the same for the
+       whole population at this instant. */
+    fieldScan: function(o){
+      if(o === undefined) return fieldScan;
+      fieldScan = o;
+      if(o){ stopWatching(); selected = null; camera.zoom = Math.max(camera.zoom, o.zoom || 2.4);
+             camera.x = o.x - view.w/camera.zoom/2; camera.y = o.y - view.h/camera.zoom/2; clampCamera(); }
+      return fieldScan;
+    },
+    scanTruth: function(){
+      if(!fieldScan) return null;
+      var t = { down:0, up:0, flee:0, popDown:0, popUp:0 };
+      animals.forEach(function(a){
+        if(a.dead || a.sid!==fieldScan.sid || !a.vigil) return;
+        var fl = a.state==='flee', k = fl ? null : (a.headDown ? 'down' : 'up');
+        if(k) t[k==='down' ? 'popDown' : 'popUp']++;
+        if(inScan(a)){ if(fl) t.flee++; else t[k]++; }
+      });
+      return t;
+    },
     fieldMode: function(on){ if(on!=null){ fieldMode = !!on; if(on && follow.auto) setNatureCam(false); renderCaption(); } return fieldMode; },
     truthState: function(uid){ var a = animals.find(function(x){ return x.uid===uid; }); return a && !a.dead ? ETHO[ethoState(a)] : null; },
     animal: function(uid){ return animals.find(function(x){ return x.uid===uid; }) || null; },

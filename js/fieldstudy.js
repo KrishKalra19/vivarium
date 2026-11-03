@@ -43,8 +43,84 @@
   }
   function snapshotEth(a){ var o = {}; ['feed','vigilant','travel','forage','flee'].forEach(function(k){ o[k] = a.eth[ethIndex(k)]; }); return o; }
 
+  /* ---------- scan sampling ----------
+     At each sample point a circle is drawn around a random adult of the species; the
+     student counts head-down vs head-up animals of that species inside it. Scored against
+     the true counts in the circle (counting error) and against the whole population at
+     that instant (placement error: circles centred on an animal over-sample groups). */
+  var SCAN_R = 110;
+  function startScan(){
+    var sid = $('fsSpecies').value, n = +$('fsSamples').value, interval = +$('fsInterval').value;
+    if(!pickFocal(sid)){
+      $('fsStatus').textContent = 'No adult evolved-brain ' + V.species[sid].name.toLowerCase() +
+        ' on the range. Scan samples need Mixed A/B or Brains mode (Controls → Behaviour).';
+      return;
+    }
+    V.fieldMode(true);
+    study = { kind:'scan', sid:sid, n:n, interval:interval, samples:[], next:V.stats().t + interval, waiting:false, wasPaused:V.params.paused };
+    $('fsResults').innerHTML = ''; $('fsStart').disabled = true; $('fsStop').disabled = false;
+    $('fsStatus').textContent = 'Scan sampling ' + V.species[sid].name.toLowerCase() + ' · first scan in ' + interval + ' sim-s';
+    pollTimer = setInterval(pollScan, 100);
+  }
+  function pollScan(){
+    if(!study || study.waiting) return;
+    if(V.stats().t < study.next) return;
+    var a = pickFocal(study.sid);
+    if(!a){ study.next = V.stats().t + 2; return; }
+    study.waiting = true; study.wasPaused = V.params.paused; V.setPaused(true);
+    V.fieldScan({ x:a.x, y:a.y, r:SCAN_R, sid:study.sid });
+    study.pending = { i:study.samples.length + 1, t:V.stats().t, truth:V.scanTruth() };
+    $('fsScanSp').textContent = V.species[study.sid].name.toLowerCase() + 's';
+    $('fsScanN').textContent = study.pending.i + ' / ' + study.n;
+    $('fsDown').value = ''; $('fsUp').value = '';
+    $('fsScanPrompt').hidden = false;
+    setTimeout(function(){ try { $('fsDown').focus(); } catch(e){} }, 50);
+    $('fsStatus').textContent = 'Scan ' + study.pending.i + ' of ' + study.n + ': count heads in the dashed circle';
+  }
+  function recordScan(skip){
+    if(!study || !study.waiting || study.kind!=='scan') return;
+    var p = study.pending, d = parseInt($('fsDown').value, 10), u = parseInt($('fsUp').value, 10);
+    if(!skip && (isNaN(d) || isNaN(u) || d < 0 || u < 0)){ $('fsStatus').textContent = 'Enter both counts (0 is fine), or press Lost count.'; return; }
+    study.samples.push({ i:p.i, t:+p.t.toFixed(1), skip:!!skip, down:skip ? null : d, up:skip ? null : u,
+                         tDown:p.truth.down, tUp:p.truth.up, tFlee:p.truth.flee, popDown:p.truth.popDown, popUp:p.truth.popUp });
+    study.waiting = false; $('fsScanPrompt').hidden = true; V.fieldScan(null);
+    V.setPaused(study.wasPaused); study.next = p.t + study.interval;
+    if(study.samples.length >= study.n) finishScan(null);
+    else $('fsStatus').textContent = 'Recorded scan ' + p.i + ' of ' + study.n + ' · next in ' + study.interval + ' sim-s';
+  }
+  function finishScan(note){
+    clearInterval(pollTimer); pollTimer = null;
+    var s = study; study = null;
+    $('fsScanPrompt').hidden = true; V.fieldScan(null); V.fieldMode(false);
+    $('fsStart').disabled = false; $('fsStop').disabled = true;
+    if(s.waiting) V.setPaused(s.wasPaused);
+    var done = s.samples.filter(function(x){ return !x.skip; });
+    var n = done.length, mae = 0, sumD = 0, sumN = 0, tD = 0, tN = 0, pD = 0, pN = 0, exact = 0;
+    done.forEach(function(x){
+      mae += Math.abs(x.down - x.tDown) + Math.abs(x.up - x.tUp);
+      if(x.down === x.tDown && x.up === x.tUp) exact++;
+      sumD += x.down; sumN += x.down + x.up; tD += x.tDown; tN += x.tDown + x.tUp; pD += x.popDown; pN += x.popDown + x.popUp;
+    });
+    var mine = sumN ? sumD/sumN : null, circle = tN ? tD/tN : null, pop = pN ? pD/pN : null;
+    var pc = function(x){ return x == null ? '—' : (x*100).toFixed(0) + '%'; };
+    var html = note ? '<p class="hint">' + note + '</p>' : '';
+    html += '<div class="fs-score"><div><b>' + (n ? (exact/n*100).toFixed(0) + '%' : '—') + '</b><span>scans counted exactly</span></div>' +
+            '<div><b>' + (n ? (mae/n).toFixed(1) : '—') + '</b><span>animals off per scan</span></div>' +
+            '<div><b>' + n + '</b><span>scans recorded</span></div></div>';
+    html += '<table class="fs-table"><thead><tr><th>share feeding (head down)</th><th>your counts</th><th>truth in your circles</th><th>truth, whole population</th></tr></thead><tbody>' +
+            '<tr><th>estimate</th><td>' + pc(mine) + '</td><td>' + pc(circle) + '</td><td>' + pc(pop) + '</td></tr></tbody></table>';
+    html += '<p class="caption">Column 1 vs 2 is <b>counting error</b>: what you counted vs what was in the circle. Column 2 vs 3 is <b>placement error</b>: each circle was centred on an animal, so circles land in groups and miss loners; if feeding differs between groups and loners, your estimate is biased however well you count. Fleeing animals in a circle are left out of both counts.</p>';
+    html += '<table class="fs-table"><thead><tr><th>scan</th><th>you: down / up</th><th>truth: down / up</th></tr></thead><tbody>' +
+      s.samples.map(function(x){ return '<tr><th>' + x.i + '</th><td>' + (x.skip ? 'lost count' : x.down + ' / ' + x.up) + '</td><td class="' +
+        (!x.skip && (x.down !== x.tDown || x.up !== x.tUp) ? 'off' : 'diag') + '">' + x.tDown + ' / ' + x.tUp + '</td></tr>'; }).join('') + '</tbody></table>';
+    $('fsResults').innerHTML = html;
+    $('fsStatus').textContent = 'Finished: ' + s.samples.length + ' scans of ' + V.species[s.sid].name.toLowerCase() + 's.';
+    window.FieldStudy.last = { kind:'scan', samples:s.samples, mine:mine, circle:circle, pop:pop, mae:n ? mae/n : null, exact:n ? exact/n : null };
+  }
+
   function start(){
     if(study) return;
+    if($('fsMode').value === 'scan') return startScan();
     var sid = $('fsSpecies').value, n = +$('fsSamples').value, interval = +$('fsInterval').value;
     var focal = pickFocal(sid);
     if(!focal){
@@ -180,7 +256,7 @@
     window.FieldStudy.last = { samples:s.samples, agreement:r.po, kappa:r.k, continuous:cont, contN:contN, focals:s.focals };
   }
 
-  function stop(){ if(study) finish('You stopped the study early.'); }
+  function stop(){ if(study){ if(study.kind==='scan') finishScan('You stopped early.'); else finish('You stopped the study early.'); } }
 
   // UI wiring
   var sel = $('fsSpecies');
@@ -189,6 +265,12 @@
   });
   $('fsStart').addEventListener('click', start);
   $('fsStop').addEventListener('click', stop);
+  $('fsScanOk').addEventListener('click', function(){ recordScan(false); });
+  $('fsScanSkip').addEventListener('click', function(){ recordScan(true); });
+  ['fsDown','fsUp'].forEach(function(id){ $(id).addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ e.preventDefault(); if(id === 'fsDown') $('fsUp').focus(); else recordScan(false); }
+    e.stopPropagation();   // digits typed here mustn't trigger the focal-mode shortcuts
+  }); });
   var host = $('fsButtons');
   CATS.forEach(function(c, i){
     var b = document.createElement('button');
@@ -201,7 +283,7 @@
   sk.addEventListener('click', function(){ answer('skip'); });
   host.appendChild(sk);
   document.addEventListener('keydown', function(e){
-    if(!study || !study.waiting) return;
+    if(!study || !study.waiting || study.kind === 'scan') return;
     var k = e.key;
     if(k >= '1' && k <= '4'){ answer(CATS[+k-1].key); e.preventDefault(); }
     else if(k === '0'){ answer('skip'); e.preventDefault(); }
@@ -209,5 +291,6 @@
 
   /* Headless hook for tests: FieldStudy.start(), FieldStudy.answer(key), FieldStudy.state(). */
   window.FieldStudy = { start:start, stop:stop, answer:answer, cats:CATS,
-    state:function(){ return study ? { waiting:study.waiting, n:study.samples.length, pending:study.pending, focal:study.focal.uid } : null; } };
+    scan:function(down, up){ $('fsDown').value = down; $('fsUp').value = up; recordScan(down == null); },
+    state:function(){ return study ? { kind:study.kind || 'focal', waiting:study.waiting, n:study.samples.length, pending:study.pending, focal:study.focal ? study.focal.uid : null } : null; } };
 })();
