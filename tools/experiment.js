@@ -89,7 +89,7 @@ function collect(){
   const runs = [['condition','replicate','seed','fingerprint','wall_s','sim_s','subspecies','page_errors']];
   const pops = [['condition','replicate','t','species','count']];
   const budgets = [['condition','replicate','species','state','scans']];
-  const vig = [['condition','replicate','species','group_size','feed','vigilant']];
+  const vig = [['condition','replicate','species','group_size','feed','vigilant','travel']];
   let species = null, missing = 0;
   for(const job of jobs){
     let run, eth;
@@ -107,7 +107,7 @@ function collect(){
       for(const s of Object.keys(eth.budget)) eth.budget[s].forEach((n, k) => budgets.push([job.cond, job.r, s, eth.states[k], n]));
       for(const s of Object.keys(eth.eyes)){
         const e = eth.eyes[s];
-        for(let g=1; g<e.feed.length; g++) if(e.feed[g] || e.vigilant[g]) vig.push([job.cond, job.r, s, g, e.feed[g], e.vigilant[g]]);
+        for(let g=1; g<e.feed.length; g++) if(e.feed[g] || e.vigilant[g] || (e.travel && e.travel[g])) vig.push([job.cond, job.r, s, g, e.feed[g], e.vigilant[g], e.travel ? e.travel[g] : '']);
       }
     }
   }

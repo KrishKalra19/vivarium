@@ -1,0 +1,10 @@
+{
+  "name": "many-eyes-pilot2",
+  "about": "Pilot 2 after fixing vigilance (head-up AND still) and adding a predator-removal control. If vigilance-vs-group-size is a real anti-predator effect, the slope should vanish without predators. Caps raised 1.6x to reduce the crowding confound. 4 paired replicates, 15 sim-min each.",
+  "secs": 900,
+  "every": 10,
+  "replicates": 4,
+  "seed0": 1000,
+  "base": { "mode": "brains", "costs": 1, "set": { "capScale": 1.6 } },
+  "conditions": [ { "name": "predators" }, { "name": "no-predators", "set": { "predators": false } } ]
+}

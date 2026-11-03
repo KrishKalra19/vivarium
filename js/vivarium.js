@@ -97,7 +97,7 @@
   var idCounter = 1;
   var maxGeneration = 0;
   var simClock = 0;
-  var params = { traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
+  var params = { predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
   var worldMode = 'instinct';   // the brain mode the current world was seeded with
   var events = { droughtUntil:0, mastUntil:0 };
   var selected = null;
@@ -136,6 +136,9 @@
 
   /* --------------------------- animals --------------------------- */
   function bodyMass(sp, genome){ return sp.mass*genome.mass; }
+  /* Population ceiling. capScale (experiments) raises it so that, e.g., capybara herds
+     are limited by food rather than pinned at a hard cap (cycle 13 pilot confound). */
+  function capOf(id){ return Math.round(SPECIES[id].cap*params.capScale); }
 
   /* Trait costs (toggle; Phase 2). Without them every trait has an upside and almost no
      downside, and a 2-hour run drove speed and metabolic efficiency to their caps in
@@ -175,7 +178,7 @@
       huntCd:0, kills:0, strikes:0, dead:false,
       // life-history bookkeeping (life table export)
       born:simClock, origin:'arrival', mother:0, father:0, litters:0, children:0, birthClade:0, birthBank:0,
-      eth:new Uint16Array(8), gsum:0, gn:0,
+      eth:new Uint16Array(9), gsum:0, gn:0,
       // What the animal is doing, recorded for the cameras and captions; never read by the model.
       state:'idle', target:null, lungeAt:-99, lastLunge:null, cause:null, killedBy:null,
       ryaw:rand()*Math.PI*2, stride:rand(), alt:0,
@@ -458,7 +461,10 @@
      scans a group, every animal's current behaviour is recorded as one of ETHO, along
      with its group size: conspecifics within GROUP_R px, itself included.
        feed      head down eating (evolved-brain herbivores: can't watch while eating)
-       vigilant  head up while foraging, scanning for predators (brain herbivores)
+       vigilant  head up and nearly still (< STILL of top speed): a scan, as field
+                 observers define vigilance (brain herbivores)
+       travel    head up and moving (brain herbivores). Until cycle 14 this counted
+                 as vigilant, so walking to food in a depleted herd looked like vigilance
        forage    moving and eating; instinct herbivores, which have no head-down choice
        flee      running from a predator
        chase     predator moving at >=60% top speed and closing on its target
@@ -467,12 +473,13 @@
      Per animal the counts go into the life table; per species they make time budgets;
      and for brain herbivores that are foraging (not fleeing) the feed-vs-vigilant
      split is tallied by group size, the data behind the many-eyes test. */
-  var ETHO = ['feed','vigilant','forage','flee','chase','stalk','lurk','search'];
+  var ETHO = ['feed','vigilant','forage','flee','chase','stalk','lurk','search','travel'];
+  var STILL = 0.25;   // vigilant = head up AND below this fraction of top speed
   var GROUP_R = 60, GROUP_MAX = 30;
   var etho = null;
   function newEtho(){
     var e = { scans:0, budget:{}, eyes:{} };
-    SPECIES_IDS.forEach(function(id){ e.budget[id] = new Array(ETHO.length).fill(0); e.eyes[id] = { feed:new Array(GROUP_MAX+1).fill(0), vigilant:new Array(GROUP_MAX+1).fill(0) }; });
+    SPECIES_IDS.forEach(function(id){ e.budget[id] = new Array(ETHO.length).fill(0); e.eyes[id] = { feed:new Array(GROUP_MAX+1).fill(0), vigilant:new Array(GROUP_MAX+1).fill(0), travel:new Array(GROUP_MAX+1).fill(0) }; });
     return e;
   }
   function ethoState(a){
@@ -491,7 +498,8 @@
     }
     if(st==='flee') return 3;
     if(!a.vigil) return 2;
-    return a.headDown ? 0 : 1;
+    if(a.headDown) return 0;
+    return (a.vx*a.vx + a.vy*a.vy) < (STILL*a.speed)*(STILL*a.speed) ? 1 : 8;
   }
   function ethoScan(){
     if(!etho) etho = newEtho();
@@ -508,7 +516,7 @@
       if(a.eth[k] < 65535) a.eth[k]++;
       a.gsum += g; a.gn++;
       etho.budget[a.sid][k]++;
-      if(k <= 1){ var e = etho.eyes[a.sid]; (k===0 ? e.feed : e.vigilant)[Math.min(g, GROUP_MAX)]++; }
+      if(k <= 1 || k === 8){ var e = etho.eyes[a.sid]; (k===0 ? e.feed : k===1 ? e.vigilant : e.travel)[Math.min(g, GROUP_MAX)]++; }
     }
   }
 
@@ -520,7 +528,7 @@
   var LIFE_COLS = ['uid','species','origin','mother','father','generation','lineage','clade_at_birth','clade',
     'born','died','age','cause','killer','killer_uid','bank_at_birth','x','y','mass_kg','speed','sense','metab_gene',
     'mass_gene','speed_gene','sense_gene','choosy_gene','litters','children','kills','strikes',
-    'scans','scan_feed','scan_vigilant','scan_forage','scan_flee','scan_chase','scan_stalk','scan_lurk','scan_search','group_mean'];
+    'scans','scan_feed','scan_vigilant','scan_forage','scan_flee','scan_chase','scan_stalk','scan_lurk','scan_search','scan_travel','group_mean'];
   var lifeRows = null;   // null = not recording
   function lifeRow(a){
     var g = a.genome, k = a.killedBy;
@@ -529,7 +537,7 @@
       k ? k.sid : '', k ? k.uid : '', a.birthBank, +a.x.toFixed(1), +a.y.toFixed(1), +a.mass.toFixed(3),
       +a.speed.toFixed(2), +a.sense.toFixed(2), +g.metab.toFixed(4), +g.mass.toFixed(4), +g.speed.toFixed(4),
       +g.sense.toFixed(4), g.choosy==null ? '' : +g.choosy.toFixed(4), a.litters, a.children, a.kills, a.strikes,
-      a.gn, a.eth[0], a.eth[1], a.eth[2], a.eth[3], a.eth[4], a.eth[5], a.eth[6], a.eth[7], a.gn ? +(a.gsum/a.gn).toFixed(2) : ''];
+      a.gn, a.eth[0], a.eth[1], a.eth[2], a.eth[3], a.eth[4], a.eth[5], a.eth[6], a.eth[7], a.eth[8], a.gn ? +(a.gsum/a.gn).toFixed(2) : ''];
   }
   function lifeCSV(){
     var out = [LIFE_COLS.join(',')];
@@ -631,7 +639,7 @@
 
   function reproduce(a){
     var sp=SPECIES[a.sid];
-    if(counts[a.sid] >= sp.cap) return;
+    if(counts[a.sid] >= capOf(a.sid)) return;
     if(sp.crowd && crowded(a, sp.crowd)){ a.cooldown = a.repCd*0.4; return; }
     var mate = null;
     if(params.sexual){
@@ -647,7 +655,7 @@
     a.energy *= 0.42;
     a.cooldown = a.repCd;
     a.litters++;
-    for(var i=0;i<litter && counts[a.sid]+i<sp.cap;i++){
+    for(var i=0;i<litter && counts[a.sid]+i<capOf(a.sid);i++){
       var cx = a.x+randRange(-14,14), cy = a.y+randRange(-14,14);
       if(RIVER.on && RIVER.blocks[a.sid] && bankOf(cx, cy) !== bankOf(a.x, a.y)){ cx = a.x; cy = a.y; }
       var child = spawn(a.sid, cx, cy, a.gen+1, 0, mutate(mate ? recombine(a, mate) : a.genome, params.mutationRate));
@@ -985,7 +993,8 @@
      2-hour run: agoutis stuck at 1–2). Under mating they arrive as a small band. */
   function arrive(id, genomeFn){
     var n = params.sexual ? params.arrivalGroup : 1, x = rand()*world.w, y = rand()*world.h;
-    for(var k=0;k<n && (counts[id]||0) < SPECIES[id].cap;k++){
+    if(!params.predators && SPECIES[id].role==='predator') return;
+    for(var k=0;k<n && (counts[id]||0) < capOf(id);k++){
       var ax = clamp(x + randRange(-20,20), 0, world.w), ay = clamp(y + randRange(-20,20), 0, world.h);
       if(RIVER.on && RIVER.blocks[id] && bankOf(ax, ay) !== bankOf(x, y)){ ax = x; ay = y; }
       spawn(id, ax, ay, maxGeneration, 0.6, genomeFn());
@@ -1150,7 +1159,7 @@
       }
       if(worldMode!=='instinct' && SPECIES[id].role==='predator'){
         // boom marker with hysteresis: near the cap, then re-armed once well below it
-        var bm = BS[id].mark, cap = SPECIES[id].cap;
+        var bm = BS[id].mark, cap = capOf(id);
         if(!bm.boom && counts[id] >= cap*0.9){ bm.boom = true; speciesMark(id, 'boom'); }
         else if(bm.boom && counts[id] < cap*0.5) bm.boom = false;
       }
@@ -1216,6 +1225,7 @@
     for(var i=0;i<SPECIES_IDS.length;i++){
       var id=SPECIES_IDS[i], sp=SPECIES[id];
       var brainy = worldMode!=='instinct' && BRAIN_IDS.indexOf(id)>=0;
+      if(!params.predators && sp.role==='predator') continue;   // predator-removal control
       for(var j=0;j<sp.start;j++){
         var g = null;
         if(brainy){
@@ -1958,7 +1968,7 @@
     var id = document.getElementById('introSelect').value;
     var sp = SPECIES[id];
     var n = Math.max(4, Math.round(sp.start*0.25));
-    for(var i=0;i<n && (counts[id]||0)<sp.cap;i++){
+    for(var i=0;i<n && (counts[id]||0)<capOf(id);i++){
       spawn(id, rand()*world.w, rand()*world.h, maxGeneration, 0.65, arrivalGenome(id));
       recount();
     }
@@ -3089,8 +3099,8 @@
       var tag = document.querySelector('script[src*="vivarium.js"]');
       return { format:'vivarium-run', version:1, code: tag ? tag.getAttribute('src') : null,
                seed:simSeed, world:worldMode, t:+simClock.toFixed(3),
-               toggles:{ river:RIVER.on, sexual:params.sexual, traitCosts:params.traitCosts },
-               params:{ mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
+               toggles:{ river:RIVER.on, sexual:params.sexual, traitCosts:params.traitCosts, predators:params.predators },
+               params:{ capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
                hunt:Object.assign({}, HUNT) };
     },
     setPaused: function(v){ params.paused=v; },

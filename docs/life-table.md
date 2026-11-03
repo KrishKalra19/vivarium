@@ -25,13 +25,14 @@ Times are sim-seconds. Traits are given twice: the *expressed* value (after spec
 | `children` | offspring as either parent |
 | `kills`, `strikes` | successful and total lunges (predators) |
 | `scans` | number of 1 Hz scan samples the animal was alive for (≈ age) |
-| `scan_feed` … `scan_search` | scans spent in each ethogram state (see below); they sum to `scans` |
+| `scan_feed` … `scan_travel` | scans spent in each ethogram state (see below); they sum to `scans` |
 | `group_mean` | mean group size across its scans: conspecifics within 60 px, itself included |
 
 ## Ethogram (scan sampling, 1 Hz)
 Every sim-second each living animal is scored in exactly one state:
 - **feed**: head down eating (evolved-brain herbivores only; they can't watch while eating)
-- **vigilant**: head up while foraging, i.e. scanning (brain herbivores)
+- **vigilant**: head up and nearly still (<25% of top speed), i.e. a scan (brain herbivores). Before cycle 14 this included head-up movement.
+- **travel**: head up and moving (brain herbivores)
 - **forage**: moving and eating (instinct herbivores, which have no head-down choice)
 - **flee**: running from a predator
 - **chase**: predator moving at ≥60% of top speed and closing on its target (scored from motion, not intent)

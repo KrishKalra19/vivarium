@@ -56,34 +56,40 @@ def main():
     rows = list(csv.DictReader(open(os.path.join(out, 'vigilance.csv'))))
     data = collections.defaultdict(lambda: collections.defaultdict(dict))   # (cond, sp) -> rep -> g -> (feed, vig)
     for r in rows:
-        data[(r['condition'], r['species'])][r['replicate']][int(r['group_size'])] = (int(r['feed']), int(r['vigilant']))
+        t = int(r['travel']) if r.get('travel') not in (None, '') else 0
+        data[(r['condition'], r['species'])][r['replicate']][int(r['group_size'])] = (int(r['feed']), int(r['vigilant']), t)
 
     lines = [f"# Many-eyes analysis: {os.path.basename(out.rstrip('/'))}", "",
-             f"Vigilance = share of foraging scans (feed + vigilant; fleeing excluded) spent head-up. "
+             f"Vigilance = share of feed + vigilant scans spent vigilant (head up and nearly still; head-up travel and fleeing excluded). "
              f"Slope = change in that share per doubling of group size, fitted per replicate (weighted by scans, "
              f"group sizes with ≥{min_scans} scans), then averaged across replicates with a t-based 95% CI.", ""]
-    lines += ["| condition | species | reps | slope per doubling (pp) | 95% CI | reps with negative slope | "
+    lines += ["| condition | species | reps | slope per doubling (pp) | 95% CI | reps with negative slope | old head-up slope (pp) | "
               + " | ".join(f"g {a}–{b}" if a != b else f"g {a}" for a, b in BINS) + " |",
-              "|---|---|---|---|---|---|" + "---|"*len(BINS)]
+              "|---|---|---|---|---|---|---|" + "---|"*len(BINS)]
     for (cond, sp) in sorted(data):
         reps = data[(cond, sp)]
-        slopes, bins = [], [[] for _ in BINS]
+        slopes, old, bins = [], [], [[] for _ in BINS]
         for rep, by_g in reps.items():
-            pts = [(math.log2(g), v/(f+v), f+v) for g, (f, v) in by_g.items() if f+v >= min_scans]
+            pts = [(math.log2(g), v/(f+v), f+v) for g, (f, v, t) in by_g.items() if f+v >= min_scans]
             s = wls_slope(pts)
             if s is not None: slopes.append(s*100)
+            # the pre-cycle-14 definition: any head-up scan (vigilant + travel) out of all foraging scans
+            pts = [(math.log2(g), (v+t)/(f+v+t), f+v+t) for g, (f, v, t) in by_g.items() if f+v+t >= min_scans]
+            s = wls_slope(pts)
+            if s is not None: old.append(s*100)
             for i, (a, b) in enumerate(BINS):
-                f = sum(by_g.get(g, (0, 0))[0] for g in range(a, b+1)); v = sum(by_g.get(g, (0, 0))[1] for g in range(a, b+1))
+                f = sum(by_g.get(g, (0, 0, 0))[0] for g in range(a, b+1)); v = sum(by_g.get(g, (0, 0, 0))[1] for g in range(a, b+1))
                 if f+v >= min_scans: bins[i].append(v/(f+v)*100)
         m, lo, hi = mean_ci(slopes)
         neg = sum(1 for s in slopes if s < 0)
         ci = f"{lo:+.2f} to {hi:+.2f}" if lo is not None else "—"
+        om = mean_ci(old)[0]; ostr = f"{om:+.2f}" if om is not None else "—"
         cells = []
         for b in bins:
             bm, blo, bhi = mean_ci(b)
             cells.append("—" if bm is None else (f"{bm:.1f}%" + (f" ±{(bhi-bm):.1f}" if blo is not None else "")))
-        lines.append(f"| {cond} | {sp} | {len(slopes)} | {m:+.2f} | {ci} | {neg}/{len(slopes)} | " + " | ".join(cells) + " |"
-                     if m is not None else f"| {cond} | {sp} | 0 | — | — | — | " + " | ".join(cells) + " |")
+        lines.append(f"| {cond} | {sp} | {len(slopes)} | {m:+.2f} | {ci} | {neg}/{len(slopes)} | {ostr} | " + " | ".join(cells) + " |"
+                     if m is not None else f"| {cond} | {sp} | 0 | — | — | — | — | " + " | ".join(cells) + " |")
     lines += ["", "Reading it: a CI entirely below 0 means vigilance reliably falls as groups grow (the many-eyes "
               "prediction); entirely above 0 means it rises; a CI spanning 0 means these replicates can't tell. "
               "Bins show mean vigilance ± CI half-width across replicates.", ""]
