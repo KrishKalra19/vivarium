@@ -3,7 +3,7 @@
 ## TL;DR
 - Loop started 2026-11-02 (night). See `LOOP_PLAN.md` for the backlog.
 - **The overnight timer never fired:** the cloud container went idle and the in-session wakeup died with it. Since 11-02 afternoon the loop re-arms with a server-side reminder instead.
-- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5), sexual reproduction (6). Cycle 7: 2-hour long-run test plus a fix for recovery after a crash. Cycle 8: choosiness gene + Latin names. Cycle 9: trait costs. Cycle 10: bit-identical seeded runs. Cycle 11: life table CSV. Cycle 12: scan-sampled ethogram. **Next: experiment runner (JSON spec → replicates → tidy CSV + analysis).**
+- Done: harness (1), subspecies/clades (2), family tree (3), river barrier (4), time-lapse (5), sexual reproduction (6). Cycle 7: 2-hour long-run test plus a fix for recovery after a crash. Cycle 8: choosiness gene + Latin names. Cycle 9: trait costs. Cycle 10: bit-identical seeded runs. Cycle 11: life table CSV. Cycle 12: scan-sampled ethogram. Cycle 13: experiment runner + many-eyes pilot. **Next: fix the vigilance definition (stationary head-up only), then the real many-eyes experiment with controls.**
 - Screenshots to look at: `docs/loop/`
 - **Krish feedback** (write anything here or in chat; the next cycle reads it first):
   - 11-02: subspecies pace: no opinion, so keep the current settings.
@@ -122,3 +122,19 @@ Two 7200 sim-s runs, river on, seed 1, one with mating and one without (~18 min 
   - capybara 6% / 13% / 17% / 20% / 20%: **rises**
   - tapir 29% / 32% / 34% / 40%: **rises**
   Opposite patterns in small vs large herbivores. An obvious confound: groups may be bigger where predators are, or at fruit patches. That's exactly what the experiment runner plus replicates (next) has to sort out. Not a result yet.
+### 2026-11-03 02:45 UTC — cycle 13: experiment runner + many-eyes pilot (Phase 2 step 5)
+- **`tools/experiment.js`**: JSON spec (conditions × replicates × duration, paired seeds across conditions), runs in parallel (4 cores), resumes if interrupted, and writes tidy `runs.csv`, `populations.csv`, `budgets.csv`, `vigilance.csv` and `spec.json` (with code version). Harness gained `--set '{json}'` for parameter overrides. How-to: `docs/experiments.md`.
+- **`tools/analyze_vigilance.py`** (stdlib only): one weighted slope of vigilance vs log₂(group size) per replicate, then mean ± t-based 95% CI across replicates. The replicate is the unit of analysis, not the scan. Writes `report.md`.
+- **Pilot** (`experiments/many-eyes-pilot.json`: brains mode, trait costs on, 4 replicates × 900 sim-s, 4.5 min wall, 0 failures). Report: `experiments/out/many-eyes-pilot/report.md`.
+  | species | slope per doubling of group size | 95% CI | replicates negative |
+  |---|---|---|---|
+  | agouti | −1.16 pp | −1.69 to −0.63 | 4/4 |
+  | howler | −0.87 pp | −1.25 to −0.49 | 4/4 |
+  | capybara | +3.43 pp | +2.98 to +3.88 | 0/4 |
+  | tapir | +2.92 pp | +2.27 to +3.58 | 0/4 |
+- **Reproducibility check:** replicate 0 re-run standalone with different UI randomness gave the same fingerprint (`970b0258`).
+- **Why this is NOT a finding yet** (all three must be dealt with before the real experiment):
+  1. *Measurement validity.* "Vigilant" currently means head-up, which includes walking to food. In a crowded, food-depleted herd, more walking scores as more vigilance. Field ethology defines vigilance as a *stationary* head-up scan. Fix the ethogram first: vigilant = head-up and nearly still; head-up and moving = "travel".
+  2. *Crowding confound.* Capybara (750) and tapir (190) sit at their population caps in every replicate, so large groups there mean saturation and depleted food, not a chosen group size.
+  3. *Weak, uneven predation.* In brains mode harpies end at 0–8 and jaguars at 2–4 (pre-existing), so the predation that should drive vigilance mostly comes from ocelots.
+- Plan for the real experiment: fixed ethogram; a **predator-removal control condition** (vigilance shouldn't depend on group size without predators, so a slope that persists there is an artefact); 10+ replicates, ~1 h each; check the population caps.
