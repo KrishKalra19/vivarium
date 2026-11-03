@@ -1,0 +1,9 @@
+condition,replicate,seed,fingerprint,wall_s,sim_s,subspecies,page_errors,matings,hybrid_matings,rejected,inviable,final_agouti,final_howler,final_capybara,final_tapir,final_ocelot,final_harpy,final_jaguar,final_anaconda
+blind-no-alarm,0,1000,adf0cd72,824.9,2400,22,0,0,0,0,0,316,171,1200,277,53,4,5,3
+blind-no-alarm,1,1001,7c107893,904.2,2400,22,0,0,0,0,0,563,634,1200,283,9,7,3,3
+blind-no-alarm,2,1002,f4241607,885.7,2400,25,0,0,0,0,0,425,42,1200,304,20,16,3,3
+blind-no-alarm,3,1003,2fc662e3,1069.0,2400,16,0,0,0,0,0,634,1002,1200,262,50,2,3,4
+blind-graded-1,0,1000,89e393de,2124.8,2400,20,0,0,0,0,0,513,639,1200,240,79,5,6,3
+blind-graded-1,1,1001,c4e37825,1823.2,2400,15,0,0,0,0,0,494,814,1200,268,43,42,4,6
+blind-graded-1,2,1002,63999a81,1619.5,2400,16,0,0,0,0,0,515,315,1200,304,31,7,3,2
+blind-graded-1,3,1003,d1124c2,1244.7,2400,15,0,0,0,0,0,263,214,1200,274,56,5,3,3

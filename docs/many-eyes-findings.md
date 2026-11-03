@@ -1,6 +1,6 @@
 # Does an evolved many-eyes effect emerge in Vivarium?
 
-*A pilot series, cycles 13–16, 20 and 25 (Nov 2026). Methods note plus results; about 10 minutes to read.*
+*A pilot series, cycles 13–16, 20, 25–28 (Nov 2026). Methods note plus results; about 10 minutes to read.*
 
 ## Question
 
@@ -38,6 +38,7 @@ Each pilot changed the interpretation, and each time for a reason we measured.
 | 4 (cycle 16) | **alarm contagion**: a herbivore that sees a fleeing conspecific perceives its predator | Alarm **roughly halves vigilance at every group size** (agouti 1.4% → 0.8%, howler 1.7% → 0.9%) and **protects howlers** (0/4 population crashes vs 2/4). But there is **still no group-size gradient**: every food-adjusted slope's interval spans 0. |
 | 5 (cycle 20) | **graded alarm**: each fleeing detector passes the warning at rate λ, so k detectors warn k× faster (λ = 1 and 4 per s) | **Still no gradient**: all food-adjusted intervals span 0 at both rates (agouti −0.17, −0.44 to +0.09 at λ = 4; howler −0.03, −0.15 to +0.09 at λ = 1). Howlers again avoid crashes (120–999 at the end vs 3–356 without alarm). |
 | 6 (cycle 25) | **head-down detection 40% → 20%** ("raise the price of not looking"), no alarm vs graded alarm λ = 1 | **The floor didn't lift**: vigilance stays at 1–3%, and animals simply detect, and flee, less (agouti flee 3.5–4.7% vs 5.7–8.0%). One hint: agoutis with graded alarm show a negative food-adjusted slope whose interval excludes 0 (−0.23, −0.44 to −0.03, 4/4 replicates). But it's 1 of 8 tests, and agoutis without predators showed a similar slope in pilot 3, so it needed a control. **Checked in cycle 26: it isn't many-eyes.** With no predators the head-down setting can't matter, and a re-run proved pilot 3's no-predator runs are bit-identical at 20%. Against that control, predators + alarm make the agouti slope *shallower* in 4/4 seeds (paired +0.22, +0.09 to +0.35; howler +0.59, 4/4). |
+| 7 (cycle 28) | **blind feeding**: head-down detection 0, so the only defences are scanning or warnings; no alarm vs graded alarm | **Vigilance still doesn't rise** (0.7–2.6%; agouti 1.65% without alarm, 0.67% with). Paired against the no-predator control, no condition shows a steeper decline (agouti no alarm +0.03, −0.16 to +0.23; graded alarm +0.35, +0.26 to +0.45, i.e. *shallower* in 4/4 seeds). |
 
 ![Vigilance by group size](figures/many-eyes.svg)
 
@@ -76,7 +77,7 @@ Each pilot changed the interpretation, and each time for a reason we measured.
 
 ## Next steps
 
-1b. **Blind feeding** (head-down detection 0), with no alarm vs graded alarm; the cycle 27 probe shows why every earlier setting let reactive vigilance replace scanning.
+1b. **Is vigilance evolving at all?** Blind feeding (pilot 7) didn't lift it either, so the remaining question is evolvability: run blind feeding for 2 h with the life table on and compare vigilance across birth cohorts. A flat trend means selection can't find more scanning in this network/mutation regime, rather than that it doesn't pay.
 2. **Power.** 10+ replicates and ~1 h runs, after sizing from these pilots' variance.
 3. **The no-predator residual.** Probe the evolved networks' response to group-size inputs directly (hold everything else fixed and vary the kin and crowding inputs).
 
