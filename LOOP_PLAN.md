@@ -58,4 +58,6 @@ Order (Krish 11-02: research first, then teaching):
 3. ~~Network probe~~: done in cycle 27 (reactive, not proactive).
 4. ~~Pilot 7 blind feeding~~: done in cycle 28, floor holds.
 5. ~~Evolvability~~: done in cycle 29. Vigilance evolves *down*; scanning protects but costs more intake than it saves.
-6. **Scan while chewing**: toggleable `params.scanIntake` (share of grazing intake kept while head-up and still; default 0). Pilot 8: blind feeding at 0 vs 0.5; does vigilance evolve up? If so, many-eyes test on top.
+6. ~~Scan while chewing~~ (cycle 30): vigilance still fell, but per-animal vigilance turned out food-confounded.
+7. **Food-conditioned selection** (cycle 31): re-measure cohort trend + selection on vigilance only where there's food.
+   Old item 6 text: toggleable `params.scanIntake` (share of grazing intake kept while head-up and still; default 0). Pilot 8: blind feeding at 0 vs 0.5; does vigilance evolve up? If so, many-eyes test on top.
