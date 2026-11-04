@@ -486,3 +486,6 @@ Scripted real clicks, typing and downloads on real frames, in Playwright Chromiu
 
   A first draft of the results caption claimed that trapping where animals are biases estimates low. The data don't show that, so it was rewritten to report what was measured.
 - `class.html` pools mark–recapture files too (estimate ÷ truth by setting, students' error). Handout `docs/handouts/4-mark-recapture.md`, with answers based on the measured numbers. Quick-start, guide, README and summary updated. No page errors; no simulation code touched. fieldstudy v14.
+### 2026-11-04 21:55 UTC — [cloud] cycle 48: GUD vs local predation risk within one world (launched)
+- The patch log now records, at each voluntary quit, how many predators are within 200 px (binned 0 / 1 / 2+), with quit counts and summed GUD per bin. Observational only: default fingerprint `7ab26d53` unchanged. Code v45.
+- Runs: brains, predators on, growth 1.0, 30 min (measured from 10 min), seeds 1000–1003 → `runs/c48/`. Brown's prediction, tested *spatially* this time (cycle 34 compared worlds): animals give up at higher food where predators are near. Paired within run: quit-GUD with 1+ predators near vs none.

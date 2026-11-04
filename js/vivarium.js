@@ -633,13 +633,13 @@
      cell each time a feeding animal moves on to another cell ('moves', moveGud, moveHist).
      Aggregated per species x lineage: counts, sums, and a GUD histogram (bins of
      GUD_BIN), plus the habitat-wide intake rate (energy per animal-second) for comparison. */
-  var BOUT_GAP = 2, GUD_BIN = 0.02, GUD_BINS = 50;
+  var BOUT_GAP = 2, GUD_BIN = 0.02, GUD_BINS = 50, RISK_R = 200;
   var patches = null;
   function newPatches(){ return { from:Math.max(simClock, params.ethoFrom), gap:BOUT_GAP, gudBin:GUD_BIN, by:{} }; }
   function patchCell(sid, lin){
     var k = sid+':'+lin, c = patches.by[k];
     if(!c) c = patches.by[k] = { quit:0, fled:0, died:0, dur:0, food0:0, gud:0, eaten:0, hist:new Array(GUD_BINS).fill(0),
-                                 animalSecs:0, energy:0, moves:0, moveGud:0, moveHist:new Array(GUD_BINS).fill(0), hereSum:0, onFood:0, speedSum:0 };
+                                 animalSecs:0, energy:0, moves:0, moveGud:0, moveHist:new Array(GUD_BINS).fill(0), hereSum:0, onFood:0, speedSum:0, riskQ:[0,0,0], riskGud:[0,0,0] };
     return c;
   }
   function boutEat(a, sp, cell, avail, got){
@@ -660,6 +660,10 @@
     if(how !== 'quit'){ if(b.last - b.t0 >= 1) c[how]++; return; }   // sub-second bouts cut by fleeing aren't bouts
     var gud = foodAt(sp, b.cell);
     c.quit++; c.dur += b.last - b.t0; c.food0 += b.food0; c.gud += gud; c.eaten += b.eaten;
+    // Local risk at the moment of quitting: predators within RISK_R px (0, 1, 2+), for comparing
+    // giving-up densities in safe vs risky places within one world (Brown 1988).
+    var np = 0; forNearIn(predBuckets, a.x, a.y, RISK_R, function(o){ if(!o.dead){ var dx = o.x-a.x, dy = o.y-a.y; if(dx*dx+dy*dy <= RISK_R*RISK_R) np++; } });
+    var rk = Math.min(2, np); c.riskQ[rk]++; c.riskGud[rk] += gud;
     // How did it end? Food under the animal now (it may have walked on), whether that's still
     // grazeable (>= first food edge: it stopped on food) or not (it walked off), and its speed.
     var here = foodAt(sp, cellAt(a.x, a.y));
