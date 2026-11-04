@@ -2235,12 +2235,19 @@
     logEvent({ text: params.traitCosts ? 'Trait costs on: speed and keen senses burn energy, thrifty metabolisms digest slowly, big bodies mature late. Applies to animals born from now on.'
                                        : 'Trait costs off for animals born from now on.' });
   });
-  function download(name, text, type){
-    var url = URL.createObjectURL(new Blob([text], { type:type }));
-    var link = document.createElement('a'); link.href = url; link.download = name;
-    document.body.appendChild(link); link.click(); link.remove();
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  // On a shared claude.ai page, page-started downloads are blocked; the viewer's "downloads" capability
+  // asks the viewer to confirm the save instead. Anywhere else, a normal download link.
+  function saveFile(name, data, type){
+    function plain(){
+      var url = URL.createObjectURL(new Blob([data], { type:type }));
+      var link = document.createElement('a'); link.href = url; link.download = name;
+      document.body.appendChild(link); link.click(); link.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    }
+    var c = window.claude;
+    if(c && typeof c.use === 'function') c.use('downloads').then(function(d){ if(d) d.save({ filename:name, data:data }).catch(function(){}); else plain(); }, plain);
+    else plain();
   }
+  function download(name, text, type){ saveFile(name, text, type); }
   function syncLifeUI(){
     var b = document.getElementById('lifeRecBtn'), sub = document.getElementById('lifeRecSub');
     if(!b) return;
@@ -2312,12 +2319,7 @@
   document.getElementById('exportBrains').addEventListener('click', function(){
     var data = packBrains();
     if(!data){ note('No brain agoutis to export yet. Pick Mixed or Brains first.'); return; }
-    var blob = new Blob([JSON.stringify(data)], { type:'application/json' });
-    var link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'agouti-brains-gen'+data.generation+'.json';
-    document.body.appendChild(link); link.click(); link.remove();
-    setTimeout(function(){ URL.revokeObjectURL(link.href); }, 2000);
+    download('agouti-brains-gen'+data.generation+'.json', JSON.stringify(data), 'application/json');
   });
   document.getElementById('importBrains').addEventListener('click', function(){ document.getElementById('brainFile').click(); });
   document.getElementById('brainFile').addEventListener('change', function(){

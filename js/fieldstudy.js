@@ -71,11 +71,19 @@
   /* CSV downloads. Focal, scan and tray rows carry the run id, seed and the method's settings, so an
      instructor can stack a class's files; the run id keeps one student's trial apart from another's. */
   function runId(){ return Date.now().toString(36) + Math.floor(Math.random()*1296).toString(36); }
-  function downloadCsv(name, csv){
-    var url = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
-    var link = document.createElement('a'); link.href = url; link.download = name;
-    document.body.appendChild(link); link.click(); link.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  // On a shared claude.ai page, page-started downloads are blocked; the viewer's "downloads" capability
+  // asks the viewer to confirm the save instead. Anywhere else, a normal download link.
+  function saveFile(name, data, type){
+    function plain(){
+      var url = URL.createObjectURL(new Blob([data], { type:type }));
+      var link = document.createElement('a'); link.href = url; link.download = name;
+      document.body.appendChild(link); link.click(); link.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    }
+    var c = window.claude;
+    if(c && typeof c.use === 'function') c.use('downloads').then(function(d){ if(d) d.save({ filename:name, data:data }).catch(function(){}); else plain(); }, plain);
+    else plain();
   }
+  function downloadCsv(name, csv){ saveFile(name, csv, 'text/csv'); }
   function csvOf(head, rows){ return head.join(',') + '\n' + rows.map(function(r){ return r.join(','); }).join('\n') + '\n'; }
   function csvButton(label, name, csv){
     var b = document.createElement('button');

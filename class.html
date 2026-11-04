@@ -49,6 +49,18 @@
 <script>
 (function(){
   "use strict";
+  // On a shared claude.ai page, page-started downloads are blocked; the viewer's "downloads" capability
+  // asks the viewer to confirm the save instead. Anywhere else, a normal download link.
+  function saveFile(name, data, type){
+    function plain(){
+      var url = URL.createObjectURL(new Blob([data], { type:type }));
+      var link = document.createElement('a'); link.href = url; link.download = name;
+      document.body.appendChild(link); link.click(); link.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    }
+    var c = window.claude;
+    if(c && typeof c.use === 'function') c.use('downloads').then(function(d){ if(d) d.save({ filename:name, data:data }).catch(function(){}); else plain(); }, plain);
+    else plain();
+  }
   var rows = { focal:[], scan:[], trays:[] }, seen = {}, log = [];
   var $ = function(id){ return document.getElementById(id); };
   var T = [12.71,4.30,3.18,2.78,2.57,2.45,2.36,2.31,2.26,2.23,2.20,2.18,2.16,2.14,2.13,2.12,2.11,2.10,2.09,2.09];
@@ -194,8 +206,7 @@
     $('out').innerHTML = h || '<p class="muted">No Field-tab rows found in those files.</p>';
     Array.prototype.forEach.call(document.querySelectorAll('button[data-csv]'), function(b){
       b.addEventListener('click', function(){
-        var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([decodeURIComponent(b.getAttribute('data-csv'))], { type:'text/csv' }));
-        a.download = b.getAttribute('data-name'); document.body.appendChild(a); a.click(); a.remove();
+        saveFile(b.getAttribute('data-name'), decodeURIComponent(b.getAttribute('data-csv')), 'text/csv');
       });
     });
   }
