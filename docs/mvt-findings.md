@@ -1,6 +1,6 @@
 # Do evolved foragers obey the marginal value theorem?
 
-*Pilot, cycle 32 (Nov 2026). About 5 minutes to read.*
+*Pilot plus a transplant test, cycles 32–33 (Nov 2026). About 6 minutes to read.*
 
 ## Question
 
@@ -38,24 +38,47 @@ Quit GUD (food left when a bout ends), mean of 2 seeds:
 - **Move GUDs rise for both lineages** (e.g. agouti instinct 0.24 → 0.32). That's what passive drift through a richer landscape gives. Only the active quit decision separates the lineages.
 - Brains also quit at higher food than Instinct at every growth level: they leave patches that the rule would keep grazing.
 
-Raw output: `experiments/out/mvt-pilot-c32/` (`gud.txt`, plus each run's `patches.json` and manifest).
+Raw output: `experiments/out/mvt-pilot-c32/` and `experiments/out/mvt-transplant-c33/` (`gud.txt`, plus each run's `patches.json` and manifest).
+
+### Plasticity or evolution? A transplant test (cycle 33)
+Cycle 32's populations evolved for 30 min at their own growth level, so the GUD differences could be either:
+- the same kind of network reacting to a richer landscape (behavioural plasticity, the mechanism MVT describes), or
+- networks that evolved differently in each habitat.
+
+**Design:**
+- Every world evolves at growth 1.0 for 30 min.
+- At 30 min, three things happen at once: growth switches to 0.6, 1.0 or 1.6; the standing food is rescaled to that level's equilibrium (`params.foliageTo`); and **mutation stops**.
+- GUDs are measured over the next 1–3 min, about one agouti generation, so selection has almost no time to act.
+
+Seeds 1000 and 1001, via `--at`.
+
+| brains, quit GUD at growth 0.6 / 1.0 / 1.6 | transplanted (all evolved at 1.0) | evolved in place (cycle 32) |
+|---|---|---|
+| agouti | 0.139 / 0.173 / 0.243 | 0.127 / 0.159 / 0.208 |
+| capybara | 0.241 / 0.293 / 0.458 | 0.246 / 0.285 / 0.366 |
+| howler | 0.136 / 0.167 / 0.202 | 0.145 / 0.172 / 0.188 |
+| tapir | 0.242 / 0.416 / 0.500 | — / 0.324 / 0.405 |
+
+**The response is plastic.** Animals that all evolved in the same habitat shift their GUDs within two minutes of the switch, in every seed × species series with enough bouts (7/7 rise monotonically). The shift is as large as the between-habitat differences in cycle 32, or larger. So cycle 32's pattern needs no evolutionary divergence: the evolved networks carry a general rule that makes them quit at higher food when the landscape is richer, which is what MVT predicts a well-designed forager should do. (The 0.6 landscape overshot to 0.31 mean foliage rather than 0.356, because grazing continued after the rescale; that strengthens the low-growth contrast slightly but doesn't change the order.)
+
+*An earlier version with births switched off failed: lifespans are so short that every population emptied within ~2–3 min, before the window opened. That run is kept in `experiments/out/mvt-transplant-c33/births-off-failed/`.*
 
 ## Interpretation
 
-Evolved foragers behave qualitatively as the marginal value theorem predicts, and the fixed-rule lineage behaves as a rule of thumb that ignores habitat quality should. This is the first positive, controlled result from Vivarium's research line, and it is a classic field test (GUDs across habitats) run on agents nobody told about the theorem.
+Evolved foragers behave qualitatively as the marginal value theorem predicts, and the fixed-rule lineage behaves as a rule of thumb that ignores habitat quality should. The transplant test shows the response is behavioural: the networks adjust within minutes, rather than having evolved apart. This is the first positive, controlled result from Vivarium's research line, and it is a classic field test (GUDs across habitats) run on agents nobody told about the theorem.
 
 ## Limitations
 
 - **2 replicates per level**: a pilot. The direction is consistent (8/8), but the effect sizes need more seeds.
 - **Qualitative only.** MVT makes a quantitative prediction (leave when marginal intake = long-run average intake), and this pilot doesn't test it. Doing so needs each bout's marginal intake rate at leaving, compared with the habitat average including travel.
-- **Plastic or evolved?** 30 min of evolution under each growth level: the rise could be the same networks reacting to richer surroundings (plasticity, which is what MVT is about), or networks evolving differently in each habitat. A transplant test can separate these: evolve at one growth level, then switch it.
+- **What the networks respond to is unknown.** They see local food, but the long-run habitat average isn't an input, so they must be inferring it from local cues (e.g. food in neighbouring cells). A probe like the one in `tools/probe-brains.js` could test which input drives the quit decision.
 - **Predators off.** With predators, bouts mostly end by fleeing (cycle 32 first look), so this is foraging in a predator-free world. GUDs under predation risk are their own classic topic (Brown 1988: GUDs rise with risk).
 - The "patch" is a 20-px cell in a continuous landscape, not a discrete patch with travel between patches, so the travel-time prediction can't be tested yet.
 
 ## Next steps
 
 1. **More seeds** (6+) at the same three levels, to size the effect properly.
-2. **Transplant test:** evolve at growth 1.0, then switch to 0.6 or 1.6 and measure GUDs in the first minutes. If they shift immediately, the response is behavioural plasticity, the MVT mechanism.
+2. ~~Transplant test~~: done (cycle 33): plastic. Next: probe which inputs drive the quit decision.
 3. **Predation risk:** GUD with predators on vs off, using only bouts that end by choice. Brown's prediction: higher GUDs where risk is higher.
 4. **Quantitative MVT:** log the intake rate at leaving and compare it with the habitat's long-run average.
 

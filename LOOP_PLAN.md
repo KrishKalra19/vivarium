@@ -61,5 +61,5 @@ Order (Krish 11-02: research first, then teaching):
 6. ~~Scan while chewing~~ (cycle 30): vigilance still fell, but per-animal vigilance turned out food-confounded.
 7. ~~Food-conditioned selection~~ (cycle 31): still negative, not food-driven. Many-eyes thread closed (robust null).
 8. ~~Marginal value theorem pilot~~ (cycle 32): positive, see docs/mvt-findings.md.
-9. **MVT follow-ups**: 6+ seeds; transplant test (plasticity vs evolution); GUD under predation risk (Brown 1988); quantitative leave-rate vs habitat average.
+9. **MVT follow-ups**: ~~transplant test~~ (cycle 33: plastic); probe the quit decision's inputs; 6+ seeds; GUD under predation risk (Brown 1988); quantitative leave-rate vs habitat average.
    Old item 6 text: toggleable `params.scanIntake` (share of grazing intake kept while head-up and still; default 0). Pilot 8: blind feeding at 0 vs 0.5; does vigilance evolve up? If so, many-eyes test on top.
