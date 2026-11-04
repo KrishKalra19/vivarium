@@ -450,3 +450,12 @@ Scripted real clicks, typing and downloads on real frames, in Playwright Chromiu
 - **Verified** with real clicks and real downloads in Playwright Chromium: desktop (howler, 40 samples) and iPhone 13 emulation (agouti, 10). Every row matches `FieldStudy.last` and the focal id at its prompt, agreement recomputed from the CSV equals the page's (0.225 and 0.300), and both runs switched focal once. No page errors.
 - Regression: `7ab26d53` (`js/vivarium.js` untouched). `tools/vivarium-run.js` needs Playwright on `NODE_PATH` on this machine.
 - Not checked: Safari, Firefox or a physical phone.
+### 2026-11-04 09:10 UTC — [cloud] Phase 6 (trial-readiness): class results page
+- Krish asked whether this could really be used for education. My answer: credible for teaching *field methods*, but untested with a real student. Plan: get it ready for one real trial (instructor quick-start, class results page, accessibility pass) rather than add features.
+- New **`class.html`**: a standalone page, no install, nothing uploaded. Drop in students' Field CSVs (any mix of focal, scan and trays) to get the class's pooled results:
+  - **focal:** mean agreement and κ with 95% CIs, the whole-class confusion table, per student;
+  - **scan:** counting error vs placement error across students, and why pooling removes one but not the other;
+  - **trays:** rich − poor GUD across *trials* (the unit of analysis), trials positive, a class verdict, the predictions made.
+  - It also skips duplicate files, warns when files come from different seeds, and offers combined CSV downloads.
+- **Verified end to end:** drove the real app from a class link (`?seed=1234&mode=brains#field`), with scripted students (focal: perfect, 30%-noisy and random; scan: exact and off-by-one; 3 tray trials), saved their real CSV downloads and loaded them through the page's file picker. Every headline number matches an independent Python recomputation (agreement 57%, κ 0.46, counting error +0.8 pp, placement −1.4 pp, tray difference +0.154). Re-adding a file was skipped. No page errors; 390 px dark mode fits.
+- Fixed while testing: CIs ran outside the possible range with 3 students (clamped); the tray verdict said "trials disagreeing" when all 3 agreed in sign (reworded); the load message showed only the last batch.
