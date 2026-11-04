@@ -2,7 +2,7 @@
 <rect width="960" height="446" fill="#fff"/>
 <text x="70" y="24" font-size="15" font-weight="600">Food left behind when foragers quit, poor vs rich habitat</text>
 <text x="70" y="42" fill="#555">Quit giving-up density (GUD). Evolved brains: thin lines = single seeds, thick = mean ± 95% CI (6 seeds).</text>
-<text x="70" y="58" fill="#555">Dashed grey: unevolved seed brains (2 seeds; thin = each seed). Brains mode, predators off, measured 10–30 sim-min.</text>
+<text x="70" y="58" fill="#555">Dashed grey: unevolved seed brains (6 seeds; thin = each seed). Brains mode, predators off, measured 10–30 sim-min.</text>
 <text x="70" y="88" font-weight="600">Agouti</text>
 <line x1="70" x2="320" y1="356.0" y2="356.0" stroke="#eee"/>
 <text x="64" y="360.0" text-anchor="end" fill="#666">0.0</text>
@@ -32,9 +32,13 @@
 <circle cx="270.0" cy="249.6" r="4.5" fill="#2a7f9e"/>
 <line x1="120.0" y1="301.5" x2="270.0" y2="304.3" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
 <line x1="120.0" y1="300.0" x2="270.0" y2="184.8" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
-<line x1="120.0" y1="300.7" x2="270.0" y2="244.5" stroke="#8a8f98" stroke-width="2.5" stroke-dasharray="6 4"/>
-<circle cx="120.0" cy="300.7" r="4" fill="#fff" stroke="#8a8f98" stroke-width="2"/>
-<circle cx="270.0" cy="244.5" r="4" fill="#fff" stroke="#8a8f98" stroke-width="2"/>
+<line x1="120.0" y1="299.7" x2="270.0" y2="305.3" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
+<line x1="120.0" y1="303.6" x2="270.0" y2="303.6" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
+<line x1="120.0" y1="286.7" x2="270.0" y2="142.4" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
+<line x1="120.0" y1="306.4" x2="270.0" y2="305.5" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
+<line x1="120.0" y1="299.7" x2="270.0" y2="257.6" stroke="#8a8f98" stroke-width="2.5" stroke-dasharray="6 4"/>
+<circle cx="120.0" cy="299.7" r="4" fill="#fff" stroke="#8a8f98" stroke-width="2"/>
+<circle cx="270.0" cy="257.6" r="4" fill="#fff" stroke="#8a8f98" stroke-width="2"/>
 <text x="380" y="88" font-weight="600">Howler</text>
 <line x1="380" x2="630" y1="356.0" y2="356.0" stroke="#eee"/>
 <text x="374" y="360.0" text-anchor="end" fill="#666">0.0</text>
@@ -64,9 +68,13 @@
 <circle cx="580.0" cy="243.5" r="4.5" fill="#2a7f9e"/>
 <line x1="430.0" y1="294.8" x2="580.0" y2="292.4" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
 <line x1="430.0" y1="305.9" x2="580.0" y2="302.9" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
-<line x1="430.0" y1="300.4" x2="580.0" y2="297.6" stroke="#8a8f98" stroke-width="2.5" stroke-dasharray="6 4"/>
-<circle cx="430.0" cy="300.4" r="4" fill="#fff" stroke="#8a8f98" stroke-width="2"/>
-<circle cx="580.0" cy="297.6" r="4" fill="#fff" stroke="#8a8f98" stroke-width="2"/>
+<line x1="430.0" y1="299.0" x2="580.0" y2="301.5" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
+<line x1="430.0" y1="294.3" x2="580.0" y2="302.7" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
+<line x1="430.0" y1="306.3" x2="580.0" y2="309.3" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
+<line x1="430.0" y1="287.1" x2="580.0" y2="305.7" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
+<line x1="430.0" y1="297.9" x2="580.0" y2="302.4" stroke="#8a8f98" stroke-width="2.5" stroke-dasharray="6 4"/>
+<circle cx="430.0" cy="297.9" r="4" fill="#fff" stroke="#8a8f98" stroke-width="2"/>
+<circle cx="580.0" cy="302.4" r="4" fill="#fff" stroke="#8a8f98" stroke-width="2"/>
 <text x="690" y="88" font-weight="600">Capybara</text>
 <line x1="690" x2="940" y1="356.0" y2="356.0" stroke="#eee"/>
 <text x="684" y="360.0" text-anchor="end" fill="#666">0.0</text>
@@ -96,9 +104,13 @@
 <circle cx="890.0" cy="142.3" r="4.5" fill="#2a7f9e"/>
 <line x1="740.0" y1="271.2" x2="890.0" y2="247.2" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
 <line x1="740.0" y1="261.3" x2="890.0" y2="263.7" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
-<line x1="740.0" y1="266.2" x2="890.0" y2="255.4" stroke="#8a8f98" stroke-width="2.5" stroke-dasharray="6 4"/>
-<circle cx="740.0" cy="266.2" r="4" fill="#fff" stroke="#8a8f98" stroke-width="2"/>
-<circle cx="890.0" cy="255.4" r="4" fill="#fff" stroke="#8a8f98" stroke-width="2"/>
+<line x1="740.0" y1="247.9" x2="890.0" y2="120.4" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
+<line x1="740.0" y1="263.1" x2="890.0" y2="86.5" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
+<line x1="740.0" y1="276.2" x2="890.0" y2="257.1" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
+<line x1="740.0" y1="257.8" x2="890.0" y2="216.6" stroke="#8a8f98" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="3 3"/>
+<line x1="740.0" y1="262.9" x2="890.0" y2="198.6" stroke="#8a8f98" stroke-width="2.5" stroke-dasharray="6 4"/>
+<circle cx="740.0" cy="262.9" r="4" fill="#fff" stroke="#8a8f98" stroke-width="2"/>
+<circle cx="890.0" cy="198.6" r="4" fill="#fff" stroke="#8a8f98" stroke-width="2"/>
 <line x1="70" x2="98" y1="424" y2="424" stroke="#2a7f9e" stroke-width="3"/><text x="106" y="428">evolved brains</text>
 <line x1="230" x2="258" y1="424" y2="424" stroke="#8a8f98" stroke-width="2.5" stroke-dasharray="6 4"/><text x="266" y="428">unevolved seed brains (no mutation)</text>
 </svg>

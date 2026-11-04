@@ -6,6 +6,7 @@ Reads committed patch logs only:
   evolved   experiments/out/mvt-quit-context-c40/m0.07-*  (seeds 1000, 1001)
             experiments/out/mvt-replication-c44/g*        (seeds 1002-1005)
   unevolved experiments/out/mvt-quit-context-c40/m0-*     (seeds 1000, 1001; identical seed brains, no mutation)
+            experiments/out/mvt-null-replication-c50/g*      (seeds 1002-1005)
 Brains mode, predators off, growth 0.6 vs 1.6, measured 10-30 sim-min. Quit GUD = food left where a
 voluntary feeding bout ended; cells with fewer than 20 quits are skipped. Thin lines are single
 seeds; the thick line is the mean with 95% t intervals. Hand-written SVG, stdlib only.
@@ -42,14 +43,14 @@ def series(runs, sp):
 
 def main():
     evolved = load('mvt-quit-context-c40/m0.07-*-patches.json'); evolved.update(load('mvt-replication-c44/g*-patches.json'))
-    null = load('mvt-quit-context-c40/m0-*-patches.json')
+    null = load('mvt-quit-context-c40/m0-*-patches.json'); null.update(load('mvt-null-replication-c50/g*-patches.json'))
     W, H, PW, PH, L, T0 = 960, 446, 250, 260, 70, 86
     ymax = 0.5
     svg = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" font-family="system-ui, sans-serif" font-size="12">',
            f'<rect width="{W}" height="{H}" fill="#fff"/>',
            f'<text x="{L}" y="24" font-size="15" font-weight="600">Food left behind when foragers quit, poor vs rich habitat</text>',
            f'<text x="{L}" y="42" fill="#555">Quit giving-up density (GUD). Evolved brains: thin lines = single seeds, thick = mean ± 95% CI (6 seeds).</text>',
-           f'<text x="{L}" y="58" fill="#555">Dashed grey: unevolved seed brains (2 seeds; thin = each seed). Brains mode, predators off, measured 10–30 sim-min.</text>']
+           f'<text x="{L}" y="58" fill="#555">Dashed grey: unevolved seed brains (6 seeds; thin = each seed). Brains mode, predators off, measured 10–30 sim-min.</text>']
     for p, (sp, title) in enumerate(SPECIES):
         x0 = L + p*(PW + 60); y0 = T0 + 10
         X = lambda i: x0 + 50 + i*(PW - 100)
