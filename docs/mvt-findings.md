@@ -1,6 +1,6 @@
 # Do evolved foragers obey the marginal value theorem?
 
-*Pilot, transplant test and a predation-risk test, cycles 32–34 (Nov 2026). About 7 minutes to read.*
+*Pilot, transplant, predation-risk, network probe and null-model tests, cycles 32–36 (Nov 2026). About 9 minutes to read.*
 
 ## Question
 
@@ -38,7 +38,7 @@ Quit GUD (food left when a bout ends), mean of 2 seeds:
 - **Move GUDs rise for both lineages** (e.g. agouti instinct 0.24 → 0.32). That's what passive drift through a richer landscape gives. Only the active quit decision separates the lineages.
 - Brains also quit at higher food than Instinct at every growth level: they leave patches that the rule would keep grazing.
 
-Raw output: `experiments/out/mvt-pilot-c32/`, `experiments/out/mvt-transplant-c33/` and `experiments/out/mvt-risk-c34/` (`gud.txt`, plus each run's `patches.json` and manifest).
+Raw output: `experiments/out/mvt-pilot-c32/`, `mvt-transplant-c33/`, `mvt-risk-c34/`, `quit-probe-c35/`, `mvt-null-c36/` (`gud.txt`, plus each run's `patches.json` and manifest).
 
 ### Plasticity or evolution? A transplant test (cycle 33)
 Cycle 32's populations evolved for 30 min at their own growth level, so the GUD differences could be either:
@@ -78,19 +78,48 @@ Brown (1988) predicts that foragers give up at **higher** food where predation r
 - **Why the absence fits:** the cycle 27 network probe showed these brains are *reactive*. They respond to a predator they can sense, but nothing in them represents background risk, so there's nothing that could raise a quitting threshold.
 - **Measurement caution:** with predators on, only 2–11% of bouts end voluntarily; the rest end in flight. Voluntary quits are therefore a sample of moments when no predator was near, which biases this test against finding a risk effect. Field GUD trays have the same problem in reverse: they record food left but not why the forager left.
 
+### What drives the quit decision? (cycles 35–36)
+**Network probe** (`tools/probe-quit.js`, growth 0.6 / 1.0 / 1.6, seed 1000). For every evolved herbivore, its actual inputs were kept, threat removed, and "food here" swept from 0 to 1 to find its **grazing threshold**: the food underfoot at which it puts its head down. The sweep was repeated with "food pull" (the best food it can see nearby) at 0 / 0.5 / 1, and with energy at 0.3 / 0.6 / 0.9.
+- Thresholds are low (medians 0.04–0.20) and barely move: ±0.04 with visible food (no consistent direction), ±0.02 with energy.
+- They also sit below the measured GUDs.
+- So the GUD response isn't a threshold that compares the patch with visible alternatives, or with hunger.
+
+**Is it just landscape mechanics?** Animals graze while drifting, and a bout ends when they walk onto poor ground, so in a richer landscape the cell they last ate from may simply hold more food. *(The Instinct control can't rule this out: Instinct animals eat whenever any food is present, so their bouts end only on bare ground, a different measurement path.)*
+
+**Null model** (cycle 36). Every animal runs the identical, never-evolved hand-wired seed brain (`mutationRate` 0 from the start; headless founders are exactly the seed brain), growth 0.6 vs 1.6, seeds 1000 / 1001:
+
+| quit GUD, growth 0.6 → 1.6 | unevolved seed brains | evolved brains (cycle 32) |
+|---|---|---|
+| agouti | 0.105 → 0.099 (s1000), 0.108 → 0.329 (s1001) | 0.127 → 0.208 (both seeds rise) |
+| capybara | 0.173 → 0.193 (s1001 falls) | 0.246 → 0.366 |
+| howler | 0.107 → 0.112 | 0.145 → 0.188 |
+| tapir | — → 0.227 | — → 0.405 |
+
+- **There is a mechanical component, but it's small and inconsistent:** +0.005 for howlers, +0.02 for capybaras (one seed falls), and agoutis flat in one seed with an unexplained jump in the other.
+- **The evolved response is several times larger and rises in every seed.** So evolution added something real on top of the mechanics.
+- Visible food and energy are ruled out as the cue. The leading candidate is **density**: richer habitats hold more animals, and the networks see kin proximity and crowding. Crowding as a cue to habitat quality would tie this to competition, as in ideal-free-distribution and interference models. Not yet tested.
+
 ## Interpretation
 
-Evolved foragers behave qualitatively as the marginal value theorem predicts, and the fixed-rule lineage behaves as a rule of thumb that ignores habitat quality should. The transplant test shows the response is behavioural: the networks adjust within minutes, rather than having evolved apart. This is the first positive, controlled result from Vivarium's research line, and it is a classic field test (GUDs across habitats) run on agents nobody told about the theorem.
+- **Evolved foragers' giving-up densities rise with habitat quality**, qualitatively as the marginal value theorem predicts (cycle 32, 8/8 series).
+- **The response is plastic** (cycle 33): animals evolved in one habitat shift within minutes of a switch.
+- **It is mostly evolved, not mechanical** (cycle 36): an unevolved, identical policy shows only a small, inconsistent rise.
+- **But the mechanism isn't an MVT-style comparison.** The networks don't raise their grazing threshold when better food is visible, or when they're full (cycle 35). The likeliest cue is density.
+- That distinction matters. MVT describes what an optimal forager does; it doesn't say how. Real animals also use rules of thumb (e.g. quit after a fixed time, or after a run of unsuccessful bites; Iwasa et al. 1981), and a density rule can produce MVT-like patterns without any estimate of the habitat average.
+- **No Brown effect** (cycle 34): GUDs don't rise under predation risk, consistent with the brains' purely reactive treatment of threats (`docs/many-eyes-findings.md`, cycle 27 probe).
 
 ## Limitations
 
 - **2 replicates per level**: a pilot. The direction is consistent (8/8), but the effect sizes need more seeds.
 - **Qualitative only.** MVT makes a quantitative prediction (leave when marginal intake = long-run average intake), and this pilot doesn't test it. Doing so needs each bout's marginal intake rate at leaving, compared with the habitat average including travel.
-- **What the networks respond to is unknown.** They see local food, but the long-run habitat average isn't an input, so they must be inferring it from local cues (e.g. food in neighbouring cells). A probe like the one in `tools/probe-brains.js` could test which input drives the quit decision.
+- **The cue is unidentified.** Visible food and energy are ruled out (cycle 35); density is the leading candidate.
+- **The Instinct lineage isn't a like-for-like control** for quit-GUDs (its bouts end by a different route); the unevolved seed-brain null (cycle 36) is the better baseline.
 - **Predators off.** With predators, bouts mostly end by fleeing (cycle 32 first look), so this is foraging in a predator-free world. GUDs under predation risk are their own classic topic (Brown 1988: GUDs rise with risk).
 - The "patch" is a 20-px cell in a continuous landscape, not a discrete patch with travel between patches, so the travel-time prediction can't be tested yet.
 
 ## Next steps
+
+0. **Probe the density cue:** sweep the kin-proximity and crowding inputs in `probe-quit.js` and check whether the grazing threshold rises with crowding.
 
 1. **More seeds** (6+) at the same three levels, to size the effect properly.
 2. ~~Transplant test~~: done (cycle 33): plastic. Next: probe which inputs drive the quit decision.
@@ -108,4 +137,5 @@ python3 tools/analyze_patches.py runs/mvt/*/patches.json
 ## References
 
 - Brown, J. S. (1988). Patch use as an indicator of habitat preference, predation risk, and competition. *Behavioral Ecology and Sociobiology*, 22(1), 37–47.
+- Iwasa, Y., Higashi, M., & Yamamura, N. (1981). Prey distribution as a factor determining the choice of optimal foraging strategy. *The American Naturalist*, 117(5), 710–723.
 - Charnov, E. L. (1976). Optimal foraging, the marginal value theorem. *Theoretical Population Biology*, 9(2), 129–136.
