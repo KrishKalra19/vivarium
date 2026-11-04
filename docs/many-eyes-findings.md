@@ -1,6 +1,6 @@
 # Does an evolved many-eyes effect emerge in Vivarium?
 
-*A pilot series, cycles 13–16, 20, 25–29 (Nov 2026). Methods note plus results; about 10 minutes to read.*
+*A pilot series, cycles 13–16, 20, 25–31 (Nov 2026). Methods note plus results; about 10 minutes to read.*
 
 ## Question
 
@@ -88,6 +88,14 @@ So the network/mutation regime *can* move vigilance quickly (tapirs shed three q
 
 **Caveat found in cycle 30: per-animal vigilance here is food-confounded.** 50–90% of "vigilant" scans happen on the poorest food (< 0.15), where only 16–35% of feeding happens: much of an animal's head-up time is standing on ground with nothing to eat, not a choice to scan instead of eat. So "vigilant animals leave fewer offspring" partly means "animals on poor ground leave fewer offspring", and the cost side above is overstated. Making scanning cheaper (pilot 8, `scanIntake` 0.25 / 0.5: scanners keep that share of intake) didn't change the trend, consistent with this. From code v33 the life table also counts feed / vigilant scans only where there is food (`analyze_cohorts.py --food`); cycle 31 re-measures with it. The group-level slopes in pilots 3–7 were already food-adjusted and are unaffected.
 
+**Re-measured where there is food (cycle 31).** Same four settings as cycle 29 / pilot 8 (`scanIntake` 0 and 0.5 × seeds 1000, 1001; the final fingerprints match the earlier runs exactly, so the new counters changed nothing in the simulation), analysed with `analyze_cohorts.py --food`. Output: `experiments/out/food-vigilance-c31/`.
+- Food-conditioned vigilance is tiny from the start: 0.4–1.6% in the first cohort (vs 1.5–10% unconditioned).
+- **Selection is still negative in all 128 cohort cells** (−0.002 to −0.19; mean −0.061 vs −0.088 unconditioned; CI below 0 in 104).
+- **Cheaper scanning changes nothing:** mean differential −0.062 at `scanIntake` 0 and −0.061 at 0.5. So the offspring deficit of vigilant animals isn't lost food. Within scan bands, the predation benefit also becomes inconsistent (in some bands high scanners are killed *more*).
+- Cohort trends are mixed and small: agouti 0.6–0.7% → 0.1–0.2% in both conditions; howler, capybara and tapir rise slightly at intake 0 and fall at 0.5.
+
+**Reading:** the networks never evolve proactive scanning. Every per-animal measure ties vigilance to lower fitness through something other than its direct cost, most plausibly that a head-up-while-food-is-there network is a generally worse forager (hesitant, poorly tuned). A selection gradient on a phenotype that's a by-product can't separate those; the clean test would be a manipulation (an explicit, heritable scan-rate gene, or fixing vigilance experimentally). That's a model change, so it's parked rather than run.
+
 **A measurement trap worth teaching.** Unstratified, low scanners appear to have the *most* offspring in all 16 run × species combinations (agouti 1.61 vs 1.38 for non-scanners), suggesting stabilizing selection with an optimum near 1%. That is mostly **immortal-time bias**: an animal that lives longer gets more scans, so more chances to log a single vigilant one; "has any vigilance" is partly a marker of having survived. Comparing animals within the same scan band removes most of the effect. Field studies that classify animals by a behaviour accumulated over their lives face the same bias.
 
 ## Interpretation
@@ -108,7 +116,7 @@ So the network/mutation regime *can* move vigilance quickly (tapirs shed three q
 
 ## Next steps
 
-1b. ~~Is vigilance evolving at all?~~ Yes, downward (cycle 29). **Next: make scanning cheaper, not blindness costlier.** Add a toggleable "scan while chewing" parameter (a fraction of intake kept while head-up and still, default 0, so existing runs don't change) and repeat blind feeding. If vigilance then evolves up off the floor, re-run the many-eyes test where a gradient has room to appear.
+1b. ~~Is vigilance evolving at all? Does cheaper scanning help?~~ Done (cycles 29–31): it evolves, down; cheaper scanning (`scanIntake`) doesn't change that; the remaining per-animal fitness cost of vigilance isn't food. **This thread is closed as a robust null.** If reopened: give vigilance an explicit heritable scan-rate gene so selection on it can be measured by manipulation, not correlation.
 2. **Power.** 10+ replicates and ~1 h runs, after sizing from these pilots' variance.
 3. **The no-predator residual.** Probe the evolved networks' response to group-size inputs directly (hold everything else fixed and vary the kin and crowding inputs).
 
