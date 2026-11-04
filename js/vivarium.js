@@ -1703,13 +1703,18 @@
     }
 
     if(trays){
-      ctx.save(); ctx.lineWidth = 2/z;
+      // Drawn at a fixed on-screen size (so they stay findable when zoomed out), dark halo
+      // under a coloured frame; the inner fill fades as the food is eaten.
+      ctx.save();
+      var hs = Math.max(CELL*0.8, 11/z);
       trays.forEach(function(t){
         var left = foliage[t.cell] / (t.start || 1);
-        ctx.strokeStyle = t.zone === 'rich' ? '#ffd166' : '#8ecae6';
-        ctx.strokeRect(t.x - CELL*0.6, t.y - CELL*0.6, CELL*1.2, CELL*1.2);
-        ctx.fillStyle = 'rgba(255,255,255,' + (0.15 + 0.5*Math.max(0, Math.min(1, left))) + ')';
-        ctx.fillRect(t.x - CELL*0.25, t.y - CELL*0.25, CELL*0.5, CELL*0.5);
+        ctx.lineWidth = 5/z; ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+        ctx.strokeRect(t.x - hs, t.y - hs, hs*2, hs*2);
+        ctx.lineWidth = 2.5/z; ctx.strokeStyle = t.zone === 'rich' ? '#ffd166' : '#8ecae6';
+        ctx.strokeRect(t.x - hs, t.y - hs, hs*2, hs*2);
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.1 + 0.75*Math.max(0, Math.min(1, left))) + ')';
+        ctx.fillRect(t.x - hs*0.55, t.y - hs*0.55, hs*1.1, hs*1.1);
       });
       ctx.restore();
     }
