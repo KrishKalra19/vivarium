@@ -94,6 +94,18 @@ Brown (1988) predicts that foragers give up at **higher** food where predation r
 - **Why the absence fits:** the cycle 27 network probe showed these brains are *reactive*. They respond to a predator they can sense, but nothing in them represents background risk, so there's nothing that could raise a quitting threshold.
 - **Measurement caution:** with predators on, only 2–11% of bouts end voluntarily; the rest end in flight. Voluntary quits are therefore a sample of moments when no predator was near, which biases this test against finding a risk effect. Field GUD trays have the same problem in reverse: they record food left but not why the forager left.
 
+### Predation risk within one landscape (cycle 48): also no Brown effect
+Cycle 34 compared worlds with and without predators. Brown's prediction is also spatial: within one landscape, foragers should give up at higher food where predators are near. At every voluntary quit, the patch log now records the number of predators within 200 px. Brains mode, predators on, growth 1.0, seeds 1000–1003, paired within each run (`tools/analyze_risk_gud.py`):
+
+| quit-GUD, 1+ predators near − none | mean (95% CI) | runs positive |
+|---|---|---|
+| agouti | −0.006 (−0.025 to +0.013) | 2/4 |
+| howler | +0.004 (−0.087 to +0.096) | 1/4 |
+| capybara | +0.001 (−0.016 to +0.019) | 2/4 |
+| tapir | +0.012 (−0.026 to +0.051) | 3/4 |
+
+**No effect, with tight intervals for the common species.** One caveat shapes what this tests: an animal that *notices* a predator flees, and that bout counts as fled, not quit. So quits near predators come mostly from animals that hadn't perceived them. The result says GUDs don't track **actual** local risk, which fits brains that respond only to threats they sense (cycle 27). Testing response to **perceived** risk would need a measure of what each animal sensed before quitting. Output: `experiments/out/mvt-risk-space-c48/`.
+
 ### What drives the quit decision? (cycles 35–36)
 **Network probe** (`tools/probe-quit.js`, growth 0.6 / 1.0 / 1.6, seed 1000). For every evolved herbivore, its actual inputs were kept, threat removed, and "food here" swept from 0 to 1 to find its **grazing threshold**: the food underfoot at which it puts its head down. The sweep was repeated with "food pull" (the best food it can see nearby) at 0 / 0.5 / 1, and with energy at 0.3 / 0.6 / 0.9.
 - Thresholds are low (medians 0.04–0.20) and barely move: ±0.04 with visible food (no consistent direction), ±0.02 with energy.
@@ -181,7 +193,7 @@ Cycle 33's transplant design, with food sensing cut to 30% of normal range at th
 - **It's an active departure, carried by movement** (cycle 40): evolved brains quit while food remains far more often than an unevolved policy, more so in richer habitats, at speed.
 - **What tells them the habitat is rich is unresolved.** In a static probe, visible-food quality drives leaving (cycle 41), but hiding it doesn't remove the habitat effect (cycle 43), so it isn't necessary. Other inputs, or their dynamics over time, carry the signal too. Hunger doesn't matter; crowding matters a little. The safe summary: evolved foragers leave food behind in rich habitats by moving on sooner, and they use more than one cue to do it. (Iwasa et al. 1981 discuss how information limits shape real foragers' rules.)
 - That distinction matters. MVT describes what an optimal forager does; it doesn't say how. Real animals also use rules of thumb (e.g. quit after a fixed time, or after a run of unsuccessful bites; Iwasa et al. 1981), and a density rule can produce MVT-like patterns without any estimate of the habitat average.
-- **No Brown effect** (cycle 34): GUDs don't rise under predation risk, consistent with the brains' purely reactive treatment of threats (`docs/many-eyes-findings.md`, cycle 27 probe).
+- **No Brown effect**, between worlds (cycle 34) or within one (cycle 48): GUDs don't track predation risk, consistent with the brains' purely reactive treatment of threats (`docs/many-eyes-findings.md`, cycle 27 probe).
 
 ## Limitations
 
