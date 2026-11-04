@@ -82,6 +82,18 @@
     b.className = 'btn wide'; b.id = 'fsCsv'; b.textContent = label;
     b.addEventListener('click', function(){ downloadCsv(name, csv); });
     $('fsResults').appendChild(b);
+    // Copy as well as download: some hosts (a shared claude.ai page, some school setups) block
+    // downloads. Copied CSV can be pasted straight into class.html.
+    var c = document.createElement('button'), note = document.createElement('p'), box = document.createElement('textarea');
+    c.className = 'btn quiet wide'; c.id = 'fsCsvCopy'; c.textContent = 'Copy as CSV text';
+    note.className = 'caption'; note.id = 'fsCsvNote';
+    box.id = 'fsCsvText'; box.hidden = true; box.readOnly = true; box.rows = 4; box.style.width = '100%'; box.value = csv;
+    c.addEventListener('click', function(){
+      function fallback(){ box.hidden = false; box.focus(); box.select(); note.textContent = 'Couldn’t reach the clipboard: copy the selected text from the box.'; }
+      if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(csv).then(function(){ note.textContent = 'Copied. Paste it into class.html, or into an email or document for your instructor.'; }, fallback);
+      else fallback();
+    });
+    $('fsResults').appendChild(c); $('fsResults').appendChild(note); $('fsResults').appendChild(box);
   }
 
   /* ---------- scan sampling ----------

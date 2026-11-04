@@ -467,3 +467,10 @@ Scripted real clicks, typing and downloads on real frames, in Playwright Chromiu
 ### 2026-11-04 21:20 UTC — [cloud] Phase 6: instructor quick-start
 - `docs/INSTRUCTOR-QUICKSTART.md`: what Vivarium is for (methods, not natural history), 10-minute prep (get the files, class link, pick a handout, try it once), a 50-minute lesson plan ending with `class.html`, what to tell students, and a 5-question feedback list for the first real trial. Claims checked against the code (button names, CDN dependency, download buttons). Linked from the README teaching section and `docs/SUMMARY.md`.
 - **Phase 6 done:** quick-start, class results page, accessibility pass. Not possible here: Firefox/Safari (only Chromium is installed in this container; the local machine could check) and a real student trial.
+### 2026-11-04 21:45 UTC — [cloud] Phase 7: PR to main and a shareable page
+- **PR opened:** https://github.com/KrishKalra19/vivarium/pull/1, for Krish to review and merge (GitHub Pages then serves the classroom kit at a real URL). Its description covers what changes for users (fixed-step clock, Field tab, light-theme colours), the 55 MB of committed research outputs, and what's untested.
+- **Made the app work on a shared claude.ai page**, whose sandbox passes no query strings and blocks page-started downloads:
+  - Class links also accept `#class-1234-brains` (same world as `?seed=1234&mode=brains#field`; verified identical after 300 steps). Copy class link mentions the hash form.
+  - Every Field CSV download now has a **Copy as CSV text** button, with a selectable-box fallback.
+  - `class.html` accepts pasted CSV, says when a paste was a duplicate, and its dark theme now follows an explicit theme choice as well as the system setting.
+  - Verified headless: hash link opens the Field tab on the right world; a real scan study → Copy → paste into `class.html` → 10 rows pooled; a duplicate paste is reported as such. No page errors.

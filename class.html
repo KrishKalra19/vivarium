@@ -6,7 +6,8 @@
 <title>Vivarium class results</title>
 <style>
   :root{ --bg:#f4f5ef; --card:#ffffff; --ink:#1d2a22; --muted:#5b665e; --line:#d9ddd3; --accent:#1f6f8b; --good:#2f7d4a; --warn:#a1532a; }
-  @media (prefers-color-scheme: dark){ :root{ --bg:#121714; --card:#1b221d; --ink:#e7ece6; --muted:#a3ada5; --line:#2e3a31; --accent:#6fb7d0; --good:#7fc79a; --warn:#e5a27a; } }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#121714; --card:#1b221d; --ink:#e7ece6; --muted:#a3ada5; --line:#2e3a31; --accent:#6fb7d0; --good:#7fc79a; --warn:#e5a27a; color-scheme:dark; } }
+  :root[data-theme="dark"]{ --bg:#121714; --card:#1b221d; --ink:#e7ece6; --muted:#a3ada5; --line:#2e3a31; --accent:#6fb7d0; --good:#7fc79a; --warn:#e5a27a; color-scheme:dark; }
   *{ box-sizing:border-box; }
   body{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
   main{ max-width:960px; margin:0 auto; padding:24px 16px 64px; }
@@ -37,6 +38,12 @@
     <label>Choose files<input type="file" id="files" accept=".csv,text/csv" multiple></label>
     <p class="muted" id="loaded">No files yet.</p>
   </div>
+  <details class="card" id="pasteCard">
+    <summary><b>Or paste CSV text</b> (from a student's "Copy as CSV text" button)</summary>
+    <label for="pasteBox" class="muted">One student's CSV at a time, header row included.</label>
+    <textarea id="pasteBox" rows="5" style="width:100%;margin-top:6px;font:12px ui-monospace,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px"></textarea>
+    <p><button id="pasteAdd">Add pasted CSV</button> <span class="muted" id="pasteNote"></span></p>
+  </details>
   <div id="out" aria-live="polite"></div>
 </main>
 <script>
@@ -193,6 +200,15 @@
     });
   }
   $('files').addEventListener('change', function(e){ load(e.target.files); e.target.value = ''; });
+  $('pasteAdd').addEventListener('click', function(){
+    var t = $('pasteBox').value.trim();
+    if(!t){ $('pasteNote').textContent = 'Paste a CSV first.'; return; }
+    var r = add('pasted', t); log.push('pasted: ' + r.n + ' rows' + (r.skipped ? ' (' + r.skipped + ' skipped)' : ''));
+    $('loaded').textContent = log.length + ' file(s) loaded: ' + log.join(' · ');
+    $('pasteNote').textContent = r.n ? 'Added ' + r.n + ' rows.' : r.skipped ? 'Already added: those rows are in (duplicates skipped).' : 'No Field rows found: is the header row included?';
+    if(r.n) $('pasteBox').value = '';
+    render();
+  });
   var d = $('drop');
   ['dragenter','dragover'].forEach(function(t){ d.addEventListener(t, function(e){ e.preventDefault(); d.classList.add('over'); }); });
   ['dragleave','drop'].forEach(function(t){ d.addEventListener(t, function(e){ e.preventDefault(); d.classList.remove('over'); }); });
