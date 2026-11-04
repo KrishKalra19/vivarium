@@ -64,4 +64,4 @@ Order (Krish 11-02: research first, then teaching):
 9. **MVT follow-ups**: ~~transplant test~~ (cycle 33: plastic); ~~risk~~ (cycle 34: no effect); ~~probe the quit decision's inputs~~ (cycles 35–37: no input moves the threshold; next is the movement outputs); 6+ seeds; GUD under predation risk (Brown 1988); quantitative leave-rate vs habitat average.
    Old item 6 text: toggleable `params.scanIntake` (share of grazing intake kept while head-up and still; default 0). Pilot 8: blind feeding at 0 vs 0.5; does vigilance evolve up? If so, many-eyes test on top.
 
-10. **Teaching: GUD tray exercise** in the Field tab: students place trays in habitat zones and compare giving-up densities (Brown 1988).
+10. ~~Teaching: GUD tray exercise~~ (cycle 38): done.

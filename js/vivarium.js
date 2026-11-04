@@ -342,7 +342,7 @@
     var fm = BIOME.plants.fruit.regrow*gm*(simClock<events.mastUntil?4:1)*dt;
     if(fo<=0 && fm<=0) return;
     for(var i=0;i<foliage.length;i++){
-      if(water[i]) continue;
+      if(water[i] || (trayAt && trayAt[i] >= 0)) continue;
       var nut = 1 + nutrients[i]*0.9;
       var f = foliage[i];
       if(f<1) foliage[i] = f + fo*nut*(1-f);
@@ -532,6 +532,30 @@
      observer has to judge behaviour from what an animal looks like. */
   var fieldMode = false;
   var fieldScan = null;   // { x, y, r, sid }: scan-sampling circle (Field tab, scan mode)
+  /* Feeding trays (Field tab, GUD exercise): cells filled with a known amount of foliage that
+     don't regrow while a trial runs, so what's left at the end is the giving-up density. */
+  var trays = null, trayAt = null;
+  function setTrays(list){
+    trays = null; trayAt = null;
+    if(!list || !list.length) return null;
+    trayAt = new Int32Array(cols*rows).fill(-1);
+    trays = [];
+    list.forEach(function(t){
+      var c = cellAt(t.x, t.y);
+      if(water[c] || trayAt[c] >= 0) return;
+      var amt = t.amount == null ? 1 : t.amount;
+      foliage[c] = amt; fruit[c] = 0;
+      trayAt[c] = trays.length;
+      trays.push({ x:(c % cols + 0.5)*CELL, y:(Math.floor(c/cols) + 0.5)*CELL, cell:c, zone:t.zone || '', start:amt, eaten:0, visitors:{}, firstVisit:null });
+    });
+    repaintPlants();
+    return trays.length;
+  }
+  function trayEat(a, cell){
+    var t = trays[trayAt[cell]];
+    if(!t.visitors[a.uid]) t.visitors[a.uid] = a.sid;
+    if(t.firstVisit == null) t.firstVisit = simClock;
+  }
   function inScan(a){ if(!fieldScan || a.sid!==fieldScan.sid) return false; var dx=a.x-fieldScan.x, dy=a.y-fieldScan.y; return dx*dx+dy*dy <= fieldScan.r*fieldScan.r; }
   var STILL = 0.25;   // vigilant = head up AND below this fraction of top speed
   var GROUP_R = 60, GROUP_MAX = 30;
@@ -969,6 +993,7 @@
       foliage[cell] -= fEat; fruit[cell] -= rEat;
       a.energy = Math.min(a.maxEnergy, a.energy + fEat*BIOME.plants.foliage.energy + rEat*BIOME.plants.fruit.energy);   // keep this exact expression: float order is part of the fingerprint
       if(patches) boutEat(a, sp, cell, avail, fEat*BIOME.plants.foliage.energy + rEat*BIOME.plants.fruit.energy);
+      if(trayAt && trayAt[cell] >= 0) trayEat(a, cell);
     }
     if(patches && a.bout) boutCheck(a, sp);
 
@@ -1370,6 +1395,7 @@
 
   /* --------------------------- world setup --------------------------- */
   function seedWorld(){
+    trays = null; trayAt = null;   // a new world ends any tray trial
     animals=[]; idCounter=1; maxGeneration=0; simClock=0; sampleAccum=0;
     mating.matings = mating.hybrids = mating.unmated = mating.rejected = mating.inviable = 0;
     if(lifeRows) lifeRows = [];
@@ -1676,6 +1702,17 @@
       }
     }
 
+    if(trays){
+      ctx.save(); ctx.lineWidth = 2/z;
+      trays.forEach(function(t){
+        var left = foliage[t.cell] / (t.start || 1);
+        ctx.strokeStyle = t.zone === 'rich' ? '#ffd166' : '#8ecae6';
+        ctx.strokeRect(t.x - CELL*0.6, t.y - CELL*0.6, CELL*1.2, CELL*1.2);
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.15 + 0.5*Math.max(0, Math.min(1, left))) + ')';
+        ctx.fillRect(t.x - CELL*0.25, t.y - CELL*0.25, CELL*0.5, CELL*0.5);
+      });
+      ctx.restore();
+    }
     if(fieldMode && fieldScan){
       ctx.save(); ctx.setLineDash([8/z, 6/z]); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5/z;
       ctx.beginPath(); ctx.arc(fieldScan.x, fieldScan.y, fieldScan.r, 0, Math.PI*2); ctx.stroke(); ctx.restore();
@@ -3292,6 +3329,29 @@
         if(inScan(a)){ if(fl) t.flee++; else t[k]++; }
       });
       return t;
+    },
+    /* Feeding trays: trays([{x,y,amount,zone}]) fills those cells and stops their regrowth;
+       trays(null) ends the trial (cells regrow normally again). trayState() reads each tray:
+       food left (the GUD), share eaten, visitors by species, time of first visit.
+       foodNear(x,y,r) = mean foliage within r px, for choosing rich vs poor surroundings. */
+    trays: function(list){ if(list === undefined) return trays ? trays.length : null; return setTrays(list); },
+    trayState: function(){
+      if(!trays) return null;
+      return trays.map(function(t){
+        var by = {}; Object.keys(t.visitors).forEach(function(u){ by[t.visitors[u]] = (by[t.visitors[u]]||0) + 1; });
+        return { x:t.x, y:t.y, zone:t.zone, start:t.start, left:+foliage[t.cell].toFixed(4), visitors:by,
+                 nVisitors:Object.keys(t.visitors).length, firstVisit:t.firstVisit };
+      });
+    },
+    worldSize: function(){ return { w:world.w, h:world.h }; },
+    foodNear: function(x, y, r){
+      var n = 0, sum = 0, R = Math.ceil(r/CELL), cx = Math.floor(x/CELL), cy = Math.floor(y/CELL);
+      for(var gy=cy-R; gy<=cy+R; gy++) for(var gx=cx-R; gx<=cx+R; gx++){
+        if(gx<0 || gy<0 || gx>=cols || gy>=rows) continue;
+        var dx=(gx+0.5)*CELL-x, dy=(gy+0.5)*CELL-y; if(dx*dx+dy*dy > r*r) continue;
+        var k = gy*cols+gx; if(water[k]) continue; sum += foliage[k]; n++;
+      }
+      return n ? sum/n : 0;
     },
     fieldMode: function(on){ if(on!=null){ fieldMode = !!on; if(on && follow.auto) setNatureCam(false); renderCaption(); } return fieldMode; },
     truthState: function(uid){ var a = animals.find(function(x){ return x.uid===uid; }); return a && !a.dead ? ETHO[ethoState(a)] : null; },

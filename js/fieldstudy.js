@@ -1,4 +1,5 @@
-/* Field-methods teaching mode: instantaneous focal sampling, scored against ground truth.
+/* Field-methods teaching mode: instantaneous focal sampling, scan sampling and feeding trays
+   (giving-up densities), scored against ground truth where there is one.
 
    A student follows one animal. Every `interval` sim-seconds the range pauses and asks
    what the focal animal is doing at that instant. Their answer is stored next to the true
@@ -118,9 +119,115 @@
     window.FieldStudy.last = { kind:'scan', samples:s.samples, mine:mine, circle:circle, pop:pop, mae:n ? mae/n : null, exact:n ? exact/n : null };
   }
 
+  /* ---------- Feeding trays: giving-up densities (GUD) in rich vs poor habitat ----------
+     Trays are cells refilled to full foliage that don't regrow during the trial. Half are placed
+     where the surrounding 100 px are richest, half where they're poorest. At the end each tray's
+     remaining food is its GUD. Trays no animal ate from are reported but left out of the means:
+     an unfound tray says nothing about when a forager gives up. */
+  var TRAY_R = 100, TRAY_GAP = 90;
+  function tCrit(df){ var t = [12.71,4.30,3.18,2.78,2.57,2.45,2.36,2.31,2.26,2.23,2.20,2.18,2.16,2.14,2.13,2.12,2.11,2.10,2.09,2.09];
+                      return df < 1 ? null : df <= 20 ? t[df-1] : df <= 30 ? 2.05 : df <= 60 ? 2.01 : 1.98; }
+  function meanCI(xs){
+    var n = xs.length; if(!n) return { n:0 };
+    var m = xs.reduce(function(a, b){ return a + b; }, 0)/n;
+    if(n < 2) return { n:n, m:m };
+    var v = xs.reduce(function(a, b){ return a + (b-m)*(b-m); }, 0)/(n-1);
+    return { n:n, m:m, sd:Math.sqrt(v), se:Math.sqrt(v/n), lo:m - tCrit(n-1)*Math.sqrt(v/n), hi:m + tCrit(n-1)*Math.sqrt(v/n) };
+  }
+  function placeTrays(n){
+    var W = V.worldSize(), pts = [];
+    for(var i=0; i<800; i++){
+      var x = TRAY_R/2 + Math.random()*(W.w - TRAY_R), y = TRAY_R/2 + Math.random()*(W.h - TRAY_R);
+      pts.push({ x:x, y:y, f:V.foodNear(x, y, TRAY_R) });
+    }
+    pts.sort(function(a, b){ return b.f - a.f; });
+    var chosen = [];
+    function take(list, zone){
+      var got = 0;
+      for(var i=0; i<list.length && got<n; i++){
+        var p = list[i];
+        if(chosen.some(function(c){ var dx=c.x-p.x, dy=c.y-p.y; return dx*dx+dy*dy < TRAY_GAP*TRAY_GAP; })) continue;
+        chosen.push({ x:p.x, y:p.y, amount:1, zone:zone, around:p.f }); got++;
+      }
+    }
+    var third = Math.floor(pts.length/3);
+    take(pts.slice(0, third), 'rich');
+    take(pts.slice(pts.length - third).reverse(), 'poor');
+    return chosen;
+  }
+  function startTrays(){
+    var n = +$('fsSamples').value/2, dur = +$('fsTrayDur').value, pred = $('fsPredict').value;
+    if(!pred){ $('fsStatus').textContent = 'Make a prediction first: where will foragers leave more food behind?'; return; }
+    var list = placeTrays(n), placed = V.trays(list);
+    study = { kind:'trays', n:n, dur:dur, pred:pred, t0:V.stats().t, list:list, placed:placed, wasPaused:V.params.paused };
+    $('fsResults').innerHTML = ''; $('fsStart').disabled = true; $('fsStop').disabled = false;
+    if(V.params.paused) V.setPaused(false);
+    pollTimer = setInterval(pollTrays, 250);
+    pollTrays();
+  }
+  function pollTrays(){
+    if(!study || study.kind !== 'trays') return;
+    var left = study.dur - (V.stats().t - study.t0);
+    if(left <= 0) return finishTrays(null);
+    var st = V.trayState() || [], visited = st.filter(function(t){ return t.nVisitors > 0; }).length;
+    $('fsStatus').textContent = 'Trial running: ' + Math.ceil(left) + ' sim-s left · ' + visited + ' of ' + st.length + ' trays visited so far';
+  }
+  function finishTrays(note){
+    clearInterval(pollTimer); pollTimer = null;
+    var s = study; study = null;
+    var st = V.trayState() || []; V.trays(null);
+    $('fsStart').disabled = false; $('fsStop').disabled = true;
+    var zones = { rich:[], poor:[] }, unvisited = { rich:0, poor:0 }, visitors = { rich:0, poor:0 }, bySp = {};
+    st.forEach(function(t){
+      if(t.nVisitors > 0){ zones[t.zone].push(t.left); visitors[t.zone] += t.nVisitors; }
+      else unvisited[t.zone]++;
+      Object.keys(t.visitors).forEach(function(k){ bySp[k] = (bySp[k]||0) + t.visitors[k]; });
+    });
+    var R = meanCI(zones.rich), P = meanCI(zones.poor);
+    var diff = null;
+    if(R.n >= 2 && P.n >= 2){
+      var se = Math.sqrt(R.se*R.se + P.se*P.se);
+      var df = Math.pow(se, 4) / (Math.pow(R.se, 4)/(R.n-1) + Math.pow(P.se, 4)/(P.n-1));   // Welch
+      var tc = tCrit(Math.max(1, Math.floor(df)));
+      diff = { m:R.m - P.m, lo:R.m - P.m - tc*se, hi:R.m - P.m + tc*se };
+    }
+    var verdict = !diff ? 'too few visited trays to compare' : diff.lo > 0 ? 'rich' : diff.hi < 0 ? 'poor' : 'same';
+    var f = function(x){ return x == null ? '—' : x.toFixed(2); };
+    var html = note ? '<p class="hint">' + note + '</p>' : '';
+    html += '<div class="fs-score"><div><b>' + f(R.m) + '</b><span>mean GUD, rich habitat (' + R.n + ' trays)</span></div>' +
+            '<div><b>' + f(P.m) + '</b><span>mean GUD, poor habitat (' + P.n + ' trays)</span></div>' +
+            '<div><b>' + (diff ? (diff.m >= 0 ? '+' : '') + diff.m.toFixed(2) : '—') + '</b><span>rich − poor' + (diff ? ' (95% CI ' + f(diff.lo) + ' to ' + f(diff.hi) + ')' : '') + '</span></div></div>';
+    var predTxt = { rich:'more food left in rich-habitat trays', poor:'more food left in poor-habitat trays', same:'no difference' };
+    html += '<p>You predicted <b>' + predTxt[s.pred] + '</b>. ' +
+      (verdict === s.pred ? 'Your data support it.' : verdict === 'same' ? 'The difference isn’t distinguishable from zero with these trays (the interval spans 0).' :
+       verdict.indexOf('too few') === 0 ? 'Too few trays were visited to test it: run a longer trial or use more trays.' : 'Your data point the other way.') + '</p>';
+    html += '<table class="fs-table"><thead><tr><th></th><th>rich</th><th>poor</th></tr></thead><tbody>' +
+      '<tr><th>trays placed</th><td>' + (R.n + unvisited.rich) + '</td><td>' + (P.n + unvisited.poor) + '</td></tr>' +
+      '<tr><th>never visited</th><td>' + unvisited.rich + '</td><td>' + unvisited.poor + '</td></tr>' +
+      '<tr><th>mean GUD ± 95% CI</th><td>' + f(R.m) + (R.lo != null ? ' (' + f(R.lo) + '–' + f(R.hi) + ')' : '') + '</td><td>' + f(P.m) + (P.lo != null ? ' (' + f(P.lo) + '–' + f(P.hi) + ')' : '') + '</td></tr>' +
+      '<tr><th>animals per visited tray</th><td>' + (R.n ? (visitors.rich/R.n).toFixed(1) : '—') + '</td><td>' + (P.n ? (visitors.poor/P.n).toFixed(1) : '—') + '</td></tr>' +
+      '</tbody></table>';
+    html += '<p class="caption">Visitors by species: ' + (Object.keys(bySp).map(function(k){ return V.species[k].name.toLowerCase() + ' ' + bySp[k]; }).join(', ') || 'none') + '. ' +
+      '<b>Reading it:</b> the marginal value theorem says a forager should leave a patch when its intake there falls to what it could get on average elsewhere. Where the surroundings are rich, that point comes sooner, so more food is left: a higher GUD. ' +
+      'Unvisited trays are left out of the means (an unfound tray says nothing about giving up), so check whether one zone simply had fewer visits. ' +
+      'And think about placement: trays in rich surroundings may also sit where more animals are, so a difference could be about crowding as well as food. In Vivarium\u2019s own research the GUD pattern turned out to be partly produced by how animals move, not only by a decision to quit (docs/mvt-findings.md).</p>';
+    $('fsResults').innerHTML = html;
+    $('fsStatus').textContent = 'Finished: ' + st.length + ' trays, ' + (R.n + P.n) + ' visited.';
+    window.FieldStudy.last = { kind:'trays', trays:st, rich:R, poor:P, diff:diff, verdict:verdict, pred:s.pred, unvisited:unvisited };
+  }
+  function syncMode(){
+    var m = $('fsMode').value;
+    $('fsTrayOpts').hidden = m !== 'trays';
+    $('fsSpeciesRow').hidden = m === 'trays';
+    $('fsIntervalRow').hidden = m === 'trays';
+    $('fsSamplesLabel').textContent = m === 'trays' ? 'Trays (half per habitat)' : 'Samples';
+    $('fsStart').textContent = m === 'trays' ? 'Place trays and start' : m === 'scan' ? 'Start scan sampling' : 'Start focal follow';
+  }
+
   function start(){
     if(study) return;
     if($('fsMode').value === 'scan') return startScan();
+    if($('fsMode').value === 'trays') return startTrays();
     var sid = $('fsSpecies').value, n = +$('fsSamples').value, interval = +$('fsInterval').value;
     var focal = pickFocal(sid);
     if(!focal){
@@ -256,7 +363,7 @@
     window.FieldStudy.last = { samples:s.samples, agreement:r.po, kappa:r.k, continuous:cont, contN:contN, focals:s.focals };
   }
 
-  function stop(){ if(study){ if(study.kind==='scan') finishScan('You stopped early.'); else finish('You stopped the study early.'); } }
+  function stop(){ if(study){ if(study.kind==='scan') finishScan('You stopped early.'); else if(study.kind==='trays') finishTrays('You stopped the trial early.'); else finish('You stopped the study early.'); } }
 
   // UI wiring
   var sel = $('fsSpecies');
@@ -264,6 +371,7 @@
     var o = document.createElement('option'); o.value = id; o.textContent = V.species[id].name; sel.appendChild(o);
   });
   $('fsStart').addEventListener('click', start);
+  $('fsMode').addEventListener('change', syncMode); syncMode();
   $('fsStop').addEventListener('click', stop);
   $('fsScanOk').addEventListener('click', function(){ recordScan(false); });
   $('fsScanSkip').addEventListener('click', function(){ recordScan(true); });
@@ -283,7 +391,7 @@
   sk.addEventListener('click', function(){ answer('skip'); });
   host.appendChild(sk);
   document.addEventListener('keydown', function(e){
-    if(!study || !study.waiting || study.kind === 'scan') return;
+    if(!study || !study.waiting || study.kind === 'scan' || study.kind === 'trays') return;
     var k = e.key;
     if(k >= '1' && k <= '4'){ answer(CATS[+k-1].key); e.preventDefault(); }
     else if(k === '0'){ answer('skip'); e.preventDefault(); }
@@ -292,5 +400,6 @@
   /* Headless hook for tests: FieldStudy.start(), FieldStudy.answer(key), FieldStudy.state(). */
   window.FieldStudy = { start:start, stop:stop, answer:answer, cats:CATS,
     scan:function(down, up){ $('fsDown').value = down; $('fsUp').value = up; recordScan(down == null); },
+    trays:function(){ return study && study.kind === 'trays' ? { t0:study.t0, dur:study.dur, placed:study.placed } : null; },
     state:function(){ return study ? { kind:study.kind || 'focal', waiting:study.waiting, n:study.samples.length, pending:study.pending, focal:study.focal ? study.focal.uid : null } : null; } };
 })();

@@ -22,6 +22,32 @@ Results: % of scans counted exactly, animals miscounted per scan, a per-scan tab
 
 Verified (cycle 23): a scripted perfect counter scores 100% exact with 0 off per scan, and its estimate equals the circle truth; a counter off by one per scan scores 0% exact with 1.0 off per scan; an independent recount of every circle from the raw animal list matched the built-in truth on all 20 scans. No page errors.
 
+## Feeding trays: giving-up densities (third method)
+Field tab → Method → **Feeding trays**. This is the experimental method behind the marginal value theorem's classic field test (Brown 1988). The student:
+1. picks a number of trays and a trial length, and **commits to a prediction** before anything starts (rich-habitat trays left fuller, poor-habitat trays left fuller, or no difference);
+2. presses **Place trays and start**. Half the trays go where the surrounding 100 px of vegetation are richest (gold outline on the map), half where it's poorest (blue). Each tray is a cell refilled with fresh foliage that **doesn't regrow during the trial**, so whatever is left at the end is what foragers gave up on;
+3. lets the range run. The status line counts down and shows how many trays have been found.
+
+**Results:**
+- mean GUD per habitat with 95% intervals, and the rich − poor difference with a Welch 95% interval;
+- whether the data support the prediction;
+- trays never visited, which are **left out of the means**: an unfound tray says nothing about giving up;
+- animals per visited tray, and visitors by species.
+
+**What to expect.** The trays aren't scripted: whatever the evolved animals do is what gets measured. In testing (Brains mode, 40 trays):
+- 60 s trials gave rich 0.098 vs poor 0.055 (difference +0.04, CI +0.01 to +0.08) in one trial, and rich 0.071 vs poor 0.062 (CI spanning 0) in another;
+- 120–240 s trials let 15–35 animals graze each tray almost bare in both habitats, which erases the difference.
+
+So 60 s is the default, and one trial is often not enough. **That variability is a lesson in itself.**
+
+**Discussion prompts:**
+- Why does trial length matter so much? A real GUD tray records one forager's decision to leave. Here many animals visit in sequence, so what's measured is what the *last* visitor left. How do field studies deal with this? (Short trials, tracks in sand to count visitors, trays that one species can reach.)
+- Run the same trial three times. How often does the conclusion change? What does that say about a single field season?
+- Rich-habitat trays may also be where more animals are. Is a difference about food, about crowding, or both? How would you design trays to separate them?
+- Vivarium's own research found that the GUD pattern is real and evolved, but that the networks don't use an MVT-style comparison to produce it (`docs/mvt-findings.md`). What does it mean when a behaviour *fits* a model's prediction without *using* the model's mechanism?
+
+Verified (cycle 38): placement gives exactly half the trays per habitat; tray cells hold their starting amount until eaten (no regrowth); the prediction is required before starting; the trays are cleared at the end and the default run's fingerprint is unchanged (`7ab26d53`). No page errors. Screenshot: `docs/loop/c38-trays-results.png`.
+
 ## Discussion prompts that fall out of it
 - Agoutis feed ~85% of the time. Why can κ be low or undefined even when agreement is high? (Chance agreement is high when one category dominates.)
 - How does the interval change sampling error? Run 5 s vs 30 s on the same species.
@@ -34,6 +60,7 @@ Verified (cycle 23): a scripted perfect counter scores 100% exact with 0 off per
 Headless tests with scripted observers: an observer answering with the true state scores 100% / κ = 1.00 over 40 samples, and an observer answering at random scores 22.5% (chance 25%) / κ = 0.02. Losing a focal switches to a new one (3–5 focals per 40-sample howler study). No page errors.
 
 ## References
+- Brown, J. S. (1988). Patch use as an indicator of habitat preference, predation risk, and competition. *Behavioral Ecology and Sociobiology*, 22(1), 37–47.
 - Altmann, J. (1974). Observational study of behavior: sampling methods. *Behaviour*, 49(3–4), 227–266.
 - Landis, J. R., & Koch, G. G. (1977). The measurement of observer agreement for categorical data. *Biometrics*, 33(1), 159–174.
 - Martin, P., & Bateson, P. *Measuring Behaviour: An Introductory Guide*. Cambridge University Press.

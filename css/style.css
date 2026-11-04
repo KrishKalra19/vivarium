@@ -388,3 +388,4 @@ canvas.tree{width:100%;height:60px;display:block;}
 .fs-scan label{display:flex;flex-direction:column;font-size:11px;color:var(--ink-dim);gap:3px;}
 .fs-scan input{width:84px;font:inherit;font-size:15px;padding:5px 7px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);}
 @media (max-width:640px){ .fs-scan input{width:64px;} }
+.slider-row[hidden], #fsTrayOpts[hidden]{display:none;}

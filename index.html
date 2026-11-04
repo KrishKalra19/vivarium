@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>99R's ludus de animalibus</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,500&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,700;1,800&display=swap">
-<link rel="stylesheet" href="css/style.css?v=10">
+<link rel="stylesheet" href="css/style.css?v=11">
 <link rel="stylesheet" href="css/arena.css?v=2">
 </head>
 <body>
@@ -253,19 +253,30 @@
           <p class="hint">Pick a species and start. The range zooms onto one animal, your <b>focal</b>. Every few sim-seconds it pauses and asks what the animal is doing at that instant. Judge from what you can see: the dark dot is its head (held out in front = head up; tucked onto the body = head down, feeding), plus how it moves and what's nearby. Keys 1–4 answer, 0 = lost sight. Needs Mixed A/B or Brains mode.</p>
           <div class="slider-row">
             <div class="top"><b>Method</b></div>
-            <select id="fsMode" aria-label="Sampling method"><option value="focal" selected>Focal animal: what is one animal doing?</option><option value="scan">Scan sample: count heads up vs down in a circle</option></select>
+            <select id="fsMode" aria-label="Sampling method"><option value="focal" selected>Focal animal: what is one animal doing?</option><option value="scan">Scan sample: count heads up vs down in a circle</option><option value="trays">Feeding trays: giving-up densities in rich vs poor habitat</option></select>
           </div>
-          <div class="slider-row">
+          <div class="slider-row" id="fsSpeciesRow">
             <div class="top"><b>Species</b></div>
             <select id="fsSpecies" aria-label="Focal species"></select>
           </div>
           <div class="slider-row">
-            <div class="top"><b>Samples</b></div>
+            <div class="top"><b id="fsSamplesLabel">Samples</b></div>
             <select id="fsSamples" aria-label="Number of samples"><option>10</option><option selected>20</option><option>40</option></select>
           </div>
-          <div class="slider-row">
+          <div class="slider-row" id="fsIntervalRow">
             <div class="top"><b>Interval</b></div>
             <select id="fsInterval" aria-label="Seconds between samples"><option value="5">every 5 sim-s</option><option value="15" selected>every 15 sim-s</option><option value="30">every 30 sim-s</option></select>
+          </div>
+          <div id="fsTrayOpts" hidden>
+            <p class="hint">Trays are cells filled with fresh foliage that don't regrow during the trial. Half go in <b>rich</b> surroundings (gold outline), half in <b>poor</b> ones (blue). When the trial ends you read what's left in each tray: its <b>giving-up density</b> (GUD), the food a forager left behind when it quit (Brown 1988). Make your prediction first.</p>
+            <div class="slider-row">
+              <div class="top"><b>Trial length</b></div>
+              <select id="fsTrayDur" aria-label="Trial length"><option value="30">30 sim-s</option><option value="60" selected>60 sim-s</option><option value="120">120 sim-s</option></select>
+            </div>
+            <div class="slider-row">
+              <div class="top"><b>Your prediction</b></div>
+              <select id="fsPredict" aria-label="Prediction"><option value="">choose one…</option><option value="rich">more food left in rich-habitat trays</option><option value="poor">more food left in poor-habitat trays</option><option value="same">no difference</option></select>
+            </div>
           </div>
           <button class="btn wide" id="fsStart">Start focal follow</button>
           <button class="btn quiet wide" id="fsStop" disabled>Stop early</button>
@@ -301,9 +312,9 @@
 <script src="js/brain.js?v=4"></script>
 <script src="js/clades.js?v=4"></script>
 <script src="js/timelapse.js?v=1"></script>
-<script src="js/vivarium.js?v=36"></script>
+<script src="js/vivarium.js?v=37"></script>
 <script src="js/tour.js?v=3"></script>
-<script src="js/fieldstudy.js?v=4"></script>
+<script src="js/fieldstudy.js?v=5"></script>
 <script src="js/arena/roster.js?v=2"></script>
 <script src="js/arena/tuning.js?v=2"></script>
 <script src="js/arena/engine.js?v=2"></script>
