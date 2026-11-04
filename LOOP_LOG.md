@@ -476,7 +476,7 @@ Scripted real clicks, typing and downloads on real frames, in Playwright Chromiu
   - Verified headless: hash link opens the Field tab on the right world; a real scan study → Copy → paste into `class.html` → 10 rows pooled; a duplicate paste is reported as such. No page errors.
 - **Shareable pages published (private until Krish shares them):** the app at https://claude.ai/artifact/2CkDo57UdrKt55wMB9JDfE and the class results page at https://claude.ai/artifact/KADTYXTnRSvrUQhNY1eJW4. The class link there is `<page link>#class-1234-brains`.
 - **Downloads on shared pages:** every file save (Field CSVs, life table and brain exports, `class.html`'s combined CSVs) now goes through one `saveFile` helper. On a claude.ai page it asks the viewer to confirm via the `downloads` capability; elsewhere it's an ordinary download (verified: tray CSV and combined CSV still download from `file://`). Default fingerprint `7ab26d53` unchanged. Code v44, fieldstudy v12.
-### 2026-11-04 22:30 UTC — [cloud] Phase 8: mark–recapture, the fourth Field method
+### 2026-11-04 21:40 UTC — [cloud] Phase 8: mark–recapture, the fourth Field method
 - Field tab → **Mark–recapture**: session 1 traps (circles 100 px across, at random points or where animals are) catch and mark every animal of a species (M). After a 20 / 120 / 600 sim-s gap, session 2 catches C, R of them marked. The student enters their own N̂ before seeing Lincoln–Petersen, Chapman, the true population at both sessions, births, deaths and marked animals that died. CSV download + copy; reset-safe; `FieldStudy.mr()` test hook.
 - **Measured before writing any claims** (6 trials per setting, seed 1234, 40 traps), as Chapman ÷ truth:
   - capybara, 20 s gap, random traps: mean **1.03** (range 0.37–1.73, R 2–12);
