@@ -210,7 +210,7 @@
     html += '<p class="caption">Visitors by species: ' + (Object.keys(bySp).map(function(k){ return V.species[k].name.toLowerCase() + ' ' + bySp[k]; }).join(', ') || 'none') + '. ' +
       '<b>Reading it:</b> the marginal value theorem says a forager should leave a patch when its intake there falls to what it could get on average elsewhere. Where the surroundings are rich, that point comes sooner, so more food is left: a higher GUD. ' +
       'Unvisited trays are left out of the means (an unfound tray says nothing about giving up), so check whether one zone simply had fewer visits. ' +
-      'And think about placement: trays in rich surroundings may also sit where more animals are, so a difference could be about crowding as well as food. In Vivarium\u2019s own research, evolved foragers leave a patch when they can see better food nearby: a local version of the MVT comparison (docs/mvt-findings.md).</p>';
+      'And think about placement: trays in rich surroundings may also sit where more animals are, so a difference could be about crowding as well as food. In Vivarium\u2019s own research, evolved foragers leave food behind in rich habitat by moving on sooner, using more than one cue (docs/mvt-findings.md).</p>';
     $('fsResults').innerHTML = html;
     $('fsStatus').textContent = 'Finished: ' + st.length + ' trays, ' + (R.n + P.n) + ' visited.';
     window.FieldStudy.last = { kind:'trays', trays:st, rich:R, poor:P, diff:diff, verdict:verdict, pred:s.pred, unvisited:unvisited };

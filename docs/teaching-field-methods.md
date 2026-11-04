@@ -44,7 +44,7 @@ So 60 s is the default, and one trial is often not enough. **That variability is
 - Why does trial length matter so much? A real GUD tray records one forager's decision to leave. Here many animals visit in sequence, so what's measured is what the *last* visitor left. How do field studies deal with this? (Short trials, tracks in sand to count visitors, trays that one species can reach.)
 - Run the same trial three times. How often does the conclusion change? What does that say about a single field season?
 - Rich-habitat trays may also be where more animals are. Is a difference about food, about crowding, or both? How would you design trays to separate them?
-- Vivarium's own research found that the GUD pattern is real and evolved: the networks leave a patch when they can *see* better food, a local version of the MVT comparison, and no estimate of the habitat average is involved (`docs/mvt-findings.md`). What information would a real forager need to follow the MVT exactly, and what can it actually perceive?
+- Vivarium's own research found that the GUD pattern is real and evolved: foragers actively move on sooner in rich habitat. A probe found one input (the quality of visible food) that *can* drive leaving, but hiding it didn't remove the effect (`docs/mvt-findings.md`). What's the difference between showing that a cue *works* and showing that animals *depend* on it? How would you test that in the field?
 
 Verified (cycle 38): placement gives exactly half the trays per habitat; tray cells hold their starting amount until eaten (no regrowth); the prediction is required before starting; the trays are cleared at the end and the default run's fingerprint is unchanged (`7ab26d53`). No page errors. Screenshot: `docs/loop/c38-trays-results.png`.
 

@@ -1,6 +1,6 @@
 # Do evolved foragers obey the marginal value theorem?
 
-*Pilot, transplant, predation-risk, network probes, null model and how-bouts-end tests, cycles 32–41 (Nov 2026). About 11 minutes to read.*
+*Pilot, transplant, predation-risk, network probes, null model and how-bouts-end tests, cycles 32–43 (Nov 2026). About 12 minutes to read.*
 
 ## Question
 
@@ -38,7 +38,7 @@ Quit GUD (food left when a bout ends), mean of 2 seeds:
 - **Move GUDs rise for both lineages** (e.g. agouti instinct 0.24 → 0.32). That's what passive drift through a richer landscape gives. Only the active quit decision separates the lineages.
 - Brains also quit at higher food than Instinct at every growth level: they leave patches that the rule would keep grazing.
 
-Raw output: `experiments/out/mvt-pilot-c32/`, `mvt-transplant-c33/`, `mvt-risk-c34/`, `quit-probe-c35/`, `mvt-null-c36/`, `mvt-quit-context-c40/`, `leave-probe-c41/`, `mvt-blind-c42/` (`gud.txt`, plus each run's `patches.json` and manifest).
+Raw output: `experiments/out/mvt-pilot-c32/`, `mvt-transplant-c33/`, `mvt-risk-c34/`, `quit-probe-c35/`, `mvt-null-c36/`, `mvt-quit-context-c40/`, `leave-probe-c41/`, `mvt-blind-c42/`, `mvt-clamp-c43/` (`gud.txt`, plus each run's `patches.json` and manifest).
 
 ### Plasticity or evolution? A transplant test (cycle 33)
 Cycle 32's populations evolved for 30 min at their own growth level, so the GUD differences could be either:
@@ -145,13 +145,25 @@ Cycle 33's transplant design, with food sensing cut to 30% of normal range at th
 - **The test isn't clean.** Even at 30% range, a rich habitat's *nearby* cells are richer, so the visible-food input still carries the habitat cue; shrinking the range weakens the cue rather than removing it. It also changes steering.
 - The sharper test is to hold the food-pull input constant while keeping food direction (so animals still steer to food). Then the networks can't tell rich from poor through that input at all.
 
+### Behavioural test 2: hide visible-food quality (cycle 43)
+`params.pullClamp` 0.5 at the switch. Any visible food registers at a fixed strength, and its direction stays real, so animals still steer to food but can't tell good from poor alternatives. Same transplant design, seeds 1000 / 1001.
+
+| rich − poor quit-GUD gap | full vision (c33) | 30% sight (c42) | quality hidden (c43) |
+|---|---|---|---|
+| agouti | 0.10 | 0.09 | 0.12 (0.148 → 0.264) |
+| capybara | 0.22 | 0.12 | 0.17 (0.225 → 0.394) |
+| howler | 0.07 | 0.08 | 0.06 (0.148 → 0.209) |
+| tapir | 0.26 | 0.06 | 0.32 (0.240 → 0.559; small n) |
+
+**The gap survives.** Visible-food quality is *not necessary* for the habitat effect. The cycle 41 probe showed that the food-pull input *can* drive leaving, but in behaviour the habitat signal reaches the networks by other routes as well. Candidates include how fast food underfoot runs down, and the steering dynamics. A static, single-input probe can't separate these, so the cue remains open. This is a useful cautionary result: a probe can find an input that works without showing that the animals depend on it.
+
 ## Interpretation
 
 - **Evolved foragers' giving-up densities rise with habitat quality**, qualitatively as the marginal value theorem predicts (cycle 32, 8/8 series).
 - **The response is plastic** (cycle 33): animals evolved in one habitat shift within minutes of a switch.
 - **It is mostly evolved, not mechanical** (cycle 36): an unevolved, identical policy shows only a small, inconsistent rise.
 - **It's an active departure, carried by movement** (cycle 40): evolved brains quit while food remains far more often than an unevolved policy, more so in richer habitats, at speed.
-- **The cue is visible food** (cycle 41): on a good patch, evolved brains increasingly head off as the best food they can see improves; hunger doesn't matter and crowding matters a little. In a rich habitat better food is usually in view, so they leave sooner. That's a local, perception-based version of the MVT comparison: the networks compare the patch with the alternatives they can see, rather than with a remembered habitat average. (Iwasa et al. 1981 discuss how information limits shape real foragers' rules.)
+- **What tells them the habitat is rich is unresolved.** In a static probe, visible-food quality drives leaving (cycle 41), but hiding it doesn't remove the habitat effect (cycle 43), so it isn't necessary. Other inputs, or their dynamics over time, carry the signal too. Hunger doesn't matter; crowding matters a little. The safe summary: evolved foragers leave food behind in rich habitats by moving on sooner, and they use more than one cue to do it. (Iwasa et al. 1981 discuss how information limits shape real foragers' rules.)
 - That distinction matters. MVT describes what an optimal forager does; it doesn't say how. Real animals also use rules of thumb (e.g. quit after a fixed time, or after a run of unsuccessful bites; Iwasa et al. 1981), and a density rule can produce MVT-like patterns without any estimate of the habitat average.
 - **No Brown effect** (cycle 34): GUDs don't rise under predation risk, consistent with the brains' purely reactive treatment of threats (`docs/many-eyes-findings.md`, cycle 27 probe).
 
@@ -159,14 +171,14 @@ Cycle 33's transplant design, with food sensing cut to 30% of normal range at th
 
 - **2 replicates per level**: a pilot. The direction is consistent (8/8), but the effect sizes need more seeds.
 - **Qualitative only.** MVT makes a quantitative prediction (leave when marginal intake = long-run average intake), and this pilot doesn't test it. Doing so needs each bout's marginal intake rate at leaving, compared with the habitat average including travel.
-- **Mechanism shown with static probes, one seed.** Cycle 41 identifies visible food as the main cue, from single-input sweeps at one seed; the networks' memory outputs could integrate cues over time in ways a static probe doesn't capture.
+- **Cue unresolved.** Static single-input probes (cycles 35, 37, 41) find an input that *can* drive leaving (visible-food quality), but clamping it (cycle 43) shows it isn't necessary. The networks' memory outputs and the time course of food underfoot are untested.
 - **The Instinct lineage isn't a like-for-like control** for quit-GUDs (its bouts end by a different route); the unevolved seed-brain null (cycle 36) is the better baseline.
 - **Predators off.** With predators, bouts mostly end by fleeing (cycle 32 first look), so this is foraging in a predator-free world. GUDs under predation risk are their own classic topic (Brown 1988: GUDs rise with risk).
 - The "patch" is a 20-px cell in a continuous landscape, not a discrete patch with travel between patches, so the travel-time prediction can't be tested yet.
 
 ## Next steps
 
-0. ~~How bouts end~~ (cycle 40) and ~~the cue~~ (cycle 41): evolved brains actively leave food when better food is visible. Next: replicate the probe on a second seed, and test it behaviourally (e.g. hide visible food by shrinking sensing range and check whether GUDs stop tracking habitat).
+0. ~~How bouts end~~ (cycle 40): evolved brains actively leave food. ~~Cue~~ (cycles 41–43): visible-food quality can drive leaving but isn't necessary. If reopened, clamp several inputs at once (food here, pull, crowding), or record each bout's input trace before quitting.
 
 1. **More seeds** (6+) at the same three levels, to size the effect properly.
 2. ~~Transplant test~~: done (cycle 33): plastic. Next: probe which inputs drive the quit decision.
