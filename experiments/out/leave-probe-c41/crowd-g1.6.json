@@ -1,0 +1,137 @@
+{
+  "result": {
+    "agouti": {
+      "n": 400,
+      "evolved": {
+        "L0": {
+          "leave": 0.1675
+        },
+        "L0.5": {
+          "leave": 0.225
+        },
+        "L1": {
+          "leave": 0.3
+        }
+      },
+      "seed": {
+        "L0": {
+          "leave": 0.125
+        },
+        "L0.5": {
+          "leave": 0.115
+        },
+        "L1": {
+          "leave": 0.1125
+        }
+      }
+    },
+    "howler": {
+      "n": 400,
+      "evolved": {
+        "L0": {
+          "leave": 0.1225
+        },
+        "L0.5": {
+          "leave": 0.1225
+        },
+        "L1": {
+          "leave": 0.165
+        }
+      },
+      "seed": {
+        "L0": {
+          "leave": 0.12
+        },
+        "L0.5": {
+          "leave": 0.1825
+        },
+        "L1": {
+          "leave": 0.1975
+        }
+      }
+    },
+    "capybara": {
+      "n": 400,
+      "evolved": {
+        "L0": {
+          "leave": 0.1875
+        },
+        "L0.5": {
+          "leave": 0.23
+        },
+        "L1": {
+          "leave": 0.28
+        }
+      },
+      "seed": {
+        "L0": {
+          "leave": 0
+        },
+        "L0.5": {
+          "leave": 0
+        },
+        "L1": {
+          "leave": 0
+        }
+      }
+    },
+    "tapir": {
+      "n": 270,
+      "evolved": {
+        "L0": {
+          "leave": 0.09259259259259259
+        },
+        "L0.5": {
+          "leave": 0.11481481481481481
+        },
+        "L1": {
+          "leave": 0.24074074074074073
+        }
+      },
+      "seed": {
+        "L0": {
+          "leave": 0.003703703703703704
+        },
+        "L0.5": {
+          "leave": 0
+        },
+        "L1": {
+          "leave": 0
+        }
+      }
+    }
+  },
+  "manifest": {
+    "format": "vivarium-run",
+    "version": 1,
+    "code": "js/vivarium.js?v=39",
+    "seed": 1000,
+    "world": "brains",
+    "t": 1500,
+    "toggles": {
+      "river": false,
+      "sexual": false,
+      "traitCosts": true,
+      "predators": false,
+      "alarm": false
+    },
+    "params": {
+      "headDownSense": 0.4,
+      "scanIntake": 0,
+      "births": true,
+      "hybridPenalty": 0,
+      "riverOffAt": 0,
+      "alarmRate": 0,
+      "ethoFrom": 0,
+      "capScale": 1.6,
+      "mutationRate": 0.07,
+      "growth": 1.6,
+      "satiety": 0.65,
+      "arrivalGroup": 4
+    },
+    "hunt": {
+      "lungeCost": 10,
+      "missRest": 15
+    }
+  }
+}
