@@ -97,7 +97,7 @@
   var idCounter = 1;
   var maxGeneration = 0;
   var simClock = 0;
-  var params = { headDownSense:0.4, scanIntake:0, hybridPenalty:0, riverOffAt:0, alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
+  var params = { headDownSense:0.4, scanIntake:0, births:true, hybridPenalty:0, riverOffAt:0, alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
   var worldMode = 'instinct';   // the brain mode the current world was seeded with
   var events = { droughtUntil:0, mastUntil:0 };
   var selected = null;
@@ -758,6 +758,7 @@
   }
 
   function reproduce(a){
+    if(params.births === false) return;   // experiments: freeze the population (transplant tests)
     var sp=SPECIES[a.sid];
     if(counts[a.sid] >= capOf(a.sid)) return;
     if(sp.crowd && crowded(a, sp.crowd)){ a.cooldown = a.repCd*0.4; return; }
@@ -1128,6 +1129,7 @@
      can't breed, so a species that crashed to zero could never come back (seen in a
      2-hour run: agoutis stuck at 1–2). Under mating they arrive as a small band. */
   function arrive(id, genomeFn){
+    if(params.births === false) return;   // frozen population: no immigrants either
     var n = params.sexual ? params.arrivalGroup : 1, x = rand()*world.w, y = rand()*world.h;
     if(!params.predators && SPECIES[id].role==='predator') return;
     for(var k=0;k<n && (counts[id]||0) < capOf(id);k++){
@@ -3299,7 +3301,7 @@
       return { format:'vivarium-run', version:1, code: tag ? tag.getAttribute('src') : null,
                seed:simSeed, world:worldMode, t:+simClock.toFixed(3),
                toggles:{ river:RIVER.on, sexual:params.sexual, traitCosts:params.traitCosts, predators:params.predators, alarm:params.alarm },
-               params:{ headDownSense:params.headDownSense, scanIntake:params.scanIntake, hybridPenalty:params.hybridPenalty, riverOffAt:params.riverOffAt, alarmRate:params.alarmRate, ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
+               params:{ headDownSense:params.headDownSense, scanIntake:params.scanIntake, births:params.births, hybridPenalty:params.hybridPenalty, riverOffAt:params.riverOffAt, alarmRate:params.alarmRate, ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
                hunt:Object.assign({}, HUNT) };
     },
     setPaused: function(v){ params.paused=v; },

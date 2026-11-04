@@ -14,7 +14,7 @@ const fs = require('fs');
 const { chromium } = require('playwright');
 
 function args(){
-  const a = { secs:1200, seed:1, mode:'instinct', every:10, out:null, river:0, sexual:0, costs:0, uiseed:0, lifetable:0, patches:0, set:'' };
+  const a = { secs:1200, seed:1, mode:'instinct', every:10, out:null, river:0, sexual:0, costs:0, uiseed:0, lifetable:0, patches:0, set:'', at:'' };
   const v = process.argv.slice(2);
   for(let i=0;i<v.length;i+=2){ const k=v[i].replace(/^--/,''); a[k] = isNaN(+v[i+1]) ? v[i+1] : +v[i+1]; }
   if(!a.out) a.out = path.join('runs', `${a.mode}-s${a.seed}-${a.secs}${a.river ? '-river' : ''}${a.sexual ? '-sex' : ''}`);
@@ -75,7 +75,11 @@ function args(){
     };
     sample();
     const steps = Math.round(opt.every / DT);
+    // --at '{"1800":{"growth":1.6,"births":false}}': param changes applied when the clock reaches each time
+    // (checked every --every seconds, so use times that are multiples of it).
+    const at = opt.at ? JSON.parse(opt.at) : {}, applied = {};
     for(let t = 0; t < opt.secs; t += opt.every){
+      Object.keys(at).forEach(k => { if(!applied[k] && t >= +k){ Object.assign(V.params, at[k]); applied[k] = true; } });
       for(let i=0;i<steps;i++) V.step(DT);
       sample();
       await new Promise(r => setTimeout(r, 0));
