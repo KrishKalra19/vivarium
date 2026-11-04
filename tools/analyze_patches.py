@@ -2,7 +2,7 @@
 
     python3 tools/analyze_patches.py runs/<dir>/*/patches.json [--key growth] [--min 30]
 
-Each run's condition is read from its manifest.json (params[--key]); replicates are the runs
+Each run's condition is read from its manifest.json (params[--key], else toggles[--key]); replicates are the runs
 that share a condition. Per species x lineage x condition, the mean over replicates of:
   quit GUD   food left where a feeding bout ended voluntarily (2 s without eating)
   move GUD   food left in a cell when a feeding animal moved on to the next one
@@ -26,7 +26,7 @@ def main():
     cells = collections.defaultdict(lambda: collections.defaultdict(list))   # (sp, lin) -> cond -> [(qgud, mgud, quitshare, habitat, nq)]
     for f in files:
         d = json.load(open(f)); man = json.load(open(os.path.join(os.path.dirname(f), 'manifest.json')))
-        cond = man['params'].get(key)
+        cond = man['params'].get(key, man.get('toggles', {}).get(key))
         for k, c in d['by'].items():
             sp, lin = k.split(':')
             q = c['quit']; bouts = q + c['fled']
@@ -43,7 +43,7 @@ def main():
     for (sp, lin) in sorted(cells):
         for cond in sorted(cells[(sp, lin)]):
             R = cells[(sp, lin)][cond]
-            print(f"{sp:9} {lin:9} {cond:>6}  {m([r[0] for r in R]):>13} {m([r[1] for r in R]):>13} {m([r[2] for r in R]):>13} {m([r[3] for r in R]):>15} {st.mean(r[4] for r in R):9.0f}")
+            print(f"{sp:9} {lin:9} {str(cond):>6}  {m([r[0] for r in R]):>13} {m([r[1] for r in R]):>13} {m([r[2] for r in R]):>13} {m([r[3] for r in R]):>15} {st.mean(r[4] for r in R):9.0f}")
 
 if __name__ == '__main__':
     main()

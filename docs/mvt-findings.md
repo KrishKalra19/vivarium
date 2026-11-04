@@ -1,6 +1,6 @@
 # Do evolved foragers obey the marginal value theorem?
 
-*Pilot plus a transplant test, cycles 32–33 (Nov 2026). About 6 minutes to read.*
+*Pilot, transplant test and a predation-risk test, cycles 32–34 (Nov 2026). About 7 minutes to read.*
 
 ## Question
 
@@ -38,7 +38,7 @@ Quit GUD (food left when a bout ends), mean of 2 seeds:
 - **Move GUDs rise for both lineages** (e.g. agouti instinct 0.24 → 0.32). That's what passive drift through a richer landscape gives. Only the active quit decision separates the lineages.
 - Brains also quit at higher food than Instinct at every growth level: they leave patches that the rule would keep grazing.
 
-Raw output: `experiments/out/mvt-pilot-c32/` and `experiments/out/mvt-transplant-c33/` (`gud.txt`, plus each run's `patches.json` and manifest).
+Raw output: `experiments/out/mvt-pilot-c32/`, `experiments/out/mvt-transplant-c33/` and `experiments/out/mvt-risk-c34/` (`gud.txt`, plus each run's `patches.json` and manifest).
 
 ### Plasticity or evolution? A transplant test (cycle 33)
 Cycle 32's populations evolved for 30 min at their own growth level, so the GUD differences could be either:
@@ -63,6 +63,21 @@ Seeds 1000 and 1001, via `--at`.
 
 *An earlier version with births switched off failed: lifespans are so short that every population emptied within ~2–3 min, before the window opened. That run is kept in `experiments/out/mvt-transplant-c33/births-off-failed/`.*
 
+### Predation risk (cycle 34): no Brown effect
+Brown (1988) predicts that foragers give up at **higher** food where predation risk is higher, because each extra minute in the patch carries a risk cost. Test: growth 1.0 with predators on (seeds 1000 / 1001), against cycle 32's predator-free growth-1.0 runs (same seeds and settings).
+
+| brains | quit GUD, predators off | predators on | share of bouts ended voluntarily (on) |
+|---|---|---|---|
+| agouti | 0.159 | 0.141 (1 seed with ≥ 20 quits) | 4% |
+| capybara | 0.285 | 0.275 | 3% |
+| howler | 0.172 | 0.171 | 2% |
+| tapir | 0.324 | 0.251 (1 seed) | 11% |
+
+- **Quit GUDs don't rise under risk; if anything they fall.** This holds even though the landscape is a little *richer* with predators on (habitat intake: agouti 1.03 → 1.21), which by itself should push GUDs up.
+- **Instinct is flat as expected:** 0.10–0.16 either way.
+- **Why the absence fits:** the cycle 27 network probe showed these brains are *reactive*. They respond to a predator they can sense, but nothing in them represents background risk, so there's nothing that could raise a quitting threshold.
+- **Measurement caution:** with predators on, only 2–11% of bouts end voluntarily; the rest end in flight. Voluntary quits are therefore a sample of moments when no predator was near, which biases this test against finding a risk effect. Field GUD trays have the same problem in reverse: they record food left but not why the forager left.
+
 ## Interpretation
 
 Evolved foragers behave qualitatively as the marginal value theorem predicts, and the fixed-rule lineage behaves as a rule of thumb that ignores habitat quality should. The transplant test shows the response is behavioural: the networks adjust within minutes, rather than having evolved apart. This is the first positive, controlled result from Vivarium's research line, and it is a classic field test (GUDs across habitats) run on agents nobody told about the theorem.
@@ -79,7 +94,7 @@ Evolved foragers behave qualitatively as the marginal value theorem predicts, an
 
 1. **More seeds** (6+) at the same three levels, to size the effect properly.
 2. ~~Transplant test~~: done (cycle 33): plastic. Next: probe which inputs drive the quit decision.
-3. **Predation risk:** GUD with predators on vs off, using only bouts that end by choice. Brown's prediction: higher GUDs where risk is higher.
+3. ~~Predation risk~~: done (cycle 34): no Brown effect, consistent with reactive brains. A fairer test would record GUD for *every* bout end, fled or not, and compare spatially (risky vs safe areas).
 4. **Quantitative MVT:** log the intake rate at leaving and compare it with the habitat's long-run average.
 
 ## Reproducing
