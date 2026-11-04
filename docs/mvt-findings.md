@@ -97,14 +97,15 @@ Brown (1988) predicts that foragers give up at **higher** food where predation r
 
 - **There is a mechanical component, but it's small and inconsistent:** +0.005 for howlers, +0.02 for capybaras (one seed falls), and agoutis flat in one seed with an unexplained jump in the other.
 - **The evolved response is several times larger and rises in every seed.** So evolution added something real on top of the mechanics.
-- Visible food and energy are ruled out as the cue. The leading candidate is **density**: richer habitats hold more animals, and the networks see kin proximity and crowding. Crowding as a cue to habitat quality would tie this to competition, as in ideal-free-distribution and interference models. Not yet tested.
+- **No single input moves the threshold.** Visible food, energy, and density were all ruled out: a crowding sweep (`--vary crowd`, kin proximity + crowding 0 → 1, cycle 37) shifts evolved thresholds by ±0.03 in mixed directions.
+- **The likely explanation is in the movement.** A bout ends when an animal *walks off* onto poorer ground, not when it lifts its head on good ground. So the evolved difference is probably in the movement policy while grazing (throttle and turning, which decide when and where an animal drifts on), not in the head-down decision these probes looked at. The quit-GUD measures where an animal was when it stopped eating; the "decision" may be a by-product of how it moves through the landscape.
 
 ## Interpretation
 
 - **Evolved foragers' giving-up densities rise with habitat quality**, qualitatively as the marginal value theorem predicts (cycle 32, 8/8 series).
 - **The response is plastic** (cycle 33): animals evolved in one habitat shift within minutes of a switch.
 - **It is mostly evolved, not mechanical** (cycle 36): an unevolved, identical policy shows only a small, inconsistent rise.
-- **But the mechanism isn't an MVT-style comparison.** The networks don't raise their grazing threshold when better food is visible, or when they're full (cycle 35). The likeliest cue is density.
+- **But the mechanism isn't an MVT-style comparison.** The networks don't raise their grazing threshold with visible food, fullness or crowding (cycles 35, 37). The effect most likely sits in how they move while grazing.
 - That distinction matters. MVT describes what an optimal forager does; it doesn't say how. Real animals also use rules of thumb (e.g. quit after a fixed time, or after a run of unsuccessful bites; Iwasa et al. 1981), and a density rule can produce MVT-like patterns without any estimate of the habitat average.
 - **No Brown effect** (cycle 34): GUDs don't rise under predation risk, consistent with the brains' purely reactive treatment of threats (`docs/many-eyes-findings.md`, cycle 27 probe).
 
@@ -112,14 +113,14 @@ Brown (1988) predicts that foragers give up at **higher** food where predation r
 
 - **2 replicates per level**: a pilot. The direction is consistent (8/8), but the effect sizes need more seeds.
 - **Qualitative only.** MVT makes a quantitative prediction (leave when marginal intake = long-run average intake), and this pilot doesn't test it. Doing so needs each bout's marginal intake rate at leaving, compared with the habitat average including travel.
-- **The cue is unidentified.** Visible food and energy are ruled out (cycle 35); density is the leading candidate.
+- **The mechanism is unidentified.** Visible food, energy and crowding don't shift the head-down threshold (cycles 35, 37); the movement outputs haven't been probed.
 - **The Instinct lineage isn't a like-for-like control** for quit-GUDs (its bouts end by a different route); the unevolved seed-brain null (cycle 36) is the better baseline.
 - **Predators off.** With predators, bouts mostly end by fleeing (cycle 32 first look), so this is foraging in a predator-free world. GUDs under predation risk are their own classic topic (Brown 1988: GUDs rise with risk).
 - The "patch" is a 20-px cell in a continuous landscape, not a discrete patch with travel between patches, so the travel-time prediction can't be tested yet.
 
 ## Next steps
 
-0. **Probe the density cue:** sweep the kin-proximity and crowding inputs in `probe-quit.js` and check whether the grazing threshold rises with crowding.
+0. **Probe the movement outputs:** for head-down animals, how throttle and turning respond to food underfoot vs visible food. Or log, per bout, the animal's speed in its last seconds, to see whether evolved brains drift on sooner in rich landscapes.
 
 1. **More seeds** (6+) at the same three levels, to size the effect properly.
 2. ~~Transplant test~~: done (cycle 33): plastic. Next: probe which inputs drive the quit decision.

@@ -64,3 +64,36 @@ capybara  seed      400 | 0.14 [0.03–0.19] nv 0  | 0.14 [0.02–0.19] nv 0  | 
 tapir     evolved   270 | 0.17 [0.11–0.24] nv 10 | 0.17 [0.11–0.24] nv 11 | 0.17 [0.11–0.24] nv 12
 tapir     seed      270 | 0.10 [0.07–0.14] nv 0  | 0.10 [0.07–0.14] nv 0  | 0.10 [0.07–0.14] nv 0 
 page errors: none
+seed 1000, growth 0.6, 1500 sim-s; grazing threshold (food-here level where head goes down): median [q1–q3], never = brains that don't graze at any level
+species   brain      n  | crowd 0                | crowd 0.5              | crowd 1               
+agouti    evolved   400 | 0.06 [0.00–0.13] nv 0  | 0.06 [0.00–0.14] nv 2  | 0.07 [0.00–0.16] nv 1 
+agouti    seed      400 | 0.13 [0.12–0.13] nv 0  | 0.09 [0.08–0.10] nv 0  | 0.08 [0.07–0.09] nv 0 
+howler    evolved   400 | 0.05 [0.00–0.14] nv 2  | 0.00 [0.00–0.08] nv 1  | 0.00 [0.00–0.09] nv 1 
+howler    seed      400 | 0.17 [0.15–0.17] nv 0  | 0.19 [0.18–0.20] nv 0  | 0.21 [0.20–0.22] nv 0 
+capybara  evolved   400 | 0.16 [0.09–0.23] nv 8  | 0.16 [0.09–0.23] nv 5  | 0.18 [0.09–0.24] nv 5 
+capybara  seed      400 | 0.09 [0.07–0.14] nv 0  | 0.04 [0.00–0.10] nv 0  | 0.03 [0.00–0.10] nv 0 
+tapir     evolved    13 | 0.18 [0.13–0.18] nv 0  | 0.12 [0.09–0.17] nv 0  | 0.08 [0.04–0.18] nv 1 
+tapir     seed       13 | 0.13 [0.13–0.14] nv 0  | 0.16 [0.15–0.16] nv 0  | 0.16 [0.15–0.16] nv 0 
+page errors: none
+seed 1000, growth 1, 1500 sim-s; grazing threshold (food-here level where head goes down): median [q1–q3], never = brains that don't graze at any level
+species   brain      n  | crowd 0                | crowd 0.5              | crowd 1               
+agouti    evolved   400 | 0.13 [0.01–0.18] nv 3  | 0.13 [0.00–0.20] nv 1  | 0.11 [0.00–0.19] nv 2 
+agouti    seed      400 | 0.10 [0.10–0.11] nv 0  | 0.08 [0.07–0.09] nv 0  | 0.09 [0.08–0.09] nv 0 
+howler    evolved   400 | 0.09 [0.02–0.15] nv 0  | 0.07 [0.00–0.14] nv 1  | 0.06 [0.00–0.16] nv 2 
+howler    seed      400 | 0.06 [0.05–0.08] nv 0  | 0.11 [0.10–0.13] nv 0  | 0.12 [0.10–0.13] nv 0 
+capybara  evolved   400 | 0.16 [0.10–0.22] nv 4  | 0.16 [0.10–0.23] nv 6  | 0.17 [0.10–0.24] nv 5 
+capybara  seed      400 | 0.08 [0.07–0.11] nv 0  | 0.07 [0.06–0.10] nv 0  | 0.07 [0.05–0.10] nv 0 
+tapir     evolved   238 | 0.14 [0.10–0.18] nv 0  | 0.17 [0.09–0.23] nv 2  | 0.17 [0.09–0.28] nv 4 
+tapir     seed      238 | 0.10 [0.09–0.12] nv 0  | 0.13 [0.12–0.15] nv 0  | 0.16 [0.15–0.18] nv 0 
+page errors: none
+seed 1000, growth 1.6, 1500 sim-s; grazing threshold (food-here level where head goes down): median [q1–q3], never = brains that don't graze at any level
+species   brain      n  | crowd 0                | crowd 0.5              | crowd 1               
+agouti    evolved   400 | 0.13 [0.05–0.21] nv 0  | 0.12 [0.01–0.22] nv 2  | 0.12 [0.00–0.24] nv 9 
+agouti    seed      400 | 0.11 [0.10–0.13] nv 0  | 0.11 [0.10–0.13] nv 0  | 0.11 [0.10–0.13] nv 0 
+howler    evolved   400 | 0.12 [0.03–0.18] nv 5  | 0.07 [0.00–0.16] nv 5  | 0.09 [0.00–0.19] nv 6 
+howler    seed      400 | 0.01 [0.00–0.08] nv 0  | 0.00 [0.00–0.07] nv 0  | 0.00 [0.00–0.06] nv 0 
+capybara  evolved   400 | 0.16 [0.09–0.22] nv 5  | 0.16 [0.08–0.25] nv 11 | 0.17 [0.09–0.27] nv 23
+capybara  seed      400 | 0.10 [0.09–0.22] nv 0  | 0.15 [0.14–0.27] nv 0  | 0.15 [0.14–0.27] nv 0 
+tapir     evolved   270 | 0.15 [0.11–0.20] nv 1  | 0.14 [0.06–0.20] nv 9  | 0.15 [0.07–0.23] nv 12
+tapir     seed      270 | 0.08 [0.07–0.09] nv 0  | 0.03 [0.02–0.05] nv 0  | 0.05 [0.03–0.06] nv 0 
+page errors: none
