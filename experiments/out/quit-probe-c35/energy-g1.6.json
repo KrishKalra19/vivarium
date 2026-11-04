@@ -1,0 +1,209 @@
+{
+  "result": {
+    "agouti": {
+      "n": 400,
+      "evolved": {
+        "L0.3": {
+          "never": 0,
+          "median": 0.11,
+          "q1": 0.02,
+          "q3": 0.22
+        },
+        "L0.6": {
+          "never": 1,
+          "median": 0.11,
+          "q1": 0.03,
+          "q3": 0.22
+        },
+        "L0.9": {
+          "never": 1,
+          "median": 0.13,
+          "q1": 0.03,
+          "q3": 0.23
+        }
+      },
+      "seed": {
+        "L0.3": {
+          "never": 0,
+          "median": 0.13,
+          "q1": 0.11,
+          "q3": 0.15
+        },
+        "L0.6": {
+          "never": 0,
+          "median": 0.12,
+          "q1": 0.1,
+          "q3": 0.14
+        },
+        "L0.9": {
+          "never": 0,
+          "median": 0.11,
+          "q1": 0.09,
+          "q3": 0.13
+        }
+      }
+    },
+    "howler": {
+      "n": 400,
+      "evolved": {
+        "L0.3": {
+          "never": 7,
+          "median": 0.14,
+          "q1": 0.03,
+          "q3": 0.22
+        },
+        "L0.6": {
+          "never": 7,
+          "median": 0.14,
+          "q1": 0.02,
+          "q3": 0.22
+        },
+        "L0.9": {
+          "never": 8,
+          "median": 0.12,
+          "q1": 0,
+          "q3": 0.21
+        }
+      },
+      "seed": {
+        "L0.3": {
+          "never": 0,
+          "median": 0.04,
+          "q1": 0,
+          "q3": 0.1
+        },
+        "L0.6": {
+          "never": 0,
+          "median": 0.03,
+          "q1": 0,
+          "q3": 0.09
+        },
+        "L0.9": {
+          "never": 0,
+          "median": 0.01,
+          "q1": 0,
+          "q3": 0.08
+        }
+      }
+    },
+    "capybara": {
+      "n": 400,
+      "evolved": {
+        "L0.3": {
+          "never": 12,
+          "median": 0.17,
+          "q1": 0.1,
+          "q3": 0.26
+        },
+        "L0.6": {
+          "never": 15,
+          "median": 0.17,
+          "q1": 0.1,
+          "q3": 0.26
+        },
+        "L0.9": {
+          "never": 13,
+          "median": 0.17,
+          "q1": 0.09,
+          "q3": 0.26
+        }
+      },
+      "seed": {
+        "L0.3": {
+          "never": 0,
+          "median": 0.14,
+          "q1": 0.03,
+          "q3": 0.19
+        },
+        "L0.6": {
+          "never": 0,
+          "median": 0.14,
+          "q1": 0.02,
+          "q3": 0.19
+        },
+        "L0.9": {
+          "never": 0,
+          "median": 0.14,
+          "q1": 0.02,
+          "q3": 0.19
+        }
+      }
+    },
+    "tapir": {
+      "n": 270,
+      "evolved": {
+        "L0.3": {
+          "never": 10,
+          "median": 0.17,
+          "q1": 0.11,
+          "q3": 0.24
+        },
+        "L0.6": {
+          "never": 11,
+          "median": 0.17,
+          "q1": 0.11,
+          "q3": 0.24
+        },
+        "L0.9": {
+          "never": 12,
+          "median": 0.17,
+          "q1": 0.11,
+          "q3": 0.24
+        }
+      },
+      "seed": {
+        "L0.3": {
+          "never": 0,
+          "median": 0.1,
+          "q1": 0.07,
+          "q3": 0.14
+        },
+        "L0.6": {
+          "never": 0,
+          "median": 0.1,
+          "q1": 0.07,
+          "q3": 0.14
+        },
+        "L0.9": {
+          "never": 0,
+          "median": 0.1,
+          "q1": 0.07,
+          "q3": 0.14
+        }
+      }
+    }
+  },
+  "manifest": {
+    "format": "vivarium-run",
+    "version": 1,
+    "code": "js/vivarium.js?v=36",
+    "seed": 1000,
+    "world": "brains",
+    "t": 1500,
+    "toggles": {
+      "river": false,
+      "sexual": false,
+      "traitCosts": true,
+      "predators": false,
+      "alarm": false
+    },
+    "params": {
+      "headDownSense": 0.4,
+      "scanIntake": 0,
+      "births": true,
+      "hybridPenalty": 0,
+      "riverOffAt": 0,
+      "alarmRate": 0,
+      "ethoFrom": 0,
+      "capScale": 1.6,
+      "mutationRate": 0.07,
+      "growth": 1.6,
+      "satiety": 0.65,
+      "arrivalGroup": 4
+    },
+    "hunt": {
+      "lungeCost": 10,
+      "missRest": 15
+    }
+  }
+}
