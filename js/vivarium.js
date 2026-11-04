@@ -97,7 +97,7 @@
   var idCounter = 1;
   var maxGeneration = 0;
   var simClock = 0;
-  var params = { headDownSense:0.4, scanIntake:0, births:true, foliageTo:0, foodSense:1, hybridPenalty:0, riverOffAt:0, alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
+  var params = { headDownSense:0.4, scanIntake:0, births:true, foliageTo:0, foodSense:1, pullClamp:-1, hybridPenalty:0, riverOffAt:0, alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
   var worldMode = 'instinct';   // the brain mode the current world was seeded with
   var events = { droughtUntil:0, mastUntil:0 };
   var selected = null;
@@ -936,7 +936,8 @@
       if(scanFood(a, sp, 0)){ a.fx=_food.x; a.fy=_food.y; a.fs=_food.s; } else a.fs=0;
     }
     dx=a.fx-a.x; dy=a.fy-a.y; d=Math.sqrt(dx*dx+dy*dy);
-    if(a.fs>0 && d>CELL*0.5){ relDir(inp, B.fSin, a, dx, dy, d); inp[B.fPull]=clamp(a.fs,0,1); }
+    if(a.fs>0 && d>CELL*0.5){ relDir(inp, B.fSin, a, dx, dy, d); inp[B.fPull]=clamp(a.fs,0,1);
+      if(params.pullClamp >= 0) inp[B.fPull] = params.pullClamp; }   // experiments: food is seen (and steered to) but its quality isn't
     else { inp[B.fSin]=0; inp[B.fCos]=0; inp[B.fPull]=0; }
     inp[B.fHere] = clamp(foodAt(sp, cellAt(a.x,a.y)), 0, 1.5);
 
@@ -3385,7 +3386,7 @@
       return { format:'vivarium-run', version:1, code: tag ? tag.getAttribute('src') : null,
                seed:simSeed, world:worldMode, t:+simClock.toFixed(3),
                toggles:{ river:RIVER.on, sexual:params.sexual, traitCosts:params.traitCosts, predators:params.predators, alarm:params.alarm },
-               params:{ headDownSense:params.headDownSense, scanIntake:params.scanIntake, births:params.births, foodSense:params.foodSense, hybridPenalty:params.hybridPenalty, riverOffAt:params.riverOffAt, alarmRate:params.alarmRate, ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
+               params:{ headDownSense:params.headDownSense, scanIntake:params.scanIntake, births:params.births, foodSense:params.foodSense, pullClamp:params.pullClamp, hybridPenalty:params.hybridPenalty, riverOffAt:params.riverOffAt, alarmRate:params.alarmRate, ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
                hunt:Object.assign({}, HUNT) };
     },
     setPaused: function(v){ params.paused=v; },
