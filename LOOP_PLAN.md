@@ -76,7 +76,7 @@ Order (Krish 11-02: research first, then teaching):
 ### Phase 5 ownership (two sessions on this branch; agreed 11-04)
 | item | owner | files it may touch |
 |---|---|---|
-| 1. Class seed link | **local** (Krish's machine) | `js/app.js`, `js/vivarium.js` (URL handling only), `index.html` |
+| 1. ~~Class seed link~~ (done) | **local** (Krish's machine) | `js/app.js`, `js/vivarium.js` (URL handling only), `index.html` |
 | 2. CSV export for scan sampling + trays | **local** | `js/fieldstudy.js`, `index.html`, `css/style.css` |
 | 2b. Real-browser QA of the Field tab (focal, scan, trays; desktop + phone) | **local** | fixes in the same files; anything bigger goes to LOOP_LOG as a note |
 | 3. ~~Handouts~~ (done) | **cloud** | `docs/handouts/` (new) |

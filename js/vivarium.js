@@ -1254,11 +1254,13 @@
     if(prof) lap('sample+cleanup', t);
   }
 
+  /* Fixed steps, whatever the frame rate: the same seed gives the same world on every machine
+     (the class link relies on this) and the same steps as the headless runs. */
+  var tickAcc = 0;
   function tick(dt){
     if(params.paused) return;
-    var total = dt*params.speed;
-    var n = Math.ceil(total/SUBSTEP - 1e-6);
-    for(var i=0;i<n;i++) step(total/n);
+    tickAcc += dt*params.speed;
+    while(tickAcc >= SUBSTEP - 1e-9){ step(SUBSTEP); tickAcc -= SUBSTEP; }
   }
 
   /* Turbo: as many fixed steps as fit in the frame budget. Returns sim seconds run. */
