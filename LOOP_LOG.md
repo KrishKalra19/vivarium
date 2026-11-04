@@ -1,6 +1,6 @@
 # Vivarium loop log
 
-## TL;DR (as of cycle 43, 2026-11-04 05:45 UTC)
+## TL;DR (as of 2026-11-04 08:30 UTC, end of the loop; one-page version: `docs/SUMMARY.md`)
 **What Vivarium can now do** (all on branch `claude/sweet-planck-lhh90j`, nothing merged to main):
 - **Evolution you can watch:** subspecies with Latin names, a family tree, a river barrier, sexual reproduction with an evolvable choosiness gene, trait costs, and a time-lapse coloured by subspecies.
 - **Research instrument:**
@@ -14,11 +14,14 @@
   - **Many-eyes (robust null, `docs/many-eyes-findings.md`):** these networks never evolve proactive vigilance. Cycles 29–31 found that it evolves *down*, and that per-animal vigilance was food-confounded.
   - **Reinforcement:** null; hybrids are too rare for the penalty to matter.
   - **Harpy decline:** a bottom-up cascade.
-- **Teaching:** Field tab with focal sampling (κ, confusion, observer vs sampling error), scan sampling (counting vs placement error) and **feeding trays** (GUDs in rich vs poor habitat, prediction first). Guide: `docs/teaching-field-methods.md`.
+- **Teaching (classroom-ready):** Field tab with focal sampling, scan sampling and **feeding trays** (GUDs in rich vs poor habitat, prediction first).
+  - **Class link** (`?seed=…&mode=…#field`, one world for every student, backed by a fixed-step clock) and **CSV downloads** for all three methods, phone-tested: built by a local Claude Code session working on the same branch.
+  - One-page **handouts** (`docs/handouts/`) and two **case studies** on real data (`docs/case-studies/`).
+  - Guide: `docs/teaching-field-methods.md`.
 - **Measurement traps caught along the way** (each logged in its cycle):
   - simulation bugs: leaky river, Allee traps, seed non-determinism, 1.033 s sampling drift, alarm echo chamber;
   - measurement: "chase" mislabel, vigilance including walking, food confounds (twice), immortal-time bias, a float-order fingerprint change, a phone-width overflow.
-- **Start here:** README → `docs/mvt-findings.md` → `docs/many-eyes-findings.md` → `docs/teaching-field-methods.md`. Screenshots in `docs/loop/`.
+- **Start here:** `docs/SUMMARY.md` → README → `docs/mvt-findings.md` → `docs/many-eyes-findings.md` → `docs/teaching-field-methods.md`. Screenshots in `docs/loop/`.
 - Loop mechanics: each cycle re-arms with a server-side reminder. Container restarts (about every 25–60 min overnight) kill detached runs, so launch scripts skip finished runs and can simply be rerun.
 - **Krish feedback** (write anything here or in chat; the next cycle reads it first):
   - 11-02: subspecies pace: no opinion, so keep the current settings.
