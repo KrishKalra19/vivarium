@@ -97,7 +97,7 @@
   var idCounter = 1;
   var maxGeneration = 0;
   var simClock = 0;
-  var params = { headDownSense:0.4, scanIntake:0, births:true, hybridPenalty:0, riverOffAt:0, alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
+  var params = { headDownSense:0.4, scanIntake:0, births:true, foliageTo:0, hybridPenalty:0, riverOffAt:0, alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
   var worldMode = 'instinct';   // the brain mode the current world was seeded with
   var events = { droughtUntil:0, mastUntil:0 };
   var selected = null;
@@ -323,6 +323,19 @@
     return m;
   }
 
+  // Experiments (transplant tests): scale standing foliage and fruit once, so mean foliage
+  // becomes `target`, i.e. jump straight to another growth level's equilibrium landscape.
+  function rescaleFood(target){
+    params.foliageTo = 0;
+    var sum = 0; for(var i=0;i<foliage.length;i++) sum += foliage[i];
+    var k = sum > 0 ? target*foliage.length/sum : 1;
+    for(var j=0;j<foliage.length;j++){
+      if(water[j]) continue;
+      foliage[j] = Math.min(1, foliage[j]*k);
+      fruit[j] = Math.min(fruitCap[j], fruit[j]*k);
+    }
+    repaintPlants();
+  }
   function growPlants(dt){
     var gm = growthMultiplier();
     var fo = BIOME.plants.foliage.regrow*gm*dt;
@@ -1181,6 +1194,7 @@
     // Secondary contact (experiments): the river dries up at riverOffAt sim-seconds.
     if(RIVER.on && params.riverOffAt > 0 && simClock >= params.riverOffAt){ setRiver(false); repaintPlants();
       logEvent({ text:'The river has dried up: the two banks meet again (secondary contact).' }); }
+    if(params.foliageTo > 0) rescaleFood(params.foliageTo);
     growPlants(dt);
     patchTally(dt);
     if(prof) t = lap('plants', t);
