@@ -11,7 +11,9 @@
    MVT mechanism: if better food is visible nearby, a forager should quit at higher food underfoot,
    so the threshold should rise with food pull.
    --vary energy: instead sweep the 'energy' input at 0.3, 0.6, 0.9 (food pull 0): does a fuller animal
-   need more food underfoot before it grazes (satiety)? Writes <out>/probe-quit.json and prints a table. */
+   need more food underfoot before it grazes (satiety)?
+   --vary crowd: set kin proximity and crowding together to 0, 0.5, 1 (kin straight ahead when > 0):
+   does a crowded animal need more food underfoot before it grazes (a density cue)? Writes <out>/probe-quit.json and prints a table. */
 const path = require('path');
 const fs = require('fs');
 const { chromium } = require('playwright');
@@ -35,7 +37,7 @@ for(let i=0;i<v.length;i+=2) a[v[i].replace(/^--/,'')] = isNaN(+v[i+1]) ? v[i+1]
     for(let t=0; t<o.secs; t+=10){ for(let i=0;i<300;i++) V.step(1/30); await new Promise(r => setTimeout(r, 0)); }
     const hid = new Float32Array(H.NH), out = new Float32Array(H.NO);
     const down = (w, x) => { H.forward(w, x, hid, out); return out[O.headDown] > 0; };
-    const LEVELS = o.vary === 'energy' ? [0.3, 0.6, 0.9] : [0, 0.5, 1], result = {};
+    const LEVELS = o.vary === 'energy' ? [0.3, 0.6, 0.9] : [0, 0.5, 1], result = {};   // crowd also uses 0 / 0.5 / 1
     ['agouti','howler','capybara','tapir'].forEach(sid => {
       const sp = V.species[sid], seedW = H.seed(null, sp);
       const pop = V.animals().filter(an => !an.dead && an.sid===sid && an.genome.brain && an.bIn).slice(0, 400);
@@ -43,13 +45,14 @@ for(let i=0;i<v.length;i+=2) a[v[i].replace(/^--/,'')] = isNaN(+v[i+1]) ? v[i+1]
       [['evolved', an => an.genome.brain], ['seed', () => seedW]].forEach(([tag, W]) => {
         r[tag] = {};
         LEVELS.forEach(lv => {
-          const pull = o.vary === 'energy' ? 0 : lv;
+          const pull = o.vary === 'pull' ? lv : 0;
           const th = [];
           pop.forEach(an => {
             const x = Float32Array.from(an.bIn);
             x[I.tSin]=0; x[I.tCos]=0; x[I.tNear]=0;
             x[I.fPull]=pull; x[I.fSin]=0; x[I.fCos]=pull > 0 ? 1 : 0;
             if(o.vary === 'energy') x[I.energy] = lv;
+            if(o.vary === 'crowd'){ x[I.kNear] = lv; x[I.crowd] = lv; x[I.kSin] = 0; x[I.kCos] = lv > 0 ? 1 : 0; }
             let t = null;
             for(let f=0; f<=100; f++){ x[I.fHere] = f/100; if(down(W(an), x)){ t = f/100; break; } }
             th.push(t);
@@ -66,7 +69,7 @@ for(let i=0;i<v.length;i+=2) a[v[i].replace(/^--/,'')] = isNaN(+v[i+1]) ? v[i+1]
   fs.writeFileSync(path.join(a.out, 'probe-quit.json'), JSON.stringify(res, null, 2));
   const f = x => x == null ? '  —  ' : x.toFixed(2);
   console.log(`seed ${a.seed}, growth ${a.growth}, ${a.secs} sim-s; grazing threshold (food-here level where head goes down): median [q1–q3], never = brains that don't graze at any level`);
-  const LV = a.vary === 'energy' ? [0.3, 0.6, 0.9] : [0, 0.5, 1], name = a.vary === 'energy' ? 'energy' : 'food pull';
+  const LV = a.vary === 'energy' ? [0.3, 0.6, 0.9] : [0, 0.5, 1], name = a.vary === 'energy' ? 'energy' : a.vary === 'crowd' ? 'crowd' : 'food pull';
   console.log('species   brain      n  | ' + LV.map(l => (name+' '+l).padEnd(22)).join(' | '));
   for(const [sid, r] of Object.entries(res.result)) for(const tag of ['evolved','seed']){
     const c = k => { const z = r[tag][k]; return `${f(z.median)} [${f(z.q1)}–${f(z.q3)}] nv ${z.never}`.padEnd(22); };
