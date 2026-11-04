@@ -68,7 +68,7 @@
     return back;
   }
 
-  /* CSV downloads. Scan and tray rows carry the run id, seed and the method's settings, so an
+  /* CSV downloads. Focal, scan and tray rows carry the run id, seed and the method's settings, so an
      instructor can stack a class's files; the run id keeps one student's trial apart from another's. */
   function runId(){ return Date.now().toString(36) + Math.floor(Math.random()*1296).toString(36); }
   function downloadCsv(name, csv){
@@ -305,7 +305,7 @@
     var t = V.stats().t;
     study = { sid:sid, focal:focal, n:n, interval:interval, samples:[], next:t + interval, t0:t,
               eth0:snapshotEth(focal), waiting:false, wasPaused:V.params.paused, ended:null,
-              focals:1, losses:[], cont:{ feed:0, vigilant:0, travel:0, forage:0, flee:0 } };
+              focals:1, losses:[], cont:{ feed:0, vigilant:0, travel:0, forage:0, flee:0 }, run:runId(), seed:V.seed(), world:V.brainMode() };
     $('fsResults').innerHTML = '';
     $('fsStart').disabled = true; $('fsStop').disabled = false;
     status();
@@ -353,7 +353,7 @@
   function answer(key){
     if(!study || !study.waiting) return;
     var p = study.pending;
-    study.samples.push({ i:p.i, t:+p.t.toFixed(1), answer:key, truth:catOf(p.truth) || p.truth });
+    study.samples.push({ i:p.i, t:+p.t.toFixed(1), answer:key, truth:catOf(p.truth) || p.truth, focal:study.focal.uid });
     study.waiting = false;
     $('fsPrompt').hidden = true;
     V.setPaused(study.wasPaused);
@@ -420,8 +420,9 @@
     html += '<p class="caption">Column 1 vs 2 is <b>observer error</b> (what you saw vs what was happening). Column 2 vs 3 is <b>sampling error</b> (a few instants vs the animal\'s whole session, ' + contN + ' s). Field studies have both; here you can see each one separately.</p>';
     $('fsResults').innerHTML = html;
     $('fsStatus').textContent = 'Finished: ' + V.species[s.sid].name.toLowerCase() + ' #' + s.focal.uid + ', ' + s.samples.length + ' samples.';
-    csvButton('Download your samples (CSV)', 'field-study-' + s.sid + '-' + s.focal.uid + '.csv',
-      csvOf(['sample','t','answer','truth'], s.samples.map(function(p){ return [p.i, p.t, p.answer, p.truth]; })));
+    csvButton('Download your samples (CSV)', 'field-focal-seed' + s.seed + '-' + s.sid + '-' + s.run + '.csv',
+      csvOf(['run','seed','mode','method','species','samples_planned','interval_s','focal','sample','t','answer','truth'],
+        s.samples.map(function(p){ return [s.run, s.seed, s.world, 'focal', s.sid, s.n, s.interval, p.focal, p.i, p.t, p.answer, p.truth]; })));
     showResults();
     window.FieldStudy.last = { samples:s.samples, agreement:r.po, kappa:r.k, continuous:cont, contN:contN, focals:s.focals };
   }

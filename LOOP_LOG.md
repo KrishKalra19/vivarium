@@ -443,3 +443,10 @@ Scripted real clicks, typing and downloads on real frames, in Playwright Chromiu
 ### 2026-11-04 08:25 UTC — [cloud] Phase 5 item 5: summary page
 - `docs/SUMMARY.md`: the whole loop on one page. Covers research results (MVT with 6-seed CIs and the figure; many-eyes null; reinforcement; harpy cascade), the classroom-ready teaching (3 methods, class link, CSVs, phone fixes, handouts, case studies), the measurement traps as lessons, the tools added, and how to continue (including deciding on the fixed-step clock before merging to `main`).
 - Read the local session's entries: items 1–3 done with thorough QA, and `7ab26d53` confirmed on the final code. Phase 5 complete.
+### 2026-11-04 20:44 UTC — [local] Focal CSV now carries seed and settings
+- Krish asked for this in chat, closing the gap noted in the item 2 entry. Focal rows are now `run,seed,mode,method,species,samples_planned,interval_s,focal,sample,t,answer,truth`, so all three methods' files can be stacked.
+- **Decision:** added a `focal` column, which wasn't asked for. A study switches animal when its focal dies, so samples from one run can come from different individuals.
+- **Decision:** the file is now `field-focal-seed<seed>-<species>-<run>.csv`, matching scan and trays. The old name and four-column format are gone; nothing in `docs/` or `tools/` referred to them.
+- **Verified** with real clicks and real downloads in Playwright Chromium: desktop (howler, 40 samples) and iPhone 13 emulation (agouti, 10). Every row matches `FieldStudy.last` and the focal id at its prompt, agreement recomputed from the CSV equals the page's (0.225 and 0.300), and both runs switched focal once. No page errors.
+- Regression: `7ab26d53` (`js/vivarium.js` untouched). `tools/vivarium-run.js` needs Playwright on `NODE_PATH` on this machine.
+- Not checked: Safari, Firefox or a physical phone.
