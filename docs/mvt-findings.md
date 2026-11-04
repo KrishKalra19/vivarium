@@ -38,7 +38,19 @@ Quit GUD (food left when a bout ends), mean of 2 seeds:
 - **Move GUDs rise for both lineages** (e.g. agouti instinct 0.24 → 0.32). That's what passive drift through a richer landscape gives. Only the active quit decision separates the lineages.
 - Brains also quit at higher food than Instinct at every growth level: they leave patches that the rule would keep grazing.
 
-Raw output: `experiments/out/mvt-pilot-c32/`, `mvt-transplant-c33/`, `mvt-risk-c34/`, `quit-probe-c35/`, `mvt-null-c36/`, `mvt-quit-context-c40/`, `leave-probe-c41/`, `mvt-blind-c42/`, `mvt-clamp-c43/` (`gud.txt`, plus each run's `patches.json` and manifest).
+Raw output: `experiments/out/mvt-pilot-c32/`, `mvt-transplant-c33/`, `mvt-risk-c34/`, `quit-probe-c35/`, `mvt-null-c36/`, `mvt-quit-context-c40/`, `leave-probe-c41/`, `mvt-blind-c42/`, `mvt-clamp-c43/`, `mvt-replication-c44/` (`gud.txt`, plus each run's `patches.json` and manifest).
+
+### Replication: 6 seeds (cycle 44)
+Brains mode, evolved, predators off, growth 0.6 vs 1.6, seeds 1000–1005 (cycle 40's two seeds plus four new ones). Paired by seed, analysed with `tools/analyze_mvt_replication.py`:
+
+| growth 1.6 − 0.6 | Δ quit GUD (95% CI) | seeds positive | Δ share of quits made on food (95% CI) | seeds positive |
+|---|---|---|---|---|
+| agouti | +0.042 (+0.025 to +0.060) | 6/6 | +0.13 (+0.07 to +0.19) | 6/6 |
+| howler | +0.044 (+0.023 to +0.064) | 6/6 | +0.10 (+0.02 to +0.17) | 5/6 |
+| capybara | +0.168 (+0.143 to +0.193) | 6/6 | +0.12 (+0.08 to +0.16) | 6/6 |
+| tapir | +0.30 (+0.24 to +0.35) | 2/2 | +0.49 (wide) | 2/2 |
+
+**The main result holds with proper intervals:** in every species, richer habitat means more food left behind and more departures from food that's still there. (Tapirs reach 20 voluntary quits at both levels in only 2 of 6 seeds.) Output: `experiments/out/mvt-replication-c44/`.
 
 ### Plasticity or evolution? A transplant test (cycle 33)
 Cycle 32's populations evolved for 30 min at their own growth level, so the GUD differences could be either:
@@ -169,7 +181,7 @@ Cycle 33's transplant design, with food sensing cut to 30% of normal range at th
 
 ## Limitations
 
-- **2 replicates per level**: a pilot. The direction is consistent (8/8), but the effect sizes need more seeds.
+- **Replication:** the core habitat effect has 6 seeds with 95% intervals (cycle 44). The follow-up tests (transplant, risk, null, blinding, clamp) are 2 seeds each.
 - **Qualitative only.** MVT makes a quantitative prediction (leave when marginal intake = long-run average intake), and this pilot doesn't test it. Doing so needs each bout's marginal intake rate at leaving, compared with the habitat average including travel.
 - **Cue unresolved.** Static single-input probes (cycles 35, 37, 41) find an input that *can* drive leaving (visible-food quality), but clamping it (cycle 43) shows it isn't necessary. The networks' memory outputs and the time course of food underfoot are untested.
 - **The Instinct lineage isn't a like-for-like control** for quit-GUDs (its bouts end by a different route); the unevolved seed-brain null (cycle 36) is the better baseline.
@@ -180,7 +192,7 @@ Cycle 33's transplant design, with food sensing cut to 30% of normal range at th
 
 0. ~~How bouts end~~ (cycle 40): evolved brains actively leave food. ~~Cue~~ (cycles 41–43): visible-food quality can drive leaving but isn't necessary. If reopened, clamp several inputs at once (food here, pull, crowding), or record each bout's input trace before quitting.
 
-1. **More seeds** (6+) at the same three levels, to size the effect properly.
+1. ~~More seeds~~: done (cycle 44, 6 seeds, all intervals exclude 0).
 2. ~~Transplant test~~: done (cycle 33): plastic. Next: probe which inputs drive the quit decision.
 3. ~~Predation risk~~: done (cycle 34): no Brown effect, consistent with reactive brains. A fairer test would record GUD for *every* bout end, fled or not, and compare spatially (risky vs safe areas).
 4. **Quantitative MVT:** log the intake rate at leaving and compare it with the habitat's long-run average.
