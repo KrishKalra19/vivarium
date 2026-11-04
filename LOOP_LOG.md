@@ -464,3 +464,6 @@ Scripted real clicks, typing and downloads on real frames, in Playwright Chromiu
 - **Colour-only cue fixed:** rich and poor trays differed only by colour (gold vs blue, luminance ratio 1.24, so indistinguishable in grayscale or for tritanopes). Poor trays now have a dashed frame. The Field hint, tray handout and teaching guide are updated to match.
 - Default fingerprint `7ab26d53` unchanged. No page errors. Code v43, css v16.
 - **Not done:** screen-reader pass and keyboard-only walkthrough of the map (the map is a canvas, and inherently mouse/touch-driven).
+### 2026-11-04 21:20 UTC — [cloud] Phase 6: instructor quick-start
+- `docs/INSTRUCTOR-QUICKSTART.md`: what Vivarium is for (methods, not natural history), 10-minute prep (get the files, class link, pick a handout, try it once), a 50-minute lesson plan ending with `class.html`, what to tell students, and a 5-question feedback list for the first real trial. Claims checked against the code (button names, CDN dependency, download buttons). Linked from the README teaching section and `docs/SUMMARY.md`.
+- **Phase 6 done:** quick-start, class results page, accessibility pass. Not possible here: Firefox/Safari (only Chromium is installed in this container; the local machine could check) and a real student trial.

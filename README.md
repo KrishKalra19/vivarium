@@ -176,7 +176,7 @@ The **Field** tab is a practice range for behavioural observation, scored agains
 - **Scan sampling**: count heads up vs down in a circle. Scored for counting error and for placement error.
 - **Feeding trays**: predict, then set out trays of known food in rich and poor habitat and compare giving-up densities (Brown 1988), with confidence intervals and unvisited trays handled properly.
 
-Guide and discussion prompts: [`docs/teaching-field-methods.md`](docs/teaching-field-methods.md).
+**Teaching a class?** Start with [`docs/INSTRUCTOR-QUICKSTART.md`](docs/INSTRUCTOR-QUICKSTART.md): a class link gives every student the same world, one-page handouts (`docs/handouts/`), CSV downloads, and **`class.html`** to pool the class's results. Case studies on real research data are in `docs/case-studies/`. Full guide and discussion prompts: [`docs/teaching-field-methods.md`](docs/teaching-field-methods.md).
 
 ## Project layout
 

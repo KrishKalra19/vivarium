@@ -29,7 +29,9 @@ Vivarium went from a fun evolution sim to a working **ethology instrument** and 
 - **Phone-tested** (local session): prompts, scan circle, keyboard and dark mode fixed.
 - **Handouts** (`docs/handouts/`): one page per method, with instructor answers.
 - **Case studies** (`docs/case-studies/`), built on real data: "Is it vigilance or walking?" (definition trap) and "Does vigilance pay?" (immortal-time bias).
-- Instructor guide: [`docs/teaching-field-methods.md`](teaching-field-methods.md).
+- **Class results page** `class.html`: drop in the class's CSVs and get pooled results (verified end to end against an independent recomputation).
+- **Accessibility:** WCAG AA text contrast in both themes; tray habitats differ by shape as well as colour.
+- **Instructor quick-start:** [`docs/INSTRUCTOR-QUICKSTART.md`](INSTRUCTOR-QUICKSTART.md), a first lab in 10 minutes plus the feedback to collect. Full guide: [`docs/teaching-field-methods.md`](teaching-field-methods.md).
 
 ## Measurement traps caught (each one is now a lesson)
 | trap | where it bit |
@@ -51,7 +53,7 @@ Vivarium went from a fun evolution sim to a working **ethology instrument** and 
 How-to: [`docs/experiments.md`](experiments.md).
 
 ## How to continue
-- **Teach with it:** open a class link and use the handouts. Not yet tested on Safari, Firefox or a physical phone.
+- **Teach with it:** the next step is **one real trial**. Hand a teacher or TA `docs/INSTRUCTOR-QUICKSTART.md` and collect the feedback it lists. Not yet tested on Safari, Firefox or a physical phone.
 - **Research next:** what cue tells evolved foragers a habitat is rich (clamp several inputs at once); GUDs within one landscape (risky vs safe areas); more seeds for the follow-up tests, which use 2 seeds each.
 - **Before merging to `main`:** decide on the fixed-step clock (it changes live runs slightly, to match headless runs), and glance at the Arena (a match was played and checked, but only partly watched live).
 - Collaboration pattern that worked: one cloud and one local session on the same branch, with a file-ownership table in `LOOP_PLAN.md` and `[cloud]` / `[local]` entries in `LOOP_LOG.md`.
