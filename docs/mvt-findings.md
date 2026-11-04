@@ -38,7 +38,7 @@ Quit GUD (food left when a bout ends), mean of 2 seeds:
 - **Move GUDs rise for both lineages** (e.g. agouti instinct 0.24 → 0.32). That's what passive drift through a richer landscape gives. Only the active quit decision separates the lineages.
 - Brains also quit at higher food than Instinct at every growth level: they leave patches that the rule would keep grazing.
 
-Raw output: `experiments/out/mvt-pilot-c32/`, `mvt-transplant-c33/`, `mvt-risk-c34/`, `quit-probe-c35/`, `mvt-null-c36/`, `mvt-quit-context-c40/`, `leave-probe-c41/` (`gud.txt`, plus each run's `patches.json` and manifest).
+Raw output: `experiments/out/mvt-pilot-c32/`, `mvt-transplant-c33/`, `mvt-risk-c34/`, `quit-probe-c35/`, `mvt-null-c36/`, `mvt-quit-context-c40/`, `leave-probe-c41/`, `mvt-blind-c42/` (`gud.txt`, plus each run's `patches.json` and manifest).
 
 ### Plasticity or evolution? A transplant test (cycle 33)
 Cycle 32's populations evolved for 30 min at their own growth level, so the GUD differences could be either:
@@ -130,6 +130,20 @@ At each voluntary quit, the patch log now records the food under the animal at t
 - **Crowding has a modest effect** in agoutis, capybaras and tapirs (e.g. agouti 17% → 30%, tapir 9% → 24% at growth 1.6), and none in howlers.
 - **The full mechanism:** in a richer habitat the best visible cell is usually richer, so evolved animals walk off a patch sooner and leave more food behind. That *is* a patch-versus-alternatives comparison, the core of the marginal value theorem. It is made in the movement outputs, which is why the head-down threshold probes (cycles 35, 37) missed it.
 - Caveat: one seed, and a static probe of single inputs. Real decisions combine inputs over time (the networks have memory outputs).
+
+### Behavioural test 1: shorter food sight (cycle 42)
+Cycle 33's transplant design, with food sensing cut to 30% of normal range at the switch (`params.foodSense` 0.3). Seeds 1000 / 1001. A full-vision rerun reproduced cycle 33's fingerprint exactly (`4aecc9e1`).
+
+| rich − poor quit-GUD gap (to growth 0.6 → 1.6) | full vision (cycle 33) | food sight 30% |
+|---|---|---|
+| agouti | 0.139 → 0.243 (0.10) | 0.158 → 0.246 (0.09) |
+| capybara | 0.241 → 0.458 (0.22) | 0.187 → 0.311 (0.12) |
+| howler | 0.136 → 0.202 (0.07) | 0.131 → 0.207 (0.08) |
+| tapir | 0.242 → 0.500 (0.26) | 0.163 → 0.223 (0.06; one seed at 1.6) |
+
+- **Mixed.** The gap roughly halves for capybaras and mostly disappears for tapirs; agoutis and howlers are unchanged.
+- **The test isn't clean.** Even at 30% range, a rich habitat's *nearby* cells are richer, so the visible-food input still carries the habitat cue; shrinking the range weakens the cue rather than removing it. It also changes steering.
+- The sharper test is to hold the food-pull input constant while keeping food direction (so animals still steer to food). Then the networks can't tell rich from poor through that input at all.
 
 ## Interpretation
 

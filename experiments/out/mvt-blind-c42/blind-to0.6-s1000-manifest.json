@@ -1,0 +1,34 @@
+{
+  "format": "vivarium-run",
+  "version": 1,
+  "code": "js/vivarium.js?v=40",
+  "seed": 1000,
+  "world": "mixed",
+  "t": 1980,
+  "toggles": {
+    "river": false,
+    "sexual": false,
+    "traitCosts": true,
+    "predators": false,
+    "alarm": false
+  },
+  "params": {
+    "headDownSense": 0.4,
+    "scanIntake": 0,
+    "births": true,
+    "foodSense": 0.3,
+    "hybridPenalty": 0,
+    "riverOffAt": 0,
+    "alarmRate": 0,
+    "ethoFrom": 1860,
+    "capScale": 1.6,
+    "mutationRate": 0,
+    "growth": 0.6,
+    "satiety": 0.65,
+    "arrivalGroup": 4
+  },
+  "hunt": {
+    "lungeCost": 10,
+    "missRest": 15
+  }
+}
