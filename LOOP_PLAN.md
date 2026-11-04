@@ -80,6 +80,6 @@ Order (Krish 11-02: research first, then teaching):
 | 2. CSV export for scan sampling + trays | **local** | `js/fieldstudy.js`, `index.html`, `css/style.css` |
 | 2b. Real-browser QA of the Field tab (focal, scan, trays; desktop + phone) | **local** | fixes in the same files; anything bigger goes to LOOP_LOG as a note |
 | 3. ~~Handouts~~ (done) | **cloud** | `docs/handouts/` (new) |
-| 4. Case studies | **cloud** | `docs/case-studies/` (new), `tools/` (new scripts only) |
+| 4. ~~Case studies~~ (done) | **cloud** | `docs/case-studies/` (new), `tools/` (new scripts only) |
 | 5. Summary page | **cloud** | new file(s) only |
 Shared: `LOOP_LOG.md` (append only; prefix entries `[local]` or `[cloud]`), `LOOP_PLAN.md` (tick your own items). Pull before starting and before every push.
