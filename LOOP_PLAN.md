@@ -65,3 +65,10 @@ Order (Krish 11-02: research first, then teaching):
    Old item 6 text: toggleable `params.scanIntake` (share of grazing intake kept while head-up and still; default 0). Pilot 8: blind feeding at 0 vs 0.5; does vigilance evolve up? If so, many-eyes test on top.
 
 10. ~~Teaching: GUD tray exercise~~ (cycle 38): done.
+
+## Phase 5: teaching, classroom-ready (from Krish 11-04: "$35 of $100 left"; is there a teaching plan?)
+1. **Class seed link**: `?seed=N&mode=brains` (and `#field`) opens the same world for every student, so a class can compare results.
+2. **CSV export for scan sampling and trays** (focal already has one), so an instructor can pool a class's data.
+3. **One-page handout per method** (focal, scan, trays): learning goal, steps, what to record, 3 questions, short answer key. `docs/handouts/`.
+4. **Case studies from the research** (if budget allows): "is it vigilance or walking?" (definition trap) and "does vigilance pay?" (immortal-time bias), with committed data and a worksheet.
+5. **Final summary page** of the research and teaching for Krish, before credits expire 11/5.
