@@ -6,7 +6,8 @@ Reads the patch log's risk bins (code v45+): at every voluntary quit, the number
 200 px (0, 1, 2+). Per run and species: quit-GUD with no predator near, and with 1 or more near.
 The difference (risky − safe) is paired within the run, then averaged across runs with a 95% t
 interval. Brown's prediction: positive (foragers quit at higher food where predators are near).
-Cells with fewer than --min quits in a bin are skipped. Standard library only.
+Also (code v46+): perceived risk, i.e. whether the quitting animal itself sensed a threat in the 5 s
+before quitting, paired the same way. Cells with fewer than --min quits in a bin are skipped. Standard library only.
 """
 import json, sys, statistics as st
 
@@ -32,6 +33,15 @@ def main():
             g0, g1 = g[0]/n0, (g[1] + g[2])/n1
             diffs.append(g1 - g0)
             print(f"{sp:9} {i:4d}  {n0:6d}, {g0:7.3f}  {n1:6d}, {g1:7.3f}  {g1-g0:+12.3f}")
+        pd = []
+        for f in files:
+            c = json.load(open(f))['by'].get(f'{sp}:{lin}')
+            if not c or 'percQ' not in c: continue
+            q, g = c['percQ'], c['percGud']
+            if q[0] >= nmin and q[1] >= nmin: pd.append(g[1]/q[1] - g[0]/q[0])
+        if len(pd) >= 2:
+            m = st.mean(pd); h = T[len(pd)-2]*st.stdev(pd)/len(pd)**0.5
+            print(f"{sp:9} {'perc':>4}  paired sensed-a-threat-in-last-5-s - not {m:+.3f} (95% CI {m-h:+.3f} to {m+h:+.3f}), {sum(d > 0 for d in pd)}/{len(pd)} runs positive")
         if len(diffs) >= 2:
             m = st.mean(diffs); h = T[len(diffs)-2]*st.stdev(diffs)/len(diffs)**0.5
             print(f"{sp:9} {'mean':>4}  paired risky - safe {m:+.3f} (95% CI {m-h:+.3f} to {m+h:+.3f}), {sum(d > 0 for d in diffs)}/{len(diffs)} runs positive\n")
