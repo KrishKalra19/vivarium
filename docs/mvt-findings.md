@@ -1,6 +1,6 @@
 # Do evolved foragers obey the marginal value theorem?
 
-*Pilot, transplant, predation-risk, network probe and null-model tests, cycles 32–36 (Nov 2026). About 9 minutes to read.*
+*Pilot, transplant, predation-risk, network probes, null model and how-bouts-end tests, cycles 32–40 (Nov 2026). About 10 minutes to read.*
 
 ## Question
 
@@ -38,7 +38,7 @@ Quit GUD (food left when a bout ends), mean of 2 seeds:
 - **Move GUDs rise for both lineages** (e.g. agouti instinct 0.24 → 0.32). That's what passive drift through a richer landscape gives. Only the active quit decision separates the lineages.
 - Brains also quit at higher food than Instinct at every growth level: they leave patches that the rule would keep grazing.
 
-Raw output: `experiments/out/mvt-pilot-c32/`, `mvt-transplant-c33/`, `mvt-risk-c34/`, `quit-probe-c35/`, `mvt-null-c36/` (`gud.txt`, plus each run's `patches.json` and manifest).
+Raw output: `experiments/out/mvt-pilot-c32/`, `mvt-transplant-c33/`, `mvt-risk-c34/`, `quit-probe-c35/`, `mvt-null-c36/`, `mvt-quit-context-c40/` (`gud.txt`, plus each run's `patches.json` and manifest).
 
 ### Plasticity or evolution? A transplant test (cycle 33)
 Cycle 32's populations evolved for 30 min at their own growth level, so the GUD differences could be either:
@@ -100,12 +100,28 @@ Brown (1988) predicts that foragers give up at **higher** food where predation r
 - **No single input moves the threshold.** Visible food, energy, and density were all ruled out: a crowding sweep (`--vary crowd`, kin proximity + crowding 0 → 1, cycle 37) shifts evolved thresholds by ±0.03 in mixed directions.
 - **The likely explanation is in the movement.** A bout ends when an animal *walks off* onto poorer ground, not when it lifts its head on good ground. So the evolved difference is probably in the movement policy while grazing (throttle and turning, which decide when and where an animal drifts on), not in the head-down decision these probes looked at. The quit-GUD measures where an animal was when it stopped eating; the "decision" may be a by-product of how it moves through the landscape.
 
+### How do bouts end? (cycle 40)
+At each voluntary quit, the patch log now records the food under the animal at that moment and its speed. An animal still standing on grazeable food (≥ 0.15) **stopped eating while food remained**; one on poorer ground **walked off**. Brains mode, predators off, evolved (mutation 0.07) vs unevolved seed brains (mutation 0), growth 0.6 vs 1.6, seeds 1000 / 1001. The unevolved runs reproduce cycle 36's fingerprints exactly.
+
+| quit while still on food, growth 0.6 → 1.6 | evolved brains | unevolved seed brains |
+|---|---|---|
+| agouti | 37% → 54% | 11% → 40% (seeds disagree: 0.07 vs 0.73 at 1.6) |
+| capybara | 67% → 82% | 48% → 39% |
+| howler | 44% → 58% | 9% → 12% |
+| tapir | 31% → 88% | — → 32% |
+
+- **Evolved brains actively leave food that's still there.** They quit on grazeable food far more often than the unevolved policy, and they are moving at 50–85% of top speed when they do: they lift their heads and go.
+- **They do this more in richer habitats, in every species.** That's the behavioural signature the marginal value theorem predicts: leave a patch with food remaining when the alternatives are good.
+- **The unevolved policy mostly drifts off.** Howlers end 88–91% of bouts by wandering onto poor ground.
+- This resolves the cycle 35–37 puzzle. The head-down probes found no shifting grazing threshold because the evolved change is in the **movement outputs**: evolved brains walk away from food sooner, and more so where food is plentiful.
+
 ## Interpretation
 
 - **Evolved foragers' giving-up densities rise with habitat quality**, qualitatively as the marginal value theorem predicts (cycle 32, 8/8 series).
 - **The response is plastic** (cycle 33): animals evolved in one habitat shift within minutes of a switch.
 - **It is mostly evolved, not mechanical** (cycle 36): an unevolved, identical policy shows only a small, inconsistent rise.
-- **But the mechanism isn't an MVT-style comparison.** The networks don't raise their grazing threshold with visible food, fullness or crowding (cycles 35, 37). The effect most likely sits in how they move while grazing.
+- **It's an active departure, carried by movement** (cycle 40): evolved brains quit while food remains far more often than an unevolved policy, more so in richer habitats, at speed. The head-down threshold doesn't shift with visible food, fullness or crowding (cycles 35, 37), so the change is in the movement outputs.
+- What cue tells a network that the habitat is rich is still open. No single input tested moves the head-down threshold, and the movement outputs haven't been probed input by input. MVT describes the optimum, not the mechanism, and real animals also reach MVT-like behaviour through rules of thumb (Iwasa et al. 1981).
 - That distinction matters. MVT describes what an optimal forager does; it doesn't say how. Real animals also use rules of thumb (e.g. quit after a fixed time, or after a run of unsuccessful bites; Iwasa et al. 1981), and a density rule can produce MVT-like patterns without any estimate of the habitat average.
 - **No Brown effect** (cycle 34): GUDs don't rise under predation risk, consistent with the brains' purely reactive treatment of threats (`docs/many-eyes-findings.md`, cycle 27 probe).
 
@@ -113,14 +129,14 @@ Brown (1988) predicts that foragers give up at **higher** food where predation r
 
 - **2 replicates per level**: a pilot. The direction is consistent (8/8), but the effect sizes need more seeds.
 - **Qualitative only.** MVT makes a quantitative prediction (leave when marginal intake = long-run average intake), and this pilot doesn't test it. Doing so needs each bout's marginal intake rate at leaving, compared with the habitat average including travel.
-- **The mechanism is unidentified.** Visible food, energy and crowding don't shift the head-down threshold (cycles 35, 37); the movement outputs haven't been probed.
+- **The cue is unidentified.** Cycle 40 shows *what* changed (evolved brains walk off food sooner, more so in rich habitat), but not which input tells them the habitat is rich.
 - **The Instinct lineage isn't a like-for-like control** for quit-GUDs (its bouts end by a different route); the unevolved seed-brain null (cycle 36) is the better baseline.
 - **Predators off.** With predators, bouts mostly end by fleeing (cycle 32 first look), so this is foraging in a predator-free world. GUDs under predation risk are their own classic topic (Brown 1988: GUDs rise with risk).
 - The "patch" is a 20-px cell in a continuous landscape, not a discrete patch with travel between patches, so the travel-time prediction can't be tested yet.
 
 ## Next steps
 
-0. **Probe the movement outputs:** for head-down animals, how throttle and turning respond to food underfoot vs visible food. Or log, per bout, the animal's speed in its last seconds, to see whether evolved brains drift on sooner in rich landscapes.
+0. ~~How bouts end~~ (cycle 40): evolved brains actively leave food, more in rich habitat. Next: probe the throttle output against food underfoot, visible food and crowding, to find the cue.
 
 1. **More seeds** (6+) at the same three levels, to size the effect properly.
 2. ~~Transplant test~~: done (cycle 33): plastic. Next: probe which inputs drive the quit decision.
