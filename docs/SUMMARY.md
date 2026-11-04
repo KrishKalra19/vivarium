@@ -20,10 +20,11 @@ Vivarium went from a fun evolution sim to a working **ethology instrument** and 
 ![GUD by habitat](figures/mvt-gud.svg)
 
 ## Teaching (Field tab), classroom-ready
-- **Three methods, scored against ground truth no real field site has:**
+- **Four methods, scored against ground truth no real field site has:**
   - **focal sampling** (κ, confusion table, observer vs sampling error);
   - **scan sampling** (counting vs placement error);
-  - **feeding trays** (giving-up densities in rich vs poor habitat, prediction first).
+  - **feeding trays** (giving-up densities in rich vs poor habitat, prediction first);
+  - **mark–recapture** (Lincoln–Petersen and Chapman estimates against the true population; closure and precision).
 - **Class link** `index.html?seed=1234&mode=brains#field`: every student gets the same world (local session). It's backed by a fixed-step clock, so linked worlds stay identical.
 - **CSV downloads** for all three methods, ready to pool across a class (local session).
 - **Phone-tested** (local session): prompts, scan circle, keyboard and dark mode fixed.

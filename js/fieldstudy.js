@@ -301,19 +301,111 @@
     showResults();
     window.FieldStudy.last = { kind:'trays', trays:st, rich:R, poor:P, diff:diff, verdict:verdict, pred:s.pred, unvisited:unvisited };
   }
+  /* ---------- Mark–recapture: Lincoln–Petersen population estimates ----------
+     Session 1: traps (circles of MR_R px) catch every animal of the species inside them; those are
+     marked (M). After a gap, session 2 catches again (C) and counts recaptures (R). The student
+     enters their own estimate before seeing N ≈ M·C/R, Chapman's version and the true population
+     at both sessions, so the method's assumptions (closed population, equal catchability) can be
+     seen failing: long gaps add births and deaths, traps placed where animals are oversample groups. */
+  var MR_R = 50;
+  function mrTrapCentres(sid, k, place){
+    var W = V.worldSize(), pts = [];
+    var pool = V.animals().filter(function(a){ return !a.dead && a.sid === sid; });
+    for(var i=0; i<k; i++){
+      if(place === 'animals' && pool.length){ var a = pool[Math.floor(Math.random()*pool.length)]; pts.push({ x:a.x, y:a.y }); }
+      else pts.push({ x:MR_R + Math.random()*(W.w - 2*MR_R), y:MR_R + Math.random()*(W.h - 2*MR_R) });
+    }
+    return pts;
+  }
+  function mrCatch(sid, traps){
+    var caught = {};
+    V.animals().forEach(function(a){
+      if(a.dead || a.sid !== sid) return;
+      for(var i=0; i<traps.length; i++){ var dx = a.x - traps[i].x, dy = a.y - traps[i].y; if(dx*dx + dy*dy <= MR_R*MR_R){ caught[a.uid] = 1; break; } }
+    });
+    return caught;
+  }
+  function mrAlive(sid){ var o = {}; V.animals().forEach(function(a){ if(!a.dead && a.sid === sid) o[a.uid] = 1; }); return o; }
+  function startMR(){
+    var sid = $('fsSpecies').value, k = +$('fsSamples').value, gap = +$('fsMrGap').value, place = $('fsMrPlace').value;
+    var traps = mrTrapCentres(sid, k, place), marked = mrCatch(sid, traps), alive1 = mrAlive(sid);
+    study = { kind:'mr', sid:sid, k:k, gap:gap, place:place, t1:V.stats().t, marked:marked, M:Object.keys(marked).length, alive1:alive1,
+              run:runId(), seed:V.seed(), world:V.brainMode(), wasPaused:V.params.paused };
+    $('fsResults').innerHTML = ''; $('fsStart').disabled = true; $('fsStop').disabled = false;
+    if(!study.M){ var s0 = study; study = null; $('fsStart').disabled = false; $('fsStop').disabled = true;
+      $('fsStatus').textContent = 'Session 1 caught no ' + V.species[sid].name.toLowerCase() + 's. Try more traps, placement "where animals are", or a commoner species.'; return s0; }
+    if(V.params.paused) V.setPaused(false);
+    pollTimer = setInterval(pollMR, 250); pollMR();
+  }
+  function pollMR(){
+    if(!study || study.kind !== 'mr') return;
+    if(worldWasReset()){ clearInterval(pollTimer); pollTimer = null; var s0 = study; study = null; $('fsStart').disabled = false; $('fsStop').disabled = true;
+      $('fsStatus').textContent = RESET_NOTE + ' Mark–recapture needs both sessions in one world, so there is no estimate.'; return; }
+    var left = study.gap - (V.stats().t - study.t1);
+    if(left > 0){ $('fsStatus').textContent = 'Session 1 marked ' + study.M + ' ' + V.species[study.sid].name.toLowerCase() + 's · session 2 in ' + Math.ceil(left) + ' sim-s'; return; }
+    clearInterval(pollTimer); pollTimer = null;
+    var s = study, traps = mrTrapCentres(s.sid, s.k, s.place), caught = mrCatch(s.sid, traps), alive2 = mrAlive(s.sid);
+    s.t2 = V.stats().t; s.C = Object.keys(caught).length; s.R = Object.keys(caught).filter(function(u){ return s.marked[u]; }).length;
+    s.N1 = Object.keys(s.alive1).length; s.N2 = Object.keys(alive2).length;
+    s.markedAlive = Object.keys(s.marked).filter(function(u){ return alive2[u]; }).length;
+    s.births = Object.keys(alive2).filter(function(u){ return !s.alive1[u]; }).length;
+    s.deaths = Object.keys(s.alive1).filter(function(u){ return !alive2[u]; }).length;
+    V.setPaused(true);
+    $('fsStatus').textContent = 'Session 2 done. Work out your estimate.';
+    $('fsResults').innerHTML = '<div class="fs-score"><div><b>' + s.M + '</b><span>marked in session 1 (M)</span></div><div><b>' + s.C + '</b><span>caught in session 2 (C)</span></div><div><b>' + s.R + '</b><span>of those, already marked (R)</span></div></div>' +
+      '<p>Estimate the population: <b>N ≈ M × C ÷ R</b>.</p>' +
+      '<div class="slider-row"><div class="top"><b>Your estimate</b></div><input type="number" id="fsMrGuess" min="0" inputmode="numeric" aria-label="Your population estimate"></div>' +
+      '<button class="btn wide" id="fsMrReveal">Check my estimate</button>';
+    $('fsMrGuess').addEventListener('keydown', function(e){ e.stopPropagation(); if(e.key === 'Enter') revealMR(); });
+    $('fsMrReveal').addEventListener('click', revealMR);
+    showResults();
+  }
+  function revealMR(note){
+    var s = study; if(!s || s.kind !== 'mr' || s.t2 == null) return;
+    var g = parseInt($('fsMrGuess') ? $('fsMrGuess').value : '', 10);
+    if(isNaN(g) && typeof note !== 'string'){ $('fsStatus').textContent = 'Enter your estimate first (M × C ÷ R).'; return; }
+    study = null; $('fsStart').disabled = false; $('fsStop').disabled = true; V.setPaused(s.wasPaused);
+    var lp = s.R ? s.M*s.C/s.R : null, ch = (s.M+1)*(s.C+1)/(s.R+1) - 1;
+    var sp = V.species[s.sid].name.toLowerCase() + 's', f0 = function(x){ return x == null ? '—' : Math.round(x); };
+    var err = function(x){ return x == null ? '—' : ((x - s.N2)/s.N2*100 >= 0 ? '+' : '') + Math.round((x - s.N2)/s.N2*100) + '%'; };
+    var html = typeof note === 'string' ? '<p class="hint">' + note + '</p>' : '';
+    html += '<div class="fs-score"><div><b>' + (isNaN(g) ? '—' : g) + '</b><span>your estimate</span></div><div><b>' + s.N2 + '</b><span>true ' + sp + ' at session 2</span></div><div><b>' + (isNaN(g) ? '—' : err(g)) + '</b><span>your error</span></div></div>';
+    html += '<table class="fs-table"><tbody>' +
+      '<tr><th>M · C · R</th><td>' + s.M + ' · ' + s.C + ' · ' + s.R + '</td></tr>' +
+      '<tr><th>Lincoln–Petersen M·C/R</th><td>' + f0(lp) + ' (' + err(lp) + ')</td></tr>' +
+      '<tr><th>Chapman (M+1)(C+1)/(R+1) − 1</th><td>' + f0(ch) + ' (' + err(ch) + ')</td></tr>' +
+      '<tr><th>true population, session 1 → 2</th><td>' + s.N1 + ' → ' + s.N2 + '</td></tr>' +
+      '<tr><th>between sessions</th><td>' + s.births + ' born, ' + s.deaths + ' died; ' + (s.M - s.markedAlive) + ' of ' + s.M + ' marked animals died</td></tr>' +
+      '</tbody></table>';
+    html += '<p class="caption"><b>Reading it.</b> The estimate assumes a <b>closed</b> population (no births, deaths or movement in or out between sessions) and that every animal is <b>equally likely to be caught</b>. ' +
+      (s.R === 0 ? 'With no recaptures, M·C/R can\u2019t be computed: Chapman\u2019s version is the standard fix for small samples. ' : '') +
+      'Marked animals that die, and births between sessions, both push the estimate <b>up</b>: in testing, a 120 sim-s gap lost about 70% of marked capybaras and estimates averaged 2.4× the truth. With a short gap and random traps, estimates were right on average but ranged from 0.4× to 1.7×, because a handful of recaptures makes the ratio jumpy. Traps where animals are catch more and so give steadier estimates. Try a long gap, more traps, or the other placement, and compare with your classmates.</p>';
+    $('fsResults').innerHTML = html;
+    csvButton('Download your mark–recapture (CSV)', 'field-mr-seed' + s.seed + '-' + s.sid + '-' + s.run + '.csv',
+      csvOf(['run','seed','mode','method','species','traps','trap_r','placement','gap_s','t1','t2','M','C','R','student_estimate','lincoln_petersen','chapman','true_n1','true_n2','births','deaths','marked_died'],
+        [[s.run, s.seed, s.world, 'mr', s.sid, s.k, MR_R, s.place, s.gap, s.t1.toFixed(1), s.t2.toFixed(1), s.M, s.C, s.R, isNaN(g) ? '' : g, lp == null ? '' : lp.toFixed(1), ch.toFixed(1), s.N1, s.N2, s.births, s.deaths, s.M - s.markedAlive]]));
+    $('fsStatus').textContent = 'Finished: mark–recapture of ' + sp + '.';
+    showResults();
+    window.FieldStudy.last = { kind:'mr', M:s.M, C:s.C, R:s.R, guess:isNaN(g) ? null : g, lp:lp, chapman:ch, N1:s.N1, N2:s.N2, births:s.births, deaths:s.deaths, markedDied:s.M - s.markedAlive };
+  }
+  function stopMR(){ var s = study; clearInterval(pollTimer); pollTimer = null;
+    if(s.t2 != null) return revealMR('You revealed without an estimate.');
+    study = null; $('fsStart').disabled = false; $('fsStop').disabled = true; V.setPaused(s.wasPaused); $('fsStatus').textContent = 'Stopped before session 2.'; }
   function syncMode(){
     var m = $('fsMode').value;
     $('fsTrayOpts').hidden = m !== 'trays';
+    $('fsMrOpts').hidden = m !== 'mr';
     $('fsSpeciesRow').hidden = m === 'trays';
-    $('fsIntervalRow').hidden = m === 'trays';
-    $('fsSamplesLabel').textContent = m === 'trays' ? 'Trays (half per habitat)' : 'Samples';
-    $('fsStart').textContent = m === 'trays' ? 'Place trays and start' : m === 'scan' ? 'Start scan sampling' : 'Start focal follow';
+    $('fsIntervalRow').hidden = m === 'trays' || m === 'mr';
+    $('fsSamplesLabel').textContent = m === 'trays' ? 'Trays (half per habitat)' : m === 'mr' ? 'Traps per session' : 'Samples';
+    $('fsStart').textContent = m === 'trays' ? 'Place trays and start' : m === 'scan' ? 'Start scan sampling' : m === 'mr' ? 'Set traps: session 1' : 'Start focal follow';
   }
 
   function start(){
     if(study) return;
     if($('fsMode').value === 'scan') return startScan();
     if($('fsMode').value === 'trays') return startTrays();
+    if($('fsMode').value === 'mr') return startMR();
     var sid = $('fsSpecies').value, n = +$('fsSamples').value, interval = +$('fsInterval').value;
     var focal = pickFocal(sid);
     if(!focal){
@@ -447,7 +539,7 @@
     window.FieldStudy.last = { samples:s.samples, agreement:r.po, kappa:r.k, continuous:cont, contN:contN, focals:s.focals };
   }
 
-  function stop(){ if(study){ if(study.kind==='scan') finishScan('You stopped early.'); else if(study.kind==='trays') finishTrays('You stopped the trial early.'); else finish('You stopped the study early.'); } }
+  function stop(){ if(study){ if(study.kind==='scan') finishScan('You stopped early.'); else if(study.kind==='trays') finishTrays('You stopped the trial early.'); else if(study.kind==='mr') stopMR(); else finish('You stopped the study early.'); } }
 
   // UI wiring
   var sel = $('fsSpecies');
@@ -475,7 +567,7 @@
   sk.addEventListener('click', function(){ answer('skip'); });
   host.appendChild(sk);
   document.addEventListener('keydown', function(e){
-    if(!study || !study.waiting || study.kind === 'scan' || study.kind === 'trays') return;
+    if(!study || !study.waiting || study.kind === 'scan' || study.kind === 'trays' || study.kind === 'mr') return;
     var k = e.key;
     if(k >= '1' && k <= '4'){ answer(CATS[+k-1].key); e.preventDefault(); }
     else if(k === '0'){ answer('skip'); e.preventDefault(); }
@@ -484,6 +576,7 @@
   /* Headless hook for tests: FieldStudy.start(), FieldStudy.answer(key), FieldStudy.state(). */
   window.FieldStudy = { start:start, stop:stop, answer:answer, cats:CATS,
     scan:function(down, up){ $('fsDown').value = down; $('fsUp').value = up; recordScan(down == null); },
+    mr:function(){ return study && study.kind === 'mr' ? { M:study.M, t1:study.t1, gap:study.gap, done:study.t2 != null } : null; },
     trays:function(){ return study && study.kind === 'trays' ? { t0:study.t0, dur:study.dur, placed:study.placed } : null; },
     state:function(){ return study ? { kind:study.kind || 'focal', waiting:study.waiting, n:study.samples ? study.samples.length : 0, pending:study.pending, focal:study.focal ? study.focal.uid : null } : null; } };
 })();

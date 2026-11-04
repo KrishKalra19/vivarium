@@ -253,7 +253,7 @@
           <p class="hint">Pick a species and start. The range zooms onto one animal, your <b>focal</b>. Every few sim-seconds it pauses and asks what the animal is doing at that instant. Judge from what you can see: the dark dot is its head (held out in front = head up; tucked onto the body = head down, feeding), plus how it moves and what's nearby. Keys 1–4 answer, 0 = lost sight. Needs Mixed A/B or Brains mode.</p>
           <div class="slider-row">
             <div class="top"><b>Method</b></div>
-            <select id="fsMode" aria-label="Sampling method"><option value="focal" selected>Focal animal: what is one animal doing?</option><option value="scan">Scan sample: count heads up vs down in a circle</option><option value="trays">Feeding trays: giving-up densities</option></select>
+            <select id="fsMode" aria-label="Sampling method"><option value="focal" selected>Focal animal: what is one animal doing?</option><option value="scan">Scan sample: count heads up vs down in a circle</option><option value="trays">Feeding trays: giving-up densities</option><option value="mr">Mark–recapture: how many are there?</option></select>
           </div>
           <div class="slider-row" id="fsSpeciesRow">
             <div class="top"><b>Species</b></div>
@@ -276,6 +276,17 @@
             <div class="slider-row">
               <div class="top"><b>Your prediction</b></div>
               <select id="fsPredict" aria-label="Prediction"><option value="">choose one…</option><option value="rich">more food left in rich-habitat trays</option><option value="poor">more food left in poor-habitat trays</option><option value="same">no difference</option></select>
+            </div>
+          </div>
+          <div id="fsMrOpts" hidden>
+            <p class="hint">Traps (circles 100 px across the range) catch every animal of your species inside them. Session 1 marks them; after a gap, session 2 catches again and counts how many are already marked. From those counts you estimate the population (Lincoln–Petersen: N ≈ M × C ÷ R), then see the true number.</p>
+            <div class="slider-row">
+              <div class="top"><b>Gap between sessions</b></div>
+              <select id="fsMrGap" aria-label="Gap between sessions"><option value="20" selected>20 sim-s</option><option value="120">120 sim-s</option><option value="600">600 sim-s</option></select>
+            </div>
+            <div class="slider-row">
+              <div class="top"><b>Trap placement</b></div>
+              <select id="fsMrPlace" aria-label="Trap placement"><option value="random" selected>random points on the range</option><option value="animals">where animals are</option></select>
             </div>
           </div>
           <button class="btn wide" id="fsStart">Start focal follow</button>
@@ -321,7 +332,7 @@
 <script src="js/timelapse.js?v=1"></script>
 <script src="js/vivarium.js?v=44"></script>
 <script src="js/tour.js?v=3"></script>
-<script src="js/fieldstudy.js?v=12"></script>
+<script src="js/fieldstudy.js?v=14"></script>
 <script src="js/arena/roster.js?v=2"></script>
 <script src="js/arena/tuning.js?v=2"></script>
 <script src="js/arena/engine.js?v=2"></script>

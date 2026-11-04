@@ -32,7 +32,7 @@
 <body>
 <main>
   <h1>Vivarium class results</h1>
-  <p class="muted">Pool your students' Field-tab CSV downloads (focal, scan or trays) and see the whole class's results. Everything stays in this browser: nothing is uploaded.</p>
+  <p class="muted">Pool your students' Field-tab CSV downloads (focal, scan, trays or mark–recapture) and see the whole class's results. Everything stays in this browser: nothing is uploaded.</p>
   <div class="drop" id="drop">
     <p><b>Drop CSV files here</b>, as many as you like, of any method.</p>
     <label>Choose files<input type="file" id="files" accept=".csv,text/csv" multiple></label>
@@ -61,7 +61,7 @@
     if(c && typeof c.use === 'function') c.use('downloads').then(function(d){ if(d) d.save({ filename:name, data:data }).catch(function(){}); else plain(); }, plain);
     else plain();
   }
-  var rows = { focal:[], scan:[], trays:[] }, seen = {}, log = [];
+  var rows = { focal:[], scan:[], trays:[], mr:[] }, seen = {}, log = [];
   var $ = function(id){ return document.getElementById(id); };
   var T = [12.71,4.30,3.18,2.78,2.57,2.45,2.36,2.31,2.26,2.23,2.20,2.18,2.16,2.14,2.13,2.12,2.11,2.10,2.09,2.09];
   function tc(df){ return df < 1 ? null : df <= 20 ? T[df-1] : df <= 30 ? 2.05 : df <= 60 ? 2.01 : 1.98; }
@@ -90,7 +90,7 @@
     rs.forEach(function(r){
       var m = r.method;
       if(!rows[m]){ skipped++; return; }
-      var key = m + '|' + r.run + '|' + (r.sample || r.scan || r.tray);
+      var key = m + '|' + r.run + '|' + (r.sample || r.scan || r.tray || '');
       if(seen[key]){ skipped++; return; }   // the same file dropped twice
       seen[key] = 1; rows[m].push(r); n++;
     });
@@ -201,8 +201,25 @@
     return h + dl('trays.csv', rows.trays) + '</div>';
   }
 
+  function mr(){
+    var list = rows.mr.filter(function(r){ return +r.true_n2 > 0; });
+    if(!list.length) return '';
+    var errs = list.filter(function(r){ return r.student_estimate !== ''; }).map(function(r){ return (+r.student_estimate - +r.true_n2)/+r.true_n2*100; }),
+        ch = list.map(function(r){ return +r.chapman/+r.true_n2; });
+    var groups = {}; list.forEach(function(r){ var k = r.species + ', gap ' + r.gap_s + ' s, ' + r.placement; (groups[k] = groups[k] || []).push(+r.chapman/+r.true_n2); });
+    var E = ci(errs), C = ci(ch, 0);
+    var h = '<h2>Mark–recapture</h2><div class="card">' + seedNote(rows.mr) +
+      '<div class="stats"><div class="stat"><b>' + list.length + '</b><span>estimates</span></div>' +
+      '<div class="stat"><b>' + ciTxt(C) + '</b><span>Chapman estimate ÷ true population (1 = right on; 95% CI)</span></div>' +
+      '<div class="stat"><b>' + ciTxt(E, function(x){ return (x >= 0 ? '+' : '') + x.toFixed(0) + '%'; }) + '</b><span>students\' own estimates vs truth</span></div></div>';
+    h += '<h3>By setting</h3><table><thead><tr><th>setting</th><th>n</th><th>mean estimate ÷ truth</th><th>range</th></tr></thead><tbody>' +
+      Object.keys(groups).sort().map(function(k){ var g = groups[k]; return '<tr><td>' + esc(k) + '</td><td>' + g.length + '</td><td>' + f2(mean(g)) + '</td><td>' + f2(Math.min.apply(null, g)) + '–' + f2(Math.max.apply(null, g)) + '</td></tr>'; }).join('') + '</tbody></table>';
+    h += '<p class="muted">Compare settings: long gaps break the closed-population assumption (marked animals die, new ones are born) and push estimates up; few recaptures make single estimates jumpy even when they\'re right on average.</p>';
+    return h + dl('mark-recapture.csv', rows.mr) + '</div>';
+  }
+
   function render(){
-    var h = focal() + scan() + trays();
+    var h = focal() + scan() + trays() + mr();
     $('out').innerHTML = h || '<p class="muted">No Field-tab rows found in those files.</p>';
     Array.prototype.forEach.call(document.querySelectorAll('button[data-csv]'), function(b){
       b.addEventListener('click', function(){

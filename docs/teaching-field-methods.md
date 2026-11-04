@@ -50,6 +50,19 @@ So 60 s is the default, and one trial is often not enough. **That variability is
 
 Verified (cycle 38): placement gives exactly half the trays per habitat; tray cells hold their starting amount until eaten (no regrowth); the prediction is required before starting; the trays are cleared at the end and the default run's fingerprint is unchanged (`7ab26d53`). No page errors. Screenshot: `docs/loop/c38-trays-results.png`.
 
+## Mark–recapture (fourth method)
+Field tab → Method → **Mark–recapture**.
+1. Traps (circles 100 px across), placed at random points or where animals are, catch and mark every animal of the chosen species inside them (M).
+2. After a gap of 20, 120 or 600 sim-s, new traps catch C animals, R of them already marked.
+3. The student enters their own N̂ = M·C/R, then sees the Lincoln–Petersen and Chapman estimates against the true population at both sessions, with births, deaths and marked animals that died in between.
+
+Tested (6 trials per setting, seed 1234 at t ≈ 120 s, 40 traps), as Chapman estimate ÷ truth:
+- **20 s gap, random traps:** right on average (capybara 1.03, howler 0.96), but individual trials ranged 0.4–2.2 because recaptures were few.
+- **Traps where animals are:** 2–3× the catches and steadier estimates (capybara mean 0.93, howler 1.20).
+- **120 s gap:** about 70% of marked capybaras died, and estimates averaged 2.4× the truth (closure broken).
+
+Handout: `docs/handouts/4-mark-recapture.md`.
+
 ## Discussion prompts that fall out of it
 - Agoutis feed ~85% of the time. Why can κ be low or undefined even when agreement is high? (Chance agreement is high when one category dominates.)
 - How does the interval change sampling error? Run 5 s vs 30 s on the same species.

@@ -4,7 +4,7 @@ Vivarium is a browser simulation of a rainforest community whose animals' behavi
 
 ## Before class (10 min)
 1. **Get the files:** download this repository's branch as a ZIP (GitHub → Code → Download ZIP) and unzip it, or use a hosted copy if one exists. Open `index.html` in Chrome or Edge. It needs an internet connection the first time, for the 3D library. *(Chromium-based browsers are the only ones tested so far.)*
-2. **Pick a world:** open the **Field** tab and press **Copy class link** at the bottom. The link looks like `index.html?seed=1234&mode=brains#field`, and every student who opens it gets the **same world**. If you're sharing the ZIP, tell students to add `?seed=1234&mode=brains#field` to the end of the address instead.
+2. **Pick a world:** open the **Field** tab and press **Copy class link** at the bottom. The link looks like `index.html?seed=1234&mode=brains#field`, and every student who opens it gets the **same world**. If you're sharing the ZIP, tell students to add `?seed=1234&mode=brains#field` to the end of the address instead. On a shared claude.ai page, add `#class-1234-brains` to the page's link.
 3. **Pick a lab** and print its handout (`docs/handouts/`). Each is one page with steps, a record table, questions, and instructor notes with answers:
 
 | lab | teaches | time |
@@ -12,16 +12,18 @@ Vivarium is a browser simulation of a rainforest community whose animals' behavi
 | 1 · Focal sampling | observer vs sampling error, Cohen's κ | 30–40 min |
 | 2 · Scan sampling | counting vs placement error | 25–35 min |
 | 3 · Feeding trays | giving-up densities, the marginal value theorem, replication | 30–45 min |
+| 4 · Mark–recapture | Lincoln–Petersen estimates, closure and catchability assumptions, precision | 30–40 min |
 
 4. **Try it yourself once** (5 min) so the posture cue makes sense: the dark dot held out in front means head up; tucked onto the body means head down, feeding.
 
 ## In class (a 50-minute plan)
 - **5 min:** frame it. "This is a practice range. The animals are simulated, so we can check your answers exactly."
-- **30 min:** students work through the handout in pairs. Each method ends with a **Download (CSV)** button; have every student save their file.
-- **15 min:** pool the results. Collect the CSVs (shared drive, LMS, email), open **`class.html`** (in the same folder as `index.html`) and drop them all in. It shows the class's results, computed in your browser with nothing uploaded:
+- **30 min:** students work through the handout in pairs. Each method ends with a **Download (CSV)** button and a **Copy as CSV text** button, for devices where downloads are blocked. Have every student save or copy their data.
+- **15 min:** pool the results. Collect the CSVs (shared drive, LMS, email), open **`class.html`** (in the same folder as `index.html`) and drop them all in, or paste copied CSV text. It shows the class's results, computed in your browser with nothing uploaded:
   - **focal:** class agreement and κ, and the whole-class confusion table (where everyone disagreed with the truth);
   - **scan:** counting vs placement error across students, and why pooling fixes one but not the other;
-  - **trays:** the rich − poor difference across all trials, with a class verdict.
+  - **trays:** the rich − poor difference across all trials, with a class verdict;
+  - **mark–recapture:** estimate ÷ truth by setting, and students' own estimates vs the truth.
 
   Then discuss with the handout questions.
 
