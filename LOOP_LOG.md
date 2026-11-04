@@ -1,28 +1,28 @@
 # Vivarium loop log
 
-## TL;DR (as of 2026-11-04 08:30 UTC, end of the loop; one-page version: `docs/SUMMARY.md`)
-**What Vivarium can now do** (all on branch `claude/sweet-planck-lhh90j`, nothing merged to main):
-- **Evolution you can watch:** subspecies with Latin names, a family tree, a river barrier, sexual reproduction with an evolvable choosiness gene, trait costs, and a time-lapse coloured by subspecies.
-- **Research instrument:**
-  - bit-identical seeded runs with a manifest; a life table CSV; a 1 Hz scan-sampled ethogram;
-  - a patch log (giving-up densities and how each feeding bout ended);
-  - mid-run parameter schedules (`--at`), an experiment runner, and stdlib analysis scripts;
-  - network probes that edit one input at a time.
-  - Every experiment switch defaults off; the default fingerprint `7ab26d53` has been checked after every change.
-- **Studies run:**
-  - **Marginal value theorem (positive, `docs/mvt-findings.md`):** evolved foragers leave more food behind in richer habitats in every species. The response is plastic (transplant), mostly evolved (unevolved null), and an active departure from food that's still there. No Brown effect under predation risk. Cue unresolved: visible-food quality can drive leaving but isn't necessary.
-  - **Many-eyes (robust null, `docs/many-eyes-findings.md`):** these networks never evolve proactive vigilance. Cycles 29–31 found that it evolves *down*, and that per-animal vigilance was food-confounded.
-  - **Reinforcement:** null; hybrids are too rare for the penalty to matter.
-  - **Harpy decline:** a bottom-up cascade.
-- **Teaching (classroom-ready):** Field tab with focal sampling, scan sampling and **feeding trays** (GUDs in rich vs poor habitat, prediction first).
-  - **Class link** (`?seed=…&mode=…#field`, one world for every student, backed by a fixed-step clock) and **CSV downloads** for all three methods, phone-tested: built by a local Claude Code session working on the same branch.
-  - One-page **handouts** (`docs/handouts/`) and two **case studies** on real data (`docs/case-studies/`).
-  - Guide: `docs/teaching-field-methods.md`.
-- **Measurement traps caught along the way** (each logged in its cycle):
-  - simulation bugs: leaky river, Allee traps, seed non-determinism, 1.033 s sampling drift, alarm echo chamber;
-  - measurement: "chase" mislabel, vigilance including walking, food confounds (twice), immortal-time bias, a float-order fingerprint change, a phone-width overflow.
-- **Start here:** `docs/SUMMARY.md` → README → `docs/mvt-findings.md` → `docs/many-eyes-findings.md` → `docs/teaching-field-methods.md`. Screenshots in `docs/loop/`.
-- Loop mechanics: each cycle re-arms with a server-side reminder. Container restarts (about every 25–60 min overnight) kill detached runs, so launch scripts skip finished runs and can simply be rerun.
+## TL;DR (final, 2026-11-04 23:45 UTC; one-page version: `docs/SUMMARY.md`; PR to main: KrishKalra19/vivarium#1)
+**What Vivarium can now do** (branch `claude/sweet-planck-lhh90j`, open as PR #1, not merged):
+- **Teaching, classroom-ready:**
+  - Field tab with four methods scored against ground truth: focal, scan, feeding trays (GUD), mark–recapture.
+  - A class link gives every student the same world (`?seed=…&mode=…#field` or `#class-1234-brains`).
+  - CSV download and copy for every method; `class.html` pools a class's results.
+  - Handouts 1–4, two case studies on real data, and `docs/INSTRUCTOR-QUICKSTART.md`.
+  - Phone-tested, AA contrast.
+  - Shared claude.ai pages (private until shared): the app https://claude.ai/artifact/2CkDo57UdrKt55wMB9JDfE, the class results page https://claude.ai/artifact/KADTYXTnRSvrUQhNY1eJW4.
+- **Research (`docs/mvt-findings.md`, `docs/many-eyes-findings.md`):**
+  - **Marginal value theorem:** evolved foragers leave more food in rich habitat in every species and seed (6 seeds, CIs exclude 0). The response is plastic and an active departure. It's **partly mechanical**: an unevolved policy shows it in some worlds; evolution makes it reliable, and creates it in howlers (cycle 50 corrected an earlier "mostly evolved").
+  - No Brown effect under predation risk: between worlds, within a landscape, or after a sensed threat.
+  - **Many-eyes:** robust null. **Reinforcement:** null. **Harpy decline:** a bottom-up cascade.
+- **Instrument:** bit-reproducible runs (default fingerprint `7ab26d53`, checked after every change); life table, ethogram and patch log; `--at` schedules; analysis and probe scripts. How-to: `docs/experiments.md`.
+- **Measurement traps caught along the way** (each logged, several now teaching material):
+  - definitions (walking counted as vigilance);
+  - food confounds (twice);
+  - immortal-time bias;
+  - a probe showing an input *can* drive behaviour isn't evidence animals *depend* on it;
+  - over-claiming from 2 seeds;
+  - float-order and frame-rate reproducibility.
+- **Still open:** a real classroom trial; Safari/Firefox/physical phones; the foraging cue; merging PR #1 (decide on the fixed-step clock).
+- **Start here:** `docs/SUMMARY.md` → `docs/INSTRUCTOR-QUICKSTART.md` → `docs/mvt-findings.md`.
 - **Krish feedback** (write anything here or in chat; the next cycle reads it first):
   - 11-02: subspecies pace: no opinion, so keep the current settings.
   - 11-02: **fake-Latin names** for subspecies (replacing "Swift Giant Agouti").
