@@ -639,7 +639,7 @@
   function patchCell(sid, lin){
     var k = sid+':'+lin, c = patches.by[k];
     if(!c) c = patches.by[k] = { quit:0, fled:0, died:0, dur:0, food0:0, gud:0, eaten:0, hist:new Array(GUD_BINS).fill(0),
-                                 animalSecs:0, energy:0, moves:0, moveGud:0, moveHist:new Array(GUD_BINS).fill(0) };
+                                 animalSecs:0, energy:0, moves:0, moveGud:0, moveHist:new Array(GUD_BINS).fill(0), hereSum:0, onFood:0, speedSum:0 };
     return c;
   }
   function boutEat(a, sp, cell, avail, got){
@@ -660,6 +660,11 @@
     if(how !== 'quit'){ if(b.last - b.t0 >= 1) c[how]++; return; }   // sub-second bouts cut by fleeing aren't bouts
     var gud = foodAt(sp, b.cell);
     c.quit++; c.dur += b.last - b.t0; c.food0 += b.food0; c.gud += gud; c.eaten += b.eaten;
+    // How did it end? Food under the animal now (it may have walked on), whether that's still
+    // grazeable (>= first food edge: it stopped on food) or not (it walked off), and its speed.
+    var here = foodAt(sp, cellAt(a.x, a.y));
+    c.hereSum += here; if(here >= FOOD_EDGES[0]) c.onFood++;
+    c.speedSum += Math.sqrt(a.vx*a.vx + a.vy*a.vy)/Math.max(1, a.speed);
     c.hist[Math.min(GUD_BINS-1, Math.floor(gud/GUD_BIN))]++;
   }
   function boutCheck(a, sp){
