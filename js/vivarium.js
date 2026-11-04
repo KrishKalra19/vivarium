@@ -586,6 +586,58 @@
     }
   }
 
+  /* Feeding bouts and giving-up densities (opt-in; marginal value theorem studies).
+     A bout starts when a herbivore takes food and ends when it hasn't eaten for BOUT_GAP s.
+     Its giving-up density (GUD) is the food left in the last cell it ate from, read when the
+     bout ends: the classic field measure of where a forager quits (Brown 1988). Bouts that end
+     because the animal fled or died are counted separately, since those aren't decisions to
+     leave (bouts under 1 s cut short by fleeing aren't counted at all: instinct animals graze while
+     they run). Because animals graze while drifting, a second measure records the food left in a
+     cell each time a feeding animal moves on to another cell ('moves', moveGud, moveHist).
+     Aggregated per species x lineage: counts, sums, and a GUD histogram (bins of
+     GUD_BIN), plus the habitat-wide intake rate (energy per animal-second) for comparison. */
+  var BOUT_GAP = 2, GUD_BIN = 0.02, GUD_BINS = 50;
+  var patches = null;
+  function newPatches(){ return { from:Math.max(simClock, params.ethoFrom), gap:BOUT_GAP, gudBin:GUD_BIN, by:{} }; }
+  function patchCell(sid, lin){
+    var k = sid+':'+lin, c = patches.by[k];
+    if(!c) c = patches.by[k] = { quit:0, fled:0, died:0, dur:0, food0:0, gud:0, eaten:0, hist:new Array(GUD_BINS).fill(0),
+                                 animalSecs:0, energy:0, moves:0, moveGud:0, moveHist:new Array(GUD_BINS).fill(0) };
+    return c;
+  }
+  function boutEat(a, sp, cell, avail, got){
+    var b = a.bout;
+    if(!b) b = a.bout = { t0:simClock, food0:avail, eaten:0, cell:cell, last:simClock };
+    else if(b.cell !== cell && simClock >= patches.from){
+      // moved on to a new cell while still feeding: the food left behind is a cell-level GUD
+      var c0 = patchCell(a.sid, a.genome.brain ? 'brain' : 'instinct'), left = foodAt(sp, b.cell);
+      c0.moves++; c0.moveGud += left; c0.moveHist[Math.min(GUD_BINS-1, Math.floor(left/GUD_BIN))]++;
+    }
+    b.eaten += got; b.cell = cell; b.last = simClock;
+    if(simClock >= patches.from) patchCell(a.sid, a.genome.brain ? 'brain' : 'instinct').energy += got;
+  }
+  function boutEnd(a, sp, how){
+    var b = a.bout; a.bout = null;
+    if(!b || simClock < patches.from) return;
+    var c = patchCell(a.sid, a.genome.brain ? 'brain' : 'instinct');
+    if(how !== 'quit'){ if(b.last - b.t0 >= 1) c[how]++; return; }   // sub-second bouts cut by fleeing aren't bouts
+    var gud = foodAt(sp, b.cell);
+    c.quit++; c.dur += b.last - b.t0; c.food0 += b.food0; c.gud += gud; c.eaten += b.eaten;
+    c.hist[Math.min(GUD_BINS-1, Math.floor(gud/GUD_BIN))]++;
+  }
+  function boutCheck(a, sp){
+    if(a.state === 'flee') boutEnd(a, sp, 'fled');
+    else if(simClock - a.bout.last > BOUT_GAP) boutEnd(a, sp, 'quit');
+  }
+  function patchTally(dt){
+    if(!patches || simClock < patches.from) return;
+    for(var i=0;i<animals.length;i++){
+      var a = animals[i];
+      if(a.dead || SPECIES[a.sid].role !== 'herbivore') continue;
+      patchCell(a.sid, a.genome.brain ? 'brain' : 'instinct').animalSecs += dt;
+    }
+  }
+
   var deathLog = {};
   /* Life table (Phase 2): one row per animal, written when it dies (and for the living
      on export). Opt-in, because a 2-hour run produces ~100k animals. Columns are
@@ -618,6 +670,7 @@
     a.cause = cause||'other';
     if(killer){ a.killedBy = killer; onKill(killer, a); }
     if(lifeRows) lifeRows.push(lifeRow(a));
+    if(patches && a.bout) boutEnd(a, SPECIES[a.sid], 'died');
     counts[a.sid] = Math.max(0, (counts[a.sid]||0)-1);
     var k = a.sid+':'+(cause||'other');
     deathLog[k] = (deathLog[k]||0)+1;
@@ -900,8 +953,10 @@
       var fEat = Math.min(foliage[cell], gain*fPart/BIOME.plants.foliage.energy);
       var rEat = Math.min(fruit[cell], gain*(1-fPart)/BIOME.plants.fruit.energy);
       foliage[cell] -= fEat; fruit[cell] -= rEat;
-      a.energy = Math.min(a.maxEnergy, a.energy + fEat*BIOME.plants.foliage.energy + rEat*BIOME.plants.fruit.energy);
+      a.energy = Math.min(a.maxEnergy, a.energy + fEat*BIOME.plants.foliage.energy + rEat*BIOME.plants.fruit.energy);   // keep this exact expression: float order is part of the fingerprint
+      if(patches) boutEat(a, sp, cell, avail, fEat*BIOME.plants.foliage.energy + rEat*BIOME.plants.fruit.energy);
     }
+    if(patches && a.bout) boutCheck(a, sp);
 
     var sp2 = Math.sqrt(a.vx*a.vx+a.vy*a.vy)/Math.max(1,a.speed);
     a.energy -= (a.drain*(1+sp2*sp2*0.9))*dt;
@@ -1125,6 +1180,7 @@
     if(RIVER.on && params.riverOffAt > 0 && simClock >= params.riverOffAt){ setRiver(false); repaintPlants();
       logEvent({ text:'The river has dried up: the two banks meet again (secondary contact).' }); }
     growPlants(dt);
+    patchTally(dt);
     if(prof) t = lap('plants', t);
     rebuildHash();
     recount();
@@ -3229,6 +3285,7 @@
        founders' deaths); lifeTableCSV() returns every recorded death plus the living. */
     lifeTable: function(on){ if(on!=null) lifeRows = on ? (lifeRows||[]) : null; return lifeRows ? lifeRows.length : null; },
     lifeTableCSV: function(){ return lifeCSV(); },
+    patchLog: function(on){ if(on!=null) patches = on ? newPatches() : null; return patches; },
     lifeColumns: LIFE_COLS,
     /* Scan-sampled ethogram: { states, scans, groupRadius, budget:{sid:[counts per state]},
        eyes:{sid:{feed:[by group size], vigilant:[by group size]}} } (group size capped at 30). */

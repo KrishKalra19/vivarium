@@ -14,7 +14,7 @@ const fs = require('fs');
 const { chromium } = require('playwright');
 
 function args(){
-  const a = { secs:1200, seed:1, mode:'instinct', every:10, out:null, river:0, sexual:0, costs:0, uiseed:0, lifetable:0, set:'' };
+  const a = { secs:1200, seed:1, mode:'instinct', every:10, out:null, river:0, sexual:0, costs:0, uiseed:0, lifetable:0, patches:0, set:'' };
   const v = process.argv.slice(2);
   for(let i=0;i<v.length;i+=2){ const k=v[i].replace(/^--/,''); a[k] = isNaN(+v[i+1]) ? v[i+1] : +v[i+1]; }
   if(!a.out) a.out = path.join('runs', `${a.mode}-s${a.seed}-${a.secs}${a.river ? '-river' : ''}${a.sexual ? '-sex' : ''}`);
@@ -58,6 +58,7 @@ function args(){
     if(opt.mode !== 'instinct') V.brainMode(opt.mode);
     if(opt.river) V.river(true);
     if(opt.sexual) V.sexual(true);
+    if(opt.patches) V.patchLog(true);   // feeding bouts + giving-up densities, from params.ethoFrom
     const ids = Object.keys(V.species), traits = ['mass','speed','sense','metab','choosy'];
     const samples = [], zeroRun = {}, stuck = {};
     ids.forEach(id => { zeroRun[id] = 0; });
@@ -92,11 +93,13 @@ function args(){
     const manifest = V.manifest ? V.manifest() : null;
     const life = opt.lifetable ? V.lifeTableCSV() : null;
     const ethogram = V.ethogram ? V.ethogram() : null;
-    return { life, ethogram, ids, samples, stuck, deaths:V.deaths(), clades, mating:V.mating ? V.mating() : null, alarm:V.alarmStats ? V.alarmStats() : null, tl, heap, manifest, fingerprint:h.toString(16) };
+    const patches = opt.patches ? V.patchLog() : null;
+    return { life, ethogram, patches, ids, samples, stuck, deaths:V.deaths(), clades, mating:V.mating ? V.mating() : null, alarm:V.alarmStats ? V.alarmStats() : null, tl, heap, manifest, fingerprint:h.toString(16) };
   }, opt);
   const wallSec = (Date.now() - t0) / 1000;
 
   if(result.life){ fs.writeFileSync(path.join(opt.out, 'life.csv'), result.life); delete result.life; }
+  if(result.patches){ fs.writeFileSync(path.join(opt.out, 'patches.json'), JSON.stringify(result.patches)); delete result.patches; }
   if(result.ethogram){ fs.writeFileSync(path.join(opt.out, 'ethogram.json'), JSON.stringify(result.ethogram)); delete result.ethogram; }
   if(result.manifest) fs.writeFileSync(path.join(opt.out, 'manifest.json'), JSON.stringify(result.manifest, null, 2));
   fs.writeFileSync(path.join(opt.out, 'run.json'), JSON.stringify({ opt, wallSec, errors, ...result }));
