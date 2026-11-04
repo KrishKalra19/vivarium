@@ -434,3 +434,6 @@ Scripted real clicks, typing and downloads on real frames, in Playwright Chromiu
 - **Regression:** `7ab26d53` confirmed on the final code (seed 1000, 600 s, no page errors). Default headless runs are bit-identical.
 - **Teaching caveat:** focal and tray placement are random per student on purpose, so students share a world, not the same animal or trays. Trays and interventions change that student's world from then on.
 - Nothing merged to `main`; GitHub Pages untouched. Playwright was installed outside the repo. `overnight_2026-10-20.md` was already untracked and was left alone.
+### 2026-11-04 07:57 UTC — [local] Follow-up: two open checks closed
+- **Map drag during a paused scan works:** the map moves, the clock stays paused, and the prompt stays up, so a student can drag a circle out from under the prompt. A click on the map doesn't disturb the prompt either. This closes the "drag while paused wasn't tested" note above; the edge-clamp behaviour itself is unchanged.
+- **Arena match played on the final code:** opened from `?seed=1234&mode=brains#arena`, Open the gates, 4× speed, then Skip to the result. Results screen appeared (victor, kills, damage, match length), and switching back to Vivarium kept the seed and mode. No page errors. Skipping means most of the match wasn't watched live. No code changed.
