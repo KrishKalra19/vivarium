@@ -154,16 +154,19 @@ Runs are **bit-for-bit reproducible** from a seed: the simulation has its own se
 
 | tool | what it gives you |
 |---|---|
-| `tools/vivarium-run.js` | one headless run: census, trait means, a final-state fingerprint, charts and map, plus optional life table and ethogram |
+| `tools/vivarium-run.js` | one headless run: census, trait means, a final-state fingerprint, charts and map, plus optional life table, ethogram and patch log; `--at` changes params mid-run (transplant designs) |
 | **Life table** (Census → Data, or `--lifetable 1`) | one CSV row per animal: parents, birth and death, cause and killer, subspecies, traits, offspring, kills, and time spent in each behaviour. Columns: `docs/life-table.md` |
 | **Ethogram** (`Vivarium.ethogram()`) | 1 Hz scan sampling of every animal (feed, vigilant, travel, flee, chase, stalk, lurk, search) with group size and food underfoot |
+| **Patch log** (`--patches 1`) | every feeding bout: giving-up density (food left where the animal quit), how the bout ended (fled, quit on food, walked off), speed at quitting, habitat intake rate |
 | `tools/experiment.js` | conditions × paired replicates from a JSON spec, run in parallel and resumable, into tidy CSVs. How-to: `docs/experiments.md` |
-| `tools/analyze_vigilance.py`, `tools/analyze_choosiness.py` | many-eyes and reinforcement analyses with the replicate run as the unit of analysis |
+| `tools/analyze_vigilance.py`, `tools/analyze_choosiness.py`, `tools/analyze_cohorts.py`, `tools/analyze_patches.py` | many-eyes, reinforcement, birth-cohort / selection-differential and giving-up-density analyses, with the replicate run as the unit of analysis |
+| `tools/probe-brains.js`, `tools/probe-quit.js` | edit one input of every evolved network at a time and read its decision: what the brains respond to |
 
-Experiment switches: predators on/off, population caps, alarm contagion (instant or graded), hybrid penalty, timed secondary contact, a measurement window, and any `Vivarium.params` value through `--set`.
+Experiment switches: predators on/off, population caps, alarm contagion (instant or graded), hybrid penalty, timed secondary contact, head-down detection, scan-while-chewing, births and immigration on/off, a one-off food-landscape rescale, food-sight range, hiding visible-food quality, a measurement window, and any `Vivarium.params` value through `--set`. Every switch defaults to off, and default runs stay bit-identical (checked by fingerprint after each change).
 
 **What it has been used for so far** (pilots; see the write-ups):
-- [`docs/many-eyes-findings.md`](docs/many-eyes-findings.md): does evolved vigilance fall with group size? Five pilots; the controls and covariates matter more than the headline.
+- [`docs/mvt-findings.md`](docs/mvt-findings.md): **do evolved foragers follow the marginal value theorem?** Yes, qualitatively: giving-up densities rise with habitat quality in every species. The response is plastic (a transplant test), mostly evolved rather than mechanical (an unevolved null), and an active departure from food that's still there. There is no extra caution under predation risk. The cue is unresolved: one input *can* drive leaving, but hiding it doesn't remove the effect.
+- [`docs/many-eyes-findings.md`](docs/many-eyes-findings.md): does evolved vigilance fall with group size? No, robustly, across seven pilots and evolvability and selection tests: these networks never evolve proactive scanning. Along the way, definitions, controls, food covariates and immortal-time bias each overturned a naive reading.
 - Reinforcement (`experiments/out/reinforcement-pilot/`): does a hybrid penalty make mate choice evolve to be pickier? Not with these costs: hybrids are too rare and choosiness too expensive.
 
 ## Teaching field methods
@@ -171,6 +174,7 @@ Experiment switches: predators on/off, population caps, alarm contagion (instant
 The **Field** tab is a practice range for behavioural observation, scored against ground truth no real field site can give you:
 - **Focal sampling**: follow one animal and record what it's doing at each sample point. Scored with % agreement, Cohen's κ, a confusion table, and observer error separated from sampling error.
 - **Scan sampling**: count heads up vs down in a circle. Scored for counting error and for placement error.
+- **Feeding trays**: predict, then set out trays of known food in rich and poor habitat and compare giving-up densities (Brown 1988), with confidence intervals and unvisited trays handled properly.
 
 Guide and discussion prompts: [`docs/teaching-field-methods.md`](docs/teaching-field-methods.md).
 

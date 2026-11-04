@@ -1,14 +1,25 @@
 # Vivarium loop log
 
-## TL;DR (as of cycle 24, 2026-11-03 13:40 UTC)
+## TL;DR (as of cycle 43, 2026-11-04 05:45 UTC)
 **What Vivarium can now do** (all on branch `claude/sweet-planck-lhh90j`, nothing merged to main):
 - **Evolution you can watch:** subspecies with Latin names, a family tree, a river barrier, sexual reproduction with an evolvable choosiness gene, trait costs, and a time-lapse coloured by subspecies.
-- **Research instrument:** bit-identical seeded runs with a manifest, a life table CSV, a 1 Hz scan-sampled ethogram, an experiment runner (paired replicates → tidy CSVs), and stdlib analysis scripts. README section "Vivarium as a research instrument".
-- **Studies run:** marginal value theorem pilot (**positive**: evolved brains' giving-up densities rise with habitat quality, the fixed-rule lineage's don't; `docs/mvt-findings.md`), many-eyes (closed after 7 pilots + evolvability and selection tests, write-up in `docs/many-eyes-findings.md`: no evolved effect; definitions, controls and covariates each overturned the naive reading; vigilance is evolvable but selected *down*, because a head-up second costs a full second of food), reinforcement (null: hybrid penalty too weak vs the cost of choosiness), harpy decline (bottom-up cascade).
-- **Teaching:** Field tab with focal sampling (κ, confusion, observer vs sampling error) and scan sampling (counting vs placement error). Guide in `docs/teaching-field-methods.md`.
-- **Bugs caught by measurement along the way** (each logged in its cycle): leaky river, jaguar Allee extinction, lone-arrival Allee trap, seed non-determinism, death counter not reset, 1.033 s sampling drift, "chase" mislabel, vigilance-includes-walking, alarm echo chamber, hybrid penalty hitting all offspring, empty brain cards in Instinct.
+- **Research instrument:**
+  - bit-identical seeded runs with a manifest; a life table CSV; a 1 Hz scan-sampled ethogram;
+  - a patch log (giving-up densities and how each feeding bout ended);
+  - mid-run parameter schedules (`--at`), an experiment runner, and stdlib analysis scripts;
+  - network probes that edit one input at a time.
+  - Every experiment switch defaults off; the default fingerprint `7ab26d53` has been checked after every change.
+- **Studies run:**
+  - **Marginal value theorem (positive, `docs/mvt-findings.md`):** evolved foragers leave more food behind in richer habitats in every species. The response is plastic (transplant), mostly evolved (unevolved null), and an active departure from food that's still there. No Brown effect under predation risk. Cue unresolved: visible-food quality can drive leaving but isn't necessary.
+  - **Many-eyes (robust null, `docs/many-eyes-findings.md`):** these networks never evolve proactive vigilance. Cycles 29–31 found that it evolves *down*, and that per-animal vigilance was food-confounded.
+  - **Reinforcement:** null; hybrids are too rare for the penalty to matter.
+  - **Harpy decline:** a bottom-up cascade.
+- **Teaching:** Field tab with focal sampling (κ, confusion, observer vs sampling error), scan sampling (counting vs placement error) and **feeding trays** (GUDs in rich vs poor habitat, prediction first). Guide: `docs/teaching-field-methods.md`.
+- **Measurement traps caught along the way** (each logged in its cycle):
+  - simulation bugs: leaky river, Allee traps, seed non-determinism, 1.033 s sampling drift, alarm echo chamber;
+  - measurement: "chase" mislabel, vigilance including walking, food confounds (twice), immortal-time bias, a float-order fingerprint change, a phone-width overflow.
 - **Start here:** README → `docs/mvt-findings.md` → `docs/many-eyes-findings.md` → `docs/teaching-field-methods.md`. Screenshots in `docs/loop/`.
-- Loop mechanics: the overnight in-session timer died with the container on 11-02; since then the loop re-arms with a server-side reminder.
+- Loop mechanics: each cycle re-arms with a server-side reminder. Container restarts (about every 25–60 min overnight) kill detached runs, so launch scripts skip finished runs and can simply be rerun.
 - **Krish feedback** (write anything here or in chat; the next cycle reads it first):
   - 11-02: subspecies pace: no opinion, so keep the current settings.
   - 11-02: **fake-Latin names** for subspecies (replacing "Swift Giant Agouti").
@@ -366,4 +377,4 @@ Two 7200 sim-s runs, river on, seed 1, one with mating and one without (~18 min 
 ### 2026-11-04 05:25 UTC — cycle 43: clamp the visible-food cue (launched)
 - New `params.pullClamp` (default −1 = off; in the manifest): when ≥ 0, any visible food registers at that fixed strength in the brain's food-pull input. Food direction stays real, so animals still steer to food, but they can't tell good from poor alternatives. Default fingerprint unchanged (`7ab26d53`). Code v41.
 - Same transplant design as cycles 33 / 42 with `pullClamp` 0.5 at the switch: `clamp-to0.6` / `clamp-to1.6` × seeds 1000 / 1001 → `runs/c43/`. Prediction if food pull is the cue: the rich − poor GUD gap largely disappears.
-- **Result (05:50 UTC): the gap survives the clamp.** Rich − poor quit-GUD gap with visible-food quality hidden: agouti 0.12, capybara 0.17, howler 0.06, tapir 0.32 (vs full vision 0.10 / 0.22 / 0.07 / 0.26). So visible-food quality *can* drive leaving (cycle 41 probe) but isn't *necessary*: other inputs carry the habitat signal too. Cycle 41's "the cue is visible food" claim is withdrawn in `docs/mvt-findings.md`, the teaching guide and the tray results text. **MVT mechanism thread closed**: the pattern is evolved, plastic and an active departure; the cue is unresolved. Output: `experiments/out/mvt-clamp-c43/`.
+- **Result (05:40 UTC): the gap survives the clamp.** Rich − poor quit-GUD gap with visible-food quality hidden: agouti 0.12, capybara 0.17, howler 0.06, tapir 0.32 (vs full vision 0.10 / 0.22 / 0.07 / 0.26). So visible-food quality *can* drive leaving (cycle 41 probe) but isn't *necessary*: other inputs carry the habitat signal too. Cycle 41's "the cue is visible food" claim is withdrawn in `docs/mvt-findings.md`, the teaching guide and the tray results text. **MVT mechanism thread closed**: the pattern is evolved, plastic and an active departure; the cue is unresolved. Output: `experiments/out/mvt-clamp-c43/`.
