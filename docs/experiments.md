@@ -35,4 +35,12 @@ Analyses that go with them:
 - `tools/analyze_mvt_replication.py`: paired-by-seed rich − poor differences with 95% intervals.
 - `tools/probe-brains.js`, `tools/probe-quit.js`: edit one network input at a time and read the decision.
 
-**Container restarts.** Long runs are best launched with `setsid nohup` from a small launch script that skips runs whose log already ends in `EXIT` (see `runs/c44/launch.sh` in the loop log), so a restart only costs the runs in flight.
+**Container restarts.** Long runs are best launched with `setsid nohup` from a small launch script that skips finished runs, so a restart only costs the runs in flight:
+
+```bash
+for sd in 1002 1003; do n=runs/mvt/g1.6-s$sd
+  grep -q EXIT $n.txt 2>/dev/null && continue    # finished earlier
+  ( node tools/vivarium-run.js --secs 1800 --seed $sd --mode brains --costs 1 --patches 1 \
+      --set '{"capScale":1.6,"predators":false,"growth":1.6,"ethoFrom":600}' --out $n > $n.txt 2>&1; echo EXIT >> $n.txt ) &
+done; wait
+```

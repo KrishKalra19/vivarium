@@ -27,6 +27,7 @@ Times are sim-seconds. Traits are given twice: the *expressed* value (after spec
 | `scans` | number of 1 Hz scan samples the animal was alive for (≈ age) |
 | `scan_feed` … `scan_travel` | scans spent in each ethogram state (see below); they sum to `scans` |
 | `group_mean` | mean group size across its scans: conspecifics within 60 px, itself included |
+| `scan_feed_food`, `scan_vigilant_food` | feed and vigilant scans counted only where there was food underfoot (≥ 0.15, the first food bin). Head up on bare ground is "nothing to eat here", not a choice to scan; in cycles 29–30 that was 50–90% of all vigilant scans (code v33+) |
 
 ## Ethogram (scan sampling, 1 Hz)
 Every sim-second each living animal is scored in exactly one state:
