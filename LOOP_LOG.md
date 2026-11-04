@@ -383,3 +383,9 @@ Two 7200 sim-s runs, river on, seed 1, one with mating and one without (~18 min 
 - **Result (06:10 UTC): replicates with 6 seeds.** Paired by seed, growth 1.6 − 0.6: quit-GUD agouti +0.042 (+0.025 to +0.060), howler +0.044 (+0.023 to +0.064), capybara +0.168 (+0.143 to +0.193), each 6/6 seeds positive; tapir +0.30 (2 seeds with enough quits). On-food share rises too (agouti +0.13, howler +0.10, capybara +0.12; intervals exclude 0). `docs/mvt-findings.md` updated: replication section, limitation replaced. New `tools/analyze_mvt_replication.py`. Output: `experiments/out/mvt-replication-c44/`.
 ### 2026-11-04 06:10 UTC — cycle 45: MVT figure
 - New `tools/figure_mvt.py` → `docs/figures/mvt-gud.svg`, embedded in `docs/mvt-findings.md`. For agouti, howler and capybara, quit GUD at growth 0.6 vs 1.6: evolved brains (6 seeds, thin lines, plus mean ± 95% CI) vs unevolved seed brains (2 seeds, dashed, each seed shown, so the agouti null's seed disagreement is visible). Reads only committed patch logs. Checked by rendering it (subtitle split onto two lines after it clipped).
+### 2026-11-04 07:00 UTC — [cloud] Phase 5 item 3: lab handouts
+- `docs/handouts/`: one page per Field-tab method, each with a goal, steps, a record table, 4 questions and instructor notes with answers grounded in tested numbers.
+  - `1-focal-sampling.md`: observer vs sampling error, κ vs % agreement.
+  - `2-scan-sampling.md`: counting vs placement error; why pooling fixes one and not the other.
+  - `3-feeding-trays.md`: GUD trials, run 3 times; replication, unvisited trays, trial length, food vs crowding.
+- They reference the class link and the data downloads that the local session is building (Phase 5 items 1–2). Checked against `js/fieldstudy.js` and `docs/teaching-field-methods.md` for key mappings, cues and defaults.
