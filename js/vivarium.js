@@ -97,7 +97,7 @@
   var idCounter = 1;
   var maxGeneration = 0;
   var simClock = 0;
-  var params = { headDownSense:0.4, scanIntake:0, births:true, foliageTo:0, hybridPenalty:0, riverOffAt:0, alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
+  var params = { headDownSense:0.4, scanIntake:0, births:true, foliageTo:0, foodSense:1, hybridPenalty:0, riverOffAt:0, alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
   var worldMode = 'instinct';   // the brain mode the current world was seeded with
   var events = { droughtUntil:0, mastUntil:0 };
   var selected = null;
@@ -846,7 +846,7 @@
   /* Best food cell within sense range, scored by richness minus a walking
      penalty. Fills _food and returns true only if it beats `floor`. */
   function scanFood(a, sp, floor){
-    var found=false, bestScore=floor, r=a.sense;
+    var found=false, bestScore=floor, r=a.sense*params.foodSense;   // foodSense: experiments shrink how far food can be seen (default 1)
     var cw=CELL, cx=clamp(Math.floor(a.x/cw),0,cols-1), cy=clamp(Math.floor(a.y/cw),0,rows-1);
     var span=Math.max(1,Math.round(r/cw));
     for(var oy=-span;oy<=span;oy+=2){
@@ -3385,7 +3385,7 @@
       return { format:'vivarium-run', version:1, code: tag ? tag.getAttribute('src') : null,
                seed:simSeed, world:worldMode, t:+simClock.toFixed(3),
                toggles:{ river:RIVER.on, sexual:params.sexual, traitCosts:params.traitCosts, predators:params.predators, alarm:params.alarm },
-               params:{ headDownSense:params.headDownSense, scanIntake:params.scanIntake, births:params.births, hybridPenalty:params.hybridPenalty, riverOffAt:params.riverOffAt, alarmRate:params.alarmRate, ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
+               params:{ headDownSense:params.headDownSense, scanIntake:params.scanIntake, births:params.births, foodSense:params.foodSense, hybridPenalty:params.hybridPenalty, riverOffAt:params.riverOffAt, alarmRate:params.alarmRate, ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
                hunt:Object.assign({}, HUNT) };
     },
     setPaused: function(v){ params.paused=v; },
