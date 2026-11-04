@@ -9,6 +9,8 @@ The **Field** tab turns Vivarium into a practice range for **instantaneous focal
 4. At each sample point the range pauses: *what is it doing right now?* **1 Feeding · 2 Vigilant · 3 Moving · 4 Fleeing · 0 Lost sight.**
 5. If the focal dies, as prey often do, the study switches to a new individual and says so. That's standard practice, and the results note that it biases the sample towards survivors.
 
+For a class, **Copy class link** at the bottom of the Field tab gives a link like `index.html?seed=1234&mode=brains#field` that starts every student on the same world (tested in Chromium, it stays identical at a given sim time until someone runs trays or an intervention), and the scan and tray CSV downloads carry the run id, seed and settings in every row so an instructor can stack the class's files.
+
 ## What students get back
 - **% agreement** and **Cohen's κ** against the truth, with the Landis & Koch (1977) bands. Observers are usually expected to reach about 0.8 before collecting real data.
 - A **confusion table**: which behaviours they mix up (e.g. vigilant vs moving).

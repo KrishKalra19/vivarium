@@ -36,6 +36,16 @@
     return pool[Math.floor(Math.random()*pool.length)];   // UI randomness on purpose: never touch the sim's stream
   }
 
+  // Founders are born at t = 0, so a fresh world (a class link, say) has no adults for its first sim-seconds.
+  function noAdultNote(sid, what){
+    var name = V.species[sid].name.toLowerCase(), wait = null;
+    V.animals().forEach(function(a){
+      if(!a.dead && a.sid===sid && a.genome.brain && a.age < (a.minAge||0)){ var w = a.minAge - a.age; if(wait == null || w < wait) wait = w; }
+    });
+    return wait != null ? 'No adult ' + name + ' yet: the first ones come of age in about ' + Math.ceil(wait) + ' sim-s. Try again then.'
+                        : 'No adult evolved-brain ' + name + ' on the range. ' + what + ' need Mixed A/B or Brains mode (Controls → Behaviour).';
+  }
+
   // Bank the current focal's true scan counts since it was picked (for the continuous budget).
   function addContinuous(st){
     var now = snapshotEth(st.focal);
@@ -44,38 +54,82 @@
   }
   function snapshotEth(a){ var o = {}; ['feed','vigilant','travel','forage','flee'].forEach(function(k){ o[k] = a.eth[ethIndex(k)]; }); return o; }
 
+  // Where the rail sits under the map (phones, small tablets), a prompt on the map or results in the rail can open off screen.
+  function bringIntoView(el){ if(window.matchMedia('(max-width:1040px)').matches) el.scrollIntoView({ block:'start' }); }
+  function showMap(){ bringIntoView(document.querySelector('.viewport')); }
+  function showResults(){ bringIntoView($('fsStatus')); }
+
+  // Reset range or a Behaviour switch rebuilds the world under a running study: its animals and trays are gone.
+  var RESET_NOTE = 'The range was reset, so this study ended with what it had.';
+  function worldWasReset(){
+    if(!study) return false;
+    var t = V.stats().t, back = study.lastT != null && t < study.lastT;
+    study.lastT = t;
+    return back;
+  }
+
+  /* CSV downloads. Scan and tray rows carry the run id, seed and the method's settings, so an
+     instructor can stack a class's files; the run id keeps one student's trial apart from another's. */
+  function runId(){ return Date.now().toString(36) + Math.floor(Math.random()*1296).toString(36); }
+  function downloadCsv(name, csv){
+    var url = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
+    var link = document.createElement('a'); link.href = url; link.download = name;
+    document.body.appendChild(link); link.click(); link.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }
+  function csvOf(head, rows){ return head.join(',') + '\n' + rows.map(function(r){ return r.join(','); }).join('\n') + '\n'; }
+  function csvButton(label, name, csv){
+    var b = document.createElement('button');
+    b.className = 'btn wide'; b.id = 'fsCsv'; b.textContent = label;
+    b.addEventListener('click', function(){ downloadCsv(name, csv); });
+    $('fsResults').appendChild(b);
+  }
+
   /* ---------- scan sampling ----------
      At each sample point a circle is drawn around a random adult of the species; the
      student counts head-down vs head-up animals of that species inside it. Scored against
      the true counts in the circle (counting error) and against the whole population at
      that instant (placement error: circles centred on an animal over-sample groups). */
   var SCAN_R = 110;
+  // Zoom that fits the whole circle between the map's centre (where it's drawn) and the prompt.
+  function scanZoom(){
+    var v = document.querySelector('.viewport').getBoundingClientRect(), p = $('fsScanPrompt').getBoundingClientRect(), cy = v.top + v.height/2;
+    var room = Math.min(v.width/2, v.height/2, p.top >= cy ? p.top - cy : cy - p.bottom) - 8;
+    return Math.min(2.4, Math.max(0.8, room/SCAN_R));
+  }
+  function tallMap(on){
+    document.querySelector('.viewport').classList.toggle('fs-scanning', on);
+    window.dispatchEvent(new Event('resize'));
+  }
   function startScan(){
     var sid = $('fsSpecies').value, n = +$('fsSamples').value, interval = +$('fsInterval').value;
     if(!pickFocal(sid)){
-      $('fsStatus').textContent = 'No adult evolved-brain ' + V.species[sid].name.toLowerCase() +
-        ' on the range. Scan samples need Mixed A/B or Brains mode (Controls → Behaviour).';
+      $('fsStatus').textContent = noAdultNote(sid, 'Scan samples');
       return;
     }
-    V.fieldMode(true);
-    study = { kind:'scan', sid:sid, n:n, interval:interval, samples:[], next:V.stats().t + interval, waiting:false, wasPaused:V.params.paused };
+    V.fieldMode(true); tallMap(true);
+    study = { kind:'scan', sid:sid, n:n, interval:interval, samples:[], next:V.stats().t + interval, waiting:false, wasPaused:V.params.paused, run:runId(), seed:V.seed(), world:V.brainMode() };
     $('fsResults').innerHTML = ''; $('fsStart').disabled = true; $('fsStop').disabled = false;
     $('fsStatus').textContent = 'Scan sampling ' + V.species[sid].name.toLowerCase() + ' · first scan in ' + interval + ' sim-s';
+    showMap();
     pollTimer = setInterval(pollScan, 100);
   }
   function pollScan(){
+    if(worldWasReset()) return finishScan(RESET_NOTE);
     if(!study || study.waiting) return;
     if(V.stats().t < study.next) return;
     var a = pickFocal(study.sid);
     if(!a){ study.next = V.stats().t + 2; return; }
     study.waiting = true; study.wasPaused = V.params.paused; V.setPaused(true);
-    V.fieldScan({ x:a.x, y:a.y, r:SCAN_R, sid:study.sid });
+    $('fsScanPrompt').hidden = false;
+    $('zoomFit').click();   // fieldScan only zooms in, and a focal follow may have left the map zoomed right up
+    V.fieldScan({ x:a.x, y:a.y, r:SCAN_R, sid:study.sid, zoom:scanZoom() });
     study.pending = { i:study.samples.length + 1, t:V.stats().t, truth:V.scanTruth() };
     $('fsScanSp').textContent = V.species[study.sid].name.toLowerCase() + 's';
     $('fsScanN').textContent = study.pending.i + ' / ' + study.n;
     $('fsDown').value = ''; $('fsUp').value = '';
-    $('fsScanPrompt').hidden = false;
-    setTimeout(function(){ try { $('fsDown').focus(); } catch(e){} }, 50);
+    showMap();
+    // on touch screens the keyboard would cover the circle: the student taps a box once they've counted
+    if(!window.matchMedia('(pointer:coarse)').matches) setTimeout(function(){ try { $('fsDown').focus(); } catch(e){} }, 50);
     $('fsStatus').textContent = 'Scan ' + study.pending.i + ' of ' + study.n + ': count heads in the dashed circle';
   }
   function recordScan(skip){
@@ -92,7 +146,7 @@
   function finishScan(note){
     clearInterval(pollTimer); pollTimer = null;
     var s = study; study = null;
-    $('fsScanPrompt').hidden = true; V.fieldScan(null); V.fieldMode(false);
+    $('fsScanPrompt').hidden = true; V.fieldScan(null); V.fieldMode(false); tallMap(false);
     $('fsStart').disabled = false; $('fsStop').disabled = true;
     if(s.waiting) V.setPaused(s.wasPaused);
     var done = s.samples.filter(function(x){ return !x.skip; });
@@ -115,7 +169,11 @@
       s.samples.map(function(x){ return '<tr><th>' + x.i + '</th><td>' + (x.skip ? 'lost count' : x.down + ' / ' + x.up) + '</td><td class="' +
         (!x.skip && (x.down !== x.tDown || x.up !== x.tUp) ? 'off' : 'diag') + '">' + x.tDown + ' / ' + x.tUp + '</td></tr>'; }).join('') + '</tbody></table>';
     $('fsResults').innerHTML = html;
+    if(s.samples.length) csvButton('Download your scans (CSV)', 'field-scan-seed' + s.seed + '-' + s.sid + '-' + s.run + '.csv', csvOf(
+      ['run','seed','mode','method','species','samples_planned','interval_s','circle_r','scan','t','lost_count','down','up','true_down','true_up','true_flee','pop_down','pop_up'],
+      s.samples.map(function(x){ return [s.run, s.seed, s.world, 'scan', s.sid, s.n, s.interval, SCAN_R, x.i, x.t, x.skip ? 1 : 0, x.down, x.up, x.tDown, x.tUp, x.tFlee, x.popDown, x.popUp]; })));
     $('fsStatus').textContent = 'Finished: ' + s.samples.length + ' scans of ' + V.species[s.sid].name.toLowerCase() + 's.';
+    showResults();
     window.FieldStudy.last = { kind:'scan', samples:s.samples, mine:mine, circle:circle, pop:pop, mae:n ? mae/n : null, exact:n ? exact/n : null };
   }
 
@@ -159,14 +217,16 @@
     var n = +$('fsSamples').value/2, dur = +$('fsTrayDur').value, pred = $('fsPredict').value;
     if(!pred){ $('fsStatus').textContent = 'Make a prediction first: where will foragers leave more food behind?'; return; }
     var list = placeTrays(n), placed = V.trays(list);
-    study = { kind:'trays', n:n, dur:dur, pred:pred, t0:V.stats().t, list:list, placed:placed, wasPaused:V.params.paused };
+    study = { kind:'trays', n:n, dur:dur, pred:pred, t0:V.stats().t, list:list, placed:placed, wasPaused:V.params.paused, run:runId(), seed:V.seed(), world:V.brainMode() };
     $('fsResults').innerHTML = ''; $('fsStart').disabled = true; $('fsStop').disabled = false;
     if(V.params.paused) V.setPaused(false);
+    showMap();
     pollTimer = setInterval(pollTrays, 250);
     pollTrays();
   }
   function pollTrays(){
     if(!study || study.kind !== 'trays') return;
+    if(worldWasReset()) return finishTrays(RESET_NOTE);
     var left = study.dur - (V.stats().t - study.t0);
     if(left <= 0) return finishTrays(null);
     var st = V.trayState() || [], visited = st.filter(function(t){ return t.nVisitors > 0; }).length;
@@ -175,7 +235,7 @@
   function finishTrays(note){
     clearInterval(pollTimer); pollTimer = null;
     var s = study; study = null;
-    var st = V.trayState() || []; V.trays(null);
+    var st = V.trayState() || [], elapsed = +(V.stats().t - s.t0).toFixed(1); V.trays(null);
     $('fsStart').disabled = false; $('fsStop').disabled = true;
     var zones = { rich:[], poor:[] }, unvisited = { rich:0, poor:0 }, visitors = { rich:0, poor:0 }, bySp = {};
     st.forEach(function(t){
@@ -212,7 +272,13 @@
       'Unvisited trays are left out of the means (an unfound tray says nothing about giving up), so check whether one zone simply had fewer visits. ' +
       'And think about placement: trays in rich surroundings may also sit where more animals are, so a difference could be about crowding as well as food. In Vivarium\u2019s own research, evolved foragers leave food behind in rich habitat by moving on sooner, using more than one cue (docs/mvt-findings.md).</p>';
     $('fsResults').innerHTML = html;
+    var foragers = Object.keys(V.species).filter(function(k){ return V.species[k].role !== 'predator'; });
+    if(st.length) csvButton('Download your trays (CSV)', 'field-trays-seed' + s.seed + '-' + s.run + '.csv', csvOf(
+      ['run','seed','mode','method','trays_planned','trial_s','elapsed_s','prediction','trial_start_t','tray','zone','x','y','start','left','visitors'].concat(foragers.map(function(k){ return 'visitors_' + k; }), ['first_visit_s']),
+      st.map(function(t, i){ return [s.run, s.seed, s.world, 'trays', s.n*2, s.dur, elapsed, s.pred, +s.t0.toFixed(1), i + 1, t.zone, Math.round(t.x), Math.round(t.y), t.start, t.left, t.nVisitors]
+        .concat(foragers.map(function(k){ return t.visitors[k] || 0; }), [t.firstVisit == null ? '' : +(t.firstVisit - s.t0).toFixed(1)]); })));
     $('fsStatus').textContent = 'Finished: ' + st.length + ' trays, ' + (R.n + P.n) + ' visited.';
+    showResults();
     window.FieldStudy.last = { kind:'trays', trays:st, rich:R, poor:P, diff:diff, verdict:verdict, pred:s.pred, unvisited:unvisited };
   }
   function syncMode(){
@@ -231,8 +297,7 @@
     var sid = $('fsSpecies').value, n = +$('fsSamples').value, interval = +$('fsInterval').value;
     var focal = pickFocal(sid);
     if(!focal){
-      $('fsStatus').textContent = 'No adult evolved-brain ' + V.species[sid].name.toLowerCase() +
-        ' to follow. Field studies need Mixed A/B or Brains mode (Controls → Behaviour).';
+      $('fsStatus').textContent = noAdultNote(sid, 'Field studies');
       return;
     }
     V.fieldMode(true);
@@ -244,6 +309,7 @@
     $('fsResults').innerHTML = '';
     $('fsStart').disabled = true; $('fsStop').disabled = false;
     status();
+    showMap();
     pollTimer = setInterval(poll, 100);
   }
 
@@ -255,6 +321,7 @@
   }
 
   function poll(){
+    if(worldWasReset()) return finish(RESET_NOTE);
     if(!study || study.waiting) return;
     var a = study.focal;
     if(a.dead){
@@ -279,7 +346,7 @@
     V.setPaused(true);
     study.pending = { i:study.samples.length + 1, t:V.stats().t, truth:V.truthState(study.focal.uid) };
     $('fsPromptN').textContent = study.pending.i + ' / ' + study.n;
-    $('fsPrompt').hidden = false;
+    $('fsPrompt').hidden = false; showMap();
     status();
   }
 
@@ -351,15 +418,11 @@
     });
     html += '</tbody></table>';
     html += '<p class="caption">Column 1 vs 2 is <b>observer error</b> (what you saw vs what was happening). Column 2 vs 3 is <b>sampling error</b> (a few instants vs the animal\'s whole session, ' + contN + ' s). Field studies have both; here you can see each one separately.</p>';
-    html += '<button class="btn wide" id="fsCsv">Download your samples (CSV)</button>';
     $('fsResults').innerHTML = html;
     $('fsStatus').textContent = 'Finished: ' + V.species[s.sid].name.toLowerCase() + ' #' + s.focal.uid + ', ' + s.samples.length + ' samples.';
-    var csv = 'sample,t,answer,truth\n' + s.samples.map(function(p){ return [p.i, p.t, p.answer, p.truth].join(','); }).join('\n') + '\n';
-    $('fsCsv').addEventListener('click', function(){
-      var url = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
-      var link = document.createElement('a'); link.href = url; link.download = 'field-study-' + s.sid + '-' + s.focal.uid + '.csv';
-      document.body.appendChild(link); link.click(); link.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
-    });
+    csvButton('Download your samples (CSV)', 'field-study-' + s.sid + '-' + s.focal.uid + '.csv',
+      csvOf(['sample','t','answer','truth'], s.samples.map(function(p){ return [p.i, p.t, p.answer, p.truth]; })));
+    showResults();
     window.FieldStudy.last = { samples:s.samples, agreement:r.po, kappa:r.k, continuous:cont, contN:contN, focals:s.focals };
   }
 
@@ -401,5 +464,5 @@
   window.FieldStudy = { start:start, stop:stop, answer:answer, cats:CATS,
     scan:function(down, up){ $('fsDown').value = down; $('fsUp').value = up; recordScan(down == null); },
     trays:function(){ return study && study.kind === 'trays' ? { t0:study.t0, dur:study.dur, placed:study.placed } : null; },
-    state:function(){ return study ? { kind:study.kind || 'focal', waiting:study.waiting, n:study.samples.length, pending:study.pending, focal:study.focal ? study.focal.uid : null } : null; } };
+    state:function(){ return study ? { kind:study.kind || 'focal', waiting:study.waiting, n:study.samples ? study.samples.length : 0, pending:study.pending, focal:study.focal ? study.focal.uid : null } : null; } };
 })();

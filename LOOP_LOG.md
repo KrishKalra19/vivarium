@@ -403,3 +403,34 @@ Two 7200 sim-s runs, river on, seed 1, one with mating and one without (~18 min 
 - `docs/case-studies/A-vigilance-or-walking.md`: the definition trap, from committed pilot 2 data. New helper `tools/case_vigilance_definitions.py` computes vigilance as "head up" vs "scanning" by group size. Capybara looks like it scans *more* in groups under "head up" (+4.1 pp per doubling), but under "scanning" it's +0.4. Agouti and howler declines are as steep without predators.
 - `docs/case-studies/B-does-vigilance-pay.md`: immortal-time bias. New compact data file `docs/case-studies/data/agouti-lives.csv` (43,869 agoutis from cycle 29's m0.07-s1000 run, 1.4 MB). Unstratified, low vigilance looks optimal (1.56 offspring vs 1.31 none); matched for observation time, the advantage mostly disappears (1.35 vs 1.27; 1.66 vs 1.67). Answer keys computed from the committed files.
 - The local session pushed item 1 (class seed link + fixed-step tick; see its entry above). Not touched by me.
+### 2026-11-04 07:55 UTC — [local] Phase 5 item 2: CSV export for scan sampling and trays
+- Field tab results now offer **Download your scans (CSV)** and **Download your trays (CSV)**, next to the existing focal download (same helper; focal's format is unchanged). Every row carries the settings, so files stack with no header comments to strip.
+  - Scan, one row per scan: `run,seed,mode,method,species,samples_planned,interval_s,circle_r,scan,t,lost_count,down,up,true_down,true_up,true_flee,pop_down,pop_up`. A lost count leaves `down`/`up` blank.
+  - Trays, one row per tray: `run,seed,mode,method,trays_planned,trial_s,elapsed_s,prediction,trial_start_t,tray,zone,x,y,start,left,visitors,visitors_agouti,visitors_howler,visitors_capybara,visitors_tapir,first_visit_s`. `first_visit_s` counts from the trial's start and is blank if never visited. `elapsed_s` shows a trial stopped early.
+- **Decision:** added a `run` id column, which wasn't asked for. Without it, pooled rows can't be told apart by student or by trial, and the tray handout runs three trials. It's also in the filename, so a class's files don't collide.
+- **Verified** with real downloads through the UI, desktop and phone: all 10 scan rows and 20 tray rows match `FieldStudy.last` field by field, including a lost count and a deliberate miscount; visitor columns sum to `visitors`; rich-habitat mean GUD recomputed from the CSV equals the page's (0.3957 and 0.3079 in two runs).
+- Not added: seed/settings in the focal CSV (not requested), so focal files can't be pooled by seed yet.
+- Code and QA fixes share one commit because they were made together in `js/fieldstudy.js`.
+### 2026-11-04 07:55 UTC — [local] Phase 5 item 3: real-browser QA of the Field tab
+Scripted real clicks, typing and downloads on real frames, in Playwright Chromium at 1400×900 and iPhone 13 emulation; layout at 320–1024 px in dark mode; plus the app's browser pane at 375 px. Screenshots were read by eye; they aren't committed.
+- **Fixed (`js/fieldstudy.js`, `css/style.css`):**
+  - **Phone prompts opened off screen:** the prompt was about 700 px above the student, who had just pressed Start in the panel below the map, so the range just appeared to freeze. The map now scrolls into view at the start and at each prompt, and results scroll into view at the end. Scripted clicks hid this, because Playwright scrolls to what it clicks; it was caught by measuring prompt position.
+  - **Phone scans were practically unusable:** zoom 2.4 made the circle 528 px wide on a 245 px tall map, with the prompt over more than half of it. The map is now 78vh tall during a scan on phones, the prompt is compact, and zoom is computed so the whole circle clears the prompt (desktop too: the prompt used to cover the circle's lower edge).
+  - **Touch keyboard:** no autofocus on touch screens, since the keyboard would cover the circle. The student taps a box after counting.
+  - **Misleading error on a fresh world:** founders are born at t = 0, so pressing Start right after opening a class link said "needs Mixed A/B or Brains" even in Brains mode. It now says how long until the first adults (agouti ~12 sim-s, howler ~18, capybara ~22, tapir ~52).
+  - **Reset during a study:** left a ghost study running ("183 sim-s left · 0 of 0 trays"). All three methods now end with a note.
+  - **Phone layout:** the tab row pushed the page column 22 px too wide, losing the right margin; "Lost sight" wrapped and made the focal prompt cover the focal's ring (now 72 px tall, map centre at 115).
+  - **Dark mode roster:** names and counts were black on near-black (`.chip` is a button with no text colour). Now `--ink`.
+  - `FieldStudy.state()` threw during tray trials (test hook only).
+- **Checked, no problem:** focal, scan and tray flows on both layouts; prediction required; no page errors; no horizontal overflow on any tab; prompt inside the map at 320–1024 px; clipboard path over http with permission granted ("Copied.", clipboard matches) and the fallback box on `file://`; Instinct warning on the link; Arena loads from `#arena` and switches both ways, including from a class link (lobby only: no match was played).
+- **Still open, not fixed:**
+  - On a real phone, the numeric keyboard appears over the map once a box is tapped. DevTools emulation can't show this.
+  - A circle near the world's edge can't be centred (the camera clamps), so it may sit partly under the prompt. The student can drag the map; drag while paused wasn't tested.
+  - At 768 px the map stays 3:2, so the circle is drawn smaller (zoom 1.06, 234 px).
+  - Only Chromium was tested: not Safari or Firefox, and no physical phone. Whether worlds match across browser engines is unknown.
+### 2026-11-04 07:55 UTC — [local] Phase 5 local items done: summary
+- **Built:** class link and Copy class link (item 1); scan and tray CSVs (item 2); Field tab QA with the fixes above (item 3). Plan items ticked. One sentence added to `docs/teaching-field-methods.md`.
+- **The one scope exception:** `tick()` in `js/vivarium.js` is now fixed-step, approved by Krish in chat, because same-seed pages otherwise fully diverged within 20 s. Everything else in that file is untouched. **It changes live browser runs slightly** (a 60 fps browser used to take 1/60 s steps), but makes them match headless runs: same fingerprint at t = 30 s.
+- **Regression:** `7ab26d53` confirmed on the final code (seed 1000, 600 s, no page errors). Default headless runs are bit-identical.
+- **Teaching caveat:** focal and tray placement are random per student on purpose, so students share a world, not the same animal or trays. Trays and interventions change that student's world from then on.
+- Nothing merged to `main`; GitHub Pages untouched. Playwright was installed outside the repo. `overnight_2026-10-20.md` was already untracked and was left alone.

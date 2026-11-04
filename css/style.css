@@ -80,7 +80,7 @@ button,select{font-family:inherit;}
 
 /* layout */
 .console{display:grid;grid-template-columns:minmax(0,1fr) 370px;gap:18px;align-items:start;}
-@media (max-width:1040px){ .console{grid-template-columns:1fr;} }
+@media (max-width:1040px){ .console{grid-template-columns:minmax(0,1fr);} }
 
 .field{display:flex;flex-direction:column;gap:10px;min-width:0;}
 .viewport{
@@ -177,7 +177,7 @@ button,select{font-family:inherit;}
 .roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:7px;}
 .chip{
   display:flex;align-items:center;gap:8px;padding:7px 10px;
-  border:1px solid var(--line);border-radius:11px;background:var(--surface);
+  border:1px solid var(--line);border-radius:11px;background:var(--surface);color:var(--ink);
   cursor:pointer;text-align:left;
 }
 .chip.dim{opacity:.45;}
@@ -376,7 +376,7 @@ canvas.tree{width:100%;height:60px;display:block;}
   .fs-prompt{top:8px;bottom:auto;padding:7px 8px;border-radius:11px;}
   .fs-q{font-size:11.5px;margin-bottom:5px;}
   .fs-buttons{grid-template-columns:repeat(5,1fr);gap:4px;}
-  .fs-buttons .btn{padding:5px 2px;font-size:11px;text-align:center;}
+  .fs-buttons .btn{padding:5px 1px;font-size:10.5px;text-align:center;white-space:nowrap;}
   .fs-buttons .btn .sub{display:none;}
   .fs-buttons kbd{display:none;}
   /* time-lapse bar: button on its own row */
@@ -387,7 +387,17 @@ canvas.tree{width:100%;height:60px;display:block;}
 .fs-scan{display:flex;flex-wrap:wrap;gap:8px;align-items:end;}
 .fs-scan label{display:flex;flex-direction:column;font-size:11px;color:var(--ink-dim);gap:3px;}
 .fs-scan input{width:84px;font:inherit;font-size:15px;padding:5px 7px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);}
-@media (max-width:640px){ .fs-scan input{width:64px;} }
+@media (min-width:641px){ #fsScanPrompt{bottom:8px;} }
+@media (max-width:640px){
+  /* scan: a taller map and a one-row prompt, so the whole circle fits below it */
+  .viewport.fs-scanning{aspect-ratio:auto;height:78vh;}
+  .fs-scan{display:grid;grid-template-columns:1fr 1fr auto auto;gap:6px;}
+  .fs-scan label{font-size:10px;justify-content:flex-end;}
+  .fs-scan input{width:100%;box-sizing:border-box;padding:4px 6px;}
+  .fs-scan .btn{padding:6px 7px;font-size:11px;}
+  .tabs{gap:1px;padding:4px 0;}
+  .tab{padding-left:3px;padding-right:3px;font-size:11px;min-width:0;}
+}
 .slider-row[hidden], #fsTrayOpts[hidden]{display:none;}
 .slider-row select{max-width:100%;min-width:0;}
 .fs-link{width:100%;box-sizing:border-box;font-family:var(--font-mono);font-size:11px;padding:5px 7px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);}
