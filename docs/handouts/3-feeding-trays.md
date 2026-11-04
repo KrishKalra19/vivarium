@@ -8,7 +8,7 @@ Run the classic field test of the **marginal value theorem** (Charnov 1976) with
 ## Steps
 1. **Field** tab → Method **Feeding trays**. Choose 20 trays (10 per habitat) and a **60 sim-s** trial.
 2. **Predict first:** where will foragers leave more food, in rich-habitat or poor-habitat trays, or will there be no difference? The trial won't start without a prediction.
-3. Press **Place trays and start**. Trays appear on the map: **gold** frames are in rich surroundings, **blue** frames in poor ones, and the fill fades as the food is eaten.
+3. Press **Place trays and start**. Trays appear on the map: **gold** frames are in rich surroundings, **blue dashed** frames in poor ones, and the fill fades as the food is eaten.
 4. When the trial ends, record the results and download the data.
 5. **Run it two more times.** Tray placement is random, so each trial is a new sample.
 

@@ -5,11 +5,12 @@
   --ink:#151F17;
   --ink-dim:#54654F;
   --line:rgba(21,31,23,.16);
-  --canopy:#3F8B4E;
+  --canopy:#2E6E3D;   /* AA: 4.6:1 on --surface (was #3F8B4E, 3.15:1); used as button text */
   --fruit:#E06B33;
   --soil:#B9AE95;
-  --accent:#1B6F80;
-  --danger:#B23F2C;
+  --accent:#17646F;   /* AA: 5.1:1 on --surface (was #1B6F80, 4.35:1) */
+  --on-accent:#ffffff;
+  --danger:#9E3526;   /* AA: 5.3:1 on --surface (was #B23F2C, 4.34:1) */
   --shadow:rgba(21,31,23,.14);
   --font-display:'Fraunces',Georgia,'Times New Roman',serif;
   --font-body:'Work Sans',-apple-system,Helvetica,Arial,sans-serif;
@@ -27,6 +28,7 @@
     --fruit:#FF9A55;
     --soil:#3B382E;
     --accent:#5FC6D8;
+    --on-accent:#05161a;
     --danger:#FF7A64;
     --shadow:rgba(0,0,0,.5);
   }
@@ -42,6 +44,7 @@
   --fruit:#EE8460;
   --soil:#3B382E;
   --accent:#5FC6D8;
+  --on-accent:#05161a;
   --danger:#FF7A64;
   --shadow:rgba(0,0,0,.5);
 }
@@ -213,7 +216,7 @@ button,select{font-family:inherit;}
   padding:6px 11px;border-radius:9px;border:1px solid var(--line);
   background:var(--bg);color:var(--ink);font-size:12px;cursor:pointer;
 }
-.seg button.active{background:var(--accent);border-color:var(--accent);color:#05161a;font-weight:600;}
+.seg button.active{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600;}
 
 .slider-row{display:flex;flex-direction:column;gap:3px;}
 .slider-row .top{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;}
@@ -292,7 +295,7 @@ canvas.chart{width:100%;height:74px;display:block;}
 /* Evolved brains */
 .brain-canvas{width:100%;height:290px;display:block;margin-top:10px;}
 .brain-canvas[hidden]{display:none;}
-#turboBtn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#05161a;}
+#turboBtn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent);}
 #brainGroup .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin:0 4px 0 2px;vertical-align:middle;}
 #brainGroup.solo .mixed-only{display:none;}
 

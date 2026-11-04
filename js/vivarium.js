@@ -1720,7 +1720,9 @@
         ctx.lineWidth = 5/z; ctx.strokeStyle = 'rgba(0,0,0,0.55)';
         ctx.strokeRect(t.x - hs, t.y - hs, hs*2, hs*2);
         ctx.lineWidth = 2.5/z; ctx.strokeStyle = t.zone === 'rich' ? '#ffd166' : '#8ecae6';
+        if(t.zone !== 'rich') ctx.setLineDash([5/z, 3/z]);   // poor trays dashed: not told apart by colour alone
         ctx.strokeRect(t.x - hs, t.y - hs, hs*2, hs*2);
+        ctx.setLineDash([]);
         ctx.fillStyle = 'rgba(255,255,255,' + (0.1 + 0.75*Math.max(0, Math.min(1, left))) + ')';
         ctx.fillRect(t.x - hs*0.55, t.y - hs*0.55, hs*1.1, hs*1.1);
       });

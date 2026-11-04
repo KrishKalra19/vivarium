@@ -27,7 +27,7 @@ Verified (cycle 23): a scripted perfect counter scores 100% exact with 0 off per
 ## Feeding trays: giving-up densities (third method)
 Field tab → Method → **Feeding trays**. This is the experimental method behind the marginal value theorem's classic field test (Brown 1988). The student:
 1. picks a number of trays and a trial length, and **commits to a prediction** before anything starts (rich-habitat trays left fuller, poor-habitat trays left fuller, or no difference);
-2. presses **Place trays and start**. Half the trays go where the surrounding 100 px of vegetation are richest (gold outline on the map), half where it's poorest (blue). Each tray is a cell refilled with fresh foliage that **doesn't regrow during the trial**, so whatever is left at the end is what foragers gave up on;
+2. presses **Place trays and start**. Half the trays go where the surrounding 100 px of vegetation are richest (gold outline on the map), half where it's poorest (blue, dashed). Each tray is a cell refilled with fresh foliage that **doesn't regrow during the trial**, so whatever is left at the end is what foragers gave up on;
 3. lets the range run. The status line counts down and shows how many trays have been found.
 
 **Results:**
