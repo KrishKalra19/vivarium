@@ -495,7 +495,7 @@ Scripted real clicks, typing and downloads on real frames, in Playwright Chromiu
 ### 2026-11-04 22:40 UTC — [cloud] PR description updated; cycle 50 launched (null-model replication)
 - PR #1 description brought up to date: mark–recapture, hash class links, copy CSV, saveFile/downloads, the risk tests, and corrected size figures (3.3k lines of code; ~55 MB of data).
 - Cycle 50: unevolved seed brains (mutation 0) at growth 0.6 / 1.6 on seeds 1002–1005 → `runs/c50/`, to pair with cycle 44's evolved runs on the same seeds. This gives the "mostly evolved, not mechanical" claim 6 null seeds instead of 2 (cycle 40's two disagreed for agoutis).
-### 2026-11-04 23:40 UTC — [cloud] cycle 50: null-model replication **corrects** a claim
+### 2026-11-04 22:55 UTC — [cloud] cycle 50: null-model replication **corrects** a claim
 - Unevolved seed brains on seeds 1002–1005 (8 runs, no page errors), pooled with cycle 40's 1000 / 1001 → 6 seeds. Rich − poor quit-GUD:
   - agouti null +0.081 (−0.058 to +0.219) vs evolved +0.042;
   - howler null −0.009 vs evolved +0.044, so evolved − null is **+0.052 (+0.026 to +0.078), 6/6**;
