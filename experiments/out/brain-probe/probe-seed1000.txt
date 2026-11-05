@@ -1,0 +1,11 @@
+seed 1000, 1500 sim-s, predators on; share of brains choosing head DOWN under each input variant
+species   brain    n  | no threat | threat ahead | threat behind | lifts head for threat | alone | crowded
+agouti    evolved  300 |   88%     |    3%        |    4%         |   96%                 |   90% |   89%
+agouti    seed     300 |   92%     |    0%        |    0%         |  100%                 |   93% |   93%
+howler    evolved  300 |   87%     |    2%        |    1%         |   97%                 |   90% |   84%
+howler    seed     300 |   99%     |    0%        |    0%         |  100%                 |   97% |   99%
+capybara  evolved  300 |   85%     |    1%        |    2%         |   98%                 |   85% |   84%
+capybara  seed     300 |   92%     |    0%        |    0%         |  100%                 |   91% |   92%
+tapir     evolved  213 |   65%     |    0%        |    0%         |  100%                 |   80% |   59%
+tapir     seed     213 |   80%     |    0%        |    0%         |  100%                 |   87% |   76%
+page errors: none

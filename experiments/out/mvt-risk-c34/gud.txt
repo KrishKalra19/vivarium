@@ -1,0 +1,19 @@
+Mean over replicates (± half-range). Condition = params.predators.
+
+species   lineage   predators       quit GUD      move GUD    quit share    habitat rate quits/run
+agouti    brain      False    0.159±0.005   0.238±0.001   1.000±0.000     1.026±0.032      1890
+agouti    brain       True          0.141   0.266±0.023   0.037±0.026     1.207±0.030        23
+agouti    instinct   False    0.105±0.005   0.291±0.007   1.000±0.000     1.376±0.013       385
+agouti    instinct    True    0.098±0.001   0.301±0.002   0.010±0.000     1.455±0.069       386
+capybara  brain      False    0.285±0.004   0.296±0.003   1.000±0.000     7.563±0.070      1100
+capybara  brain       True    0.275±0.001   0.323±0.000   0.026±0.008     7.746±0.247       872
+capybara  instinct   False    0.152±0.006   0.262±0.003   1.000±0.000     8.412±0.103       318
+capybara  instinct    True    0.160±0.002   0.266±0.000   0.016±0.002     8.310±0.076       326
+howler    brain      False    0.172±0.005   0.249±0.003   1.000±0.000     1.612±0.024      3204
+howler    brain       True    0.171±0.027   0.325±0.021   0.020±0.006     1.843±0.061       124
+howler    instinct   False    0.113±0.006   0.286±0.007   1.000±0.000     2.292±0.072       301
+howler    instinct    True    0.111±0.000   0.299±0.002   0.006±0.000     2.195±0.005       200
+tapir     brain      False    0.324±0.025   0.229±0.008   1.000±0.000    19.124±0.928       178
+tapir     brain       True          0.251   0.216±0.051   0.113±0.096    17.570±1.278       150
+tapir     instinct   False    0.128±0.011   0.196±0.001   1.000±0.000    19.495±0.297        38
+tapir     instinct    True    0.152±0.007   0.198±0.002   0.027±0.008    19.917±0.468        30

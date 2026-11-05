@@ -1,0 +1,66 @@
+seed 1000, growth 0.6, 1500 sim-s; on good food (0.4): share of brains whose outputs say leave (throttle > 0.55 or head up)
+species   brain      n  | crowd 0                | crowd 0.5              | crowd 1               
+agouti    evolved   400 | 16% leave              | 25% leave              | 28% leave             
+agouti    seed      400 | 14% leave              | 14% leave              | 13% leave             
+howler    evolved   400 | 14% leave              | 10% leave              | 13% leave             
+howler    seed      400 | 15% leave              | 15% leave              | 15% leave             
+capybara  evolved   400 | 31% leave              | 28% leave              | 31% leave             
+capybara  seed      400 | 0% leave               | 0% leave               | 0% leave              
+tapir     evolved    13 | 8% leave               | 8% leave               | 8% leave              
+tapir     seed       13 | 8% leave               | 8% leave               | 8% leave              
+page errors: none
+seed 1000, growth 1.6, 1500 sim-s; on good food (0.4): share of brains whose outputs say leave (throttle > 0.55 or head up)
+species   brain      n  | crowd 0                | crowd 0.5              | crowd 1               
+agouti    evolved   400 | 17% leave              | 23% leave              | 30% leave             
+agouti    seed      400 | 13% leave              | 12% leave              | 11% leave             
+howler    evolved   400 | 12% leave              | 12% leave              | 17% leave             
+howler    seed      400 | 12% leave              | 18% leave              | 20% leave             
+capybara  evolved   400 | 19% leave              | 23% leave              | 28% leave             
+capybara  seed      400 | 0% leave               | 0% leave               | 0% leave              
+tapir     evolved   270 | 9% leave               | 11% leave              | 24% leave             
+tapir     seed      270 | 0% leave               | 0% leave               | 0% leave              
+page errors: none
+seed 1000, growth 0.6, 1500 sim-s; on good food (0.4): share of brains whose outputs say leave (throttle > 0.55 or head up)
+species   brain      n  | energy 0.3             | energy 0.6             | energy 0.9            
+agouti    evolved   400 | 25% leave              | 22% leave              | 20% leave             
+agouti    seed      400 | 13% leave              | 14% leave              | 14% leave             
+howler    evolved   400 | 20% leave              | 24% leave              | 25% leave             
+howler    seed      400 | 15% leave              | 15% leave              | 16% leave             
+capybara  evolved   400 | 32% leave              | 31% leave              | 34% leave             
+capybara  seed      400 | 1% leave               | 1% leave               | 2% leave              
+tapir     evolved    13 | 8% leave               | 8% leave               | 8% leave              
+tapir     seed       13 | 8% leave               | 8% leave               | 0% leave              
+page errors: none
+seed 1000, growth 1.6, 1500 sim-s; on good food (0.4): share of brains whose outputs say leave (throttle > 0.55 or head up)
+species   brain      n  | energy 0.3             | energy 0.6             | energy 0.9            
+agouti    evolved   400 | 19% leave              | 21% leave              | 21% leave             
+agouti    seed      400 | 13% leave              | 12% leave              | 12% leave             
+howler    evolved   400 | 21% leave              | 20% leave              | 19% leave             
+howler    seed      400 | 21% leave              | 19% leave              | 17% leave             
+capybara  evolved   400 | 26% leave              | 27% leave              | 28% leave             
+capybara  seed      400 | 0% leave               | 0% leave               | 1% leave              
+tapir     evolved   270 | 23% leave              | 23% leave              | 23% leave             
+tapir     seed      270 | 4% leave               | 4% leave               | 4% leave              
+page errors: none
+seed 1000, growth 0.6, 1500 sim-s; on good food (0.4): share of brains whose outputs say leave (throttle > 0.55 or head up)
+species   brain      n  | food pull 0            | food pull 0.5          | food pull 1           
+agouti    evolved   400 | 22% leave              | 43% leave              | 56% leave             
+agouti    seed      400 | 14% leave              | 14% leave              | 14% leave             
+howler    evolved   400 | 24% leave              | 47% leave              | 54% leave             
+howler    seed      400 | 16% leave              | 100% leave             | 100% leave            
+capybara  evolved   400 | 33% leave              | 73% leave              | 79% leave             
+capybara  seed      400 | 1% leave               | 25% leave              | 28% leave             
+tapir     evolved    13 | 8% leave               | 85% leave              | 77% leave             
+tapir     seed       13 | 8% leave               | 8% leave               | 8% leave              
+page errors: none
+seed 1000, growth 1.6, 1500 sim-s; on good food (0.4): share of brains whose outputs say leave (throttle > 0.55 or head up)
+species   brain      n  | food pull 0            | food pull 0.5          | food pull 1           
+agouti    evolved   400 | 22% leave              | 36% leave              | 40% leave             
+agouti    seed      400 | 12% leave              | 13% leave              | 13% leave             
+howler    evolved   400 | 20% leave              | 34% leave              | 42% leave             
+howler    seed      400 | 17% leave              | 23% leave              | 23% leave             
+capybara  evolved   400 | 28% leave              | 56% leave              | 67% leave             
+capybara  seed      400 | 0% leave               | 15% leave              | 18% leave             
+tapir     evolved   270 | 23% leave              | 60% leave              | 78% leave             
+tapir     seed      270 | 4% leave               | 12% leave              | 14% leave             
+page errors: none

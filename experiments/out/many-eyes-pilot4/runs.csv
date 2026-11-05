@@ -1,0 +1,9 @@
+condition,replicate,seed,fingerprint,wall_s,sim_s,subspecies,page_errors,final_agouti,final_howler,final_capybara,final_tapir,final_ocelot,final_harpy,final_jaguar,final_anaconda
+alarm-off,0,1000,34d7d08d,914.2,2400,19,0,678,356,1200,277,3,16,2,2
+alarm-off,1,1001,3f3ec27e,795.7,2400,20,0,339,3,1200,304,31,8,9,6
+alarm-off,2,1002,aee2b773,755.3,2400,16,0,227,15,1200,304,29,4,2,5
+alarm-off,3,1003,27644049,743.1,2400,15,0,547,208,1200,263,65,4,2,4
+alarm-on,0,1000,675ff372,887.0,2400,19,0,691,561,1200,291,46,4,3,6
+alarm-on,1,1001,75985a66,895.6,2400,21,0,635,626,1200,279,25,13,4,3
+alarm-on,2,1002,19ee2847,852.2,2400,18,0,527,650,1200,304,36,7,2,7
+alarm-on,3,1003,27ba087f,947.5,2400,20,0,336,344,1200,304,34,5,3,6

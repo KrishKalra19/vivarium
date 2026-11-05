@@ -1,0 +1,11 @@
+Mean over replicates (± half-range). Condition = params.growth.
+
+species   lineage   growth       quit GUD      move GUD    quit share    habitat rate quits/run
+agouti    brain        0.6    0.106±0.001   0.244±0.034   1.000±0.000     1.156±0.081      3850
+agouti    brain        1.6    0.214±0.115   0.317±0.007   1.000±0.000     1.329±0.010      2044
+capybara  brain        0.6    0.173±0.009   0.228±0.007   1.000±0.000     6.557±0.314      1856
+capybara  brain        1.6    0.193±0.016   0.322±0.004   1.000±0.000     8.619±0.154       163
+howler    brain        0.6    0.107±0.011   0.246±0.004   1.000±0.000     1.785±0.045      1870
+howler    brain        1.6    0.112±0.010   0.303±0.017   1.000±0.000     2.026±0.096      1994
+tapir     brain        0.6            —     0.172±0.003   1.000±0.000    16.045±0.444        10
+tapir     brain        1.6    0.227±0.019   0.230±0.000   1.000±0.000    23.488±0.039        42

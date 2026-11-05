@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>99R's ludus de animalibus</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,500&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,700;1,800&display=swap">
-<link rel="stylesheet" href="css/style.css?v=4">
+<link rel="stylesheet" href="css/style.css?v=16">
 <link rel="stylesheet" href="css/arena.css?v=2">
 </head>
 <body>
@@ -54,9 +54,32 @@
           </div>
           <button class="x" id="capStop" title="Stop following (Esc)" aria-label="Stop following">×</button>
         </div>
+        <div class="fs-prompt" id="fsPrompt" hidden>
+          <div class="fs-q">What is your focal animal doing <b>right now</b>? <span class="fs-n" id="fsPromptN"></span></div>
+          <div class="fs-buttons" id="fsButtons"></div>
+        </div>
+        <div class="fs-prompt" id="fsScanPrompt" hidden>
+          <div class="fs-q">Scan the circle. How many <b id="fsScanSp">animals</b> inside it are… <span class="fs-n" id="fsScanN"></span></div>
+          <div class="fs-scan">
+            <label>head down (feeding) <input type="number" id="fsDown" min="0" max="200" inputmode="numeric"></label>
+            <label>head up <input type="number" id="fsUp" min="0" max="200" inputmode="numeric"></label>
+            <button class="btn" id="fsScanOk">Record</button>
+            <button class="btn quiet" id="fsScanSkip">Lost count</button>
+          </div>
+        </div>
         <div class="cam-bar">
           <select id="camFilter" aria-label="Which predator the nature cam watches"></select>
           <button class="cam-btn" id="camBtn" aria-pressed="false"><span class="rec"></span>Nature cam</button>
+        </div>
+      </div>
+      <div class="tl-bar" id="tlBar">
+        <button class="btn" id="tlBtn">Time-lapse</button>
+        <div class="tl-ctl" id="tlCtl" hidden>
+          <button class="btn" id="tlPlay" aria-label="Play or pause">▶</button>
+          <input type="range" id="tlSlider" min="0" max="0" value="0" aria-label="Scrub through the run">
+          <span class="tl-time" id="tlTime"></span>
+          <div class="seg" id="tlColor"><button data-c="species">Species</button><button data-c="subspecies">Subspecies</button></div>
+          <select id="tlSpecies" aria-label="Species whose subspecies are coloured"></select>
         </div>
       </div>
       <div class="roster" id="roster"></div>
@@ -69,6 +92,7 @@
         <button class="tab" data-tab="genetics">Genetics</button>
         <button class="tab" data-tab="specimen">Specimen</button>
         <button class="tab" data-tab="log">Log</button>
+        <button class="tab" data-tab="field">Field</button>
       </nav>
 
       <div class="panel" data-panel="controls">
@@ -117,6 +141,8 @@
             <input type="range" id="growSlider" min="0" max="250" value="100">
             <span class="caption">foliage and fruit regeneration multiplier</span>
           </div>
+          <button class="btn wide" id="costBtn" aria-pressed="false">Trait costs<span class="sub">speed, senses, thrift and size each have a price, so traits stop running to their limits</span></button>
+          <button class="btn wide" id="sexBtn" aria-pressed="false">Sexual reproduction<span class="sub">breeders need a nearby mate, prefer similar partners, and mix traits</span></button>
         </div>
 
         <div class="group">
@@ -126,6 +152,7 @@
             <button class="btn grow" data-event="mast">Mast fruiting<span class="sub">fruit surge, 40s</span></button>
             <button class="btn warn" data-event="fire">Wildfire<span class="sub">burns a swath of range</span></button>
             <button class="btn warn" data-event="poach">Poaching<span class="sub">culls large-bodied species</span></button>
+            <button class="btn" id="riverBtn" aria-pressed="false">River barrier<span class="sub">splits the range; some species can't cross</span></button>
           </div>
           <div class="inline-row">
             <select id="introSelect"></select>
@@ -163,6 +190,12 @@
             <canvas class="chart" id="chartVeg"></canvas>
           </div>
         </div>
+        <div class="group">
+          <h3>Data</h3>
+          <span class="caption">a row per animal: parents, birth, death and cause, traits, offspring, kills</span>
+          <button class="btn wide" id="lifeRecBtn" aria-pressed="false">Record life table<span class="sub" id="lifeRecSub">off · starts on the next reset so founders are included</span></button>
+          <button class="btn wide" id="lifeDlBtn">Download life table (CSV)<span class="sub">with a run manifest (.json) to reproduce the setup</span></button>
+        </div>
       </div>
 
       <div class="panel" data-panel="genetics" hidden>
@@ -177,6 +210,13 @@
               <span><i id="instinctSwatch"></i>instinct</span>
             </div>
             <canvas class="chart" id="chartLineage"></canvas>
+          </div>
+        </div>
+        <div class="group">
+          <h3>Family tree</h3>
+          <span class="caption" id="treeCaption">subspecies of the selected species branch off as they drift apart</span>
+          <div class="card">
+            <canvas class="tree" id="chartTree"></canvas>
           </div>
         </div>
         <div class="group">
@@ -206,6 +246,63 @@
         </div>
       </div>
 
+      <div class="panel" data-panel="field" hidden>
+        <div class="group">
+          <h3>Field study</h3>
+          <span class="caption">practise instantaneous focal sampling, then see how your record compares with what really happened</span>
+          <p class="hint">Pick a species and start. The range zooms onto one animal, your <b>focal</b>. Every few sim-seconds it pauses and asks what the animal is doing at that instant. Judge from what you can see: the dark dot is its head (held out in front = head up; tucked onto the body = head down, feeding), plus how it moves and what's nearby. Keys 1–4 answer, 0 = lost sight. Needs Mixed A/B or Brains mode.</p>
+          <div class="slider-row">
+            <div class="top"><b>Method</b></div>
+            <select id="fsMode" aria-label="Sampling method"><option value="focal" selected>Focal animal: what is one animal doing?</option><option value="scan">Scan sample: count heads up vs down in a circle</option><option value="trays">Feeding trays: giving-up densities</option><option value="mr">Mark–recapture: how many are there?</option></select>
+          </div>
+          <div class="slider-row" id="fsSpeciesRow">
+            <div class="top"><b>Species</b></div>
+            <select id="fsSpecies" aria-label="Focal species"></select>
+          </div>
+          <div class="slider-row">
+            <div class="top"><b id="fsSamplesLabel">Samples</b></div>
+            <select id="fsSamples" aria-label="Number of samples"><option>10</option><option selected>20</option><option>40</option></select>
+          </div>
+          <div class="slider-row" id="fsIntervalRow">
+            <div class="top"><b>Interval</b></div>
+            <select id="fsInterval" aria-label="Seconds between samples"><option value="5">every 5 sim-s</option><option value="15" selected>every 15 sim-s</option><option value="30">every 30 sim-s</option></select>
+          </div>
+          <div id="fsTrayOpts" hidden>
+            <p class="hint">Trays are cells filled with fresh foliage that don't regrow during the trial. Half go in <b>rich</b> surroundings (gold outline), half in <b>poor</b> ones (blue, dashed). When the trial ends you read what's left in each tray: its <b>giving-up density</b> (GUD), the food a forager left behind when it quit (Brown 1988). Make your prediction first.</p>
+            <div class="slider-row">
+              <div class="top"><b>Trial length</b></div>
+              <select id="fsTrayDur" aria-label="Trial length"><option value="30">30 sim-s</option><option value="60" selected>60 sim-s</option><option value="120">120 sim-s</option></select>
+            </div>
+            <div class="slider-row">
+              <div class="top"><b>Your prediction</b></div>
+              <select id="fsPredict" aria-label="Prediction"><option value="">choose one…</option><option value="rich">more food left in rich-habitat trays</option><option value="poor">more food left in poor-habitat trays</option><option value="same">no difference</option></select>
+            </div>
+          </div>
+          <div id="fsMrOpts" hidden>
+            <p class="hint">Traps (circles 100 px across the range) catch every animal of your species inside them. Session 1 marks them; after a gap, session 2 catches again and counts how many are already marked. From those counts you estimate the population (Lincoln–Petersen: N ≈ M × C ÷ R), then see the true number.</p>
+            <div class="slider-row">
+              <div class="top"><b>Gap between sessions</b></div>
+              <select id="fsMrGap" aria-label="Gap between sessions"><option value="20" selected>20 sim-s</option><option value="120">120 sim-s</option><option value="600">600 sim-s</option></select>
+            </div>
+            <div class="slider-row">
+              <div class="top"><b>Trap placement</b></div>
+              <select id="fsMrPlace" aria-label="Trap placement"><option value="random" selected>random points on the range</option><option value="animals">where animals are</option></select>
+            </div>
+          </div>
+          <button class="btn wide" id="fsStart">Start focal follow</button>
+          <button class="btn quiet wide" id="fsStop" disabled>Stop early</button>
+          <span class="caption" id="fsStatus"></span>
+          <div id="fsResults"></div>
+        </div>
+        <div class="group">
+          <h3>Class link</h3>
+          <span class="caption">starts everyone on this seed and behaviour mode, from time 0. Sliders and toggles you changed aren't part of the link.</span>
+          <button class="btn wide" id="fsCopyLink">Copy class link</button>
+          <input type="text" class="fs-link" id="fsLinkText" readonly aria-label="Class link" hidden>
+          <span class="caption" id="fsLinkNote"></span>
+        </div>
+      </div>
+
       <div class="panel" data-panel="log" hidden>
         <div class="group">
           <h3>Field log</h3>
@@ -230,9 +327,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="js/species.js?v=2"></script>
 <script src="js/bodies.js?v=2"></script>
-<script src="js/brain.js?v=3"></script>
-<script src="js/vivarium.js?v=11"></script>
+<script src="js/brain.js?v=4"></script>
+<script src="js/clades.js?v=4"></script>
+<script src="js/timelapse.js?v=1"></script>
+<script src="js/vivarium.js?v=46"></script>
 <script src="js/tour.js?v=3"></script>
+<script src="js/fieldstudy.js?v=14"></script>
 <script src="js/arena/roster.js?v=2"></script>
 <script src="js/arena/tuning.js?v=2"></script>
 <script src="js/arena/engine.js?v=2"></script>
@@ -250,6 +350,6 @@
 <script src="js/arena/match.js?v=2"></script>
 <script src="js/arena/results.js?v=2"></script>
 <script src="js/arena/lobby.js?v=2"></script>
-<script src="js/app.js?v=2"></script>
+<script src="js/app.js?v=4"></script>
 </body>
 </html>

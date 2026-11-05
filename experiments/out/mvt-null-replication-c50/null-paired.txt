@@ -1,0 +1,7 @@
+Paired by seed: growth 1.6 minus 0.6, brain lineage, cells with >= 20 voluntary quits.
+
+species   seeds    quit GUD lo → hi           Δ quit GUD (95% CI)     +        Δ on-food share (95% CI)     +
+agouti        6  0.108 → 0.189        +0.081 (-0.058 to +0.219)  4/6        +0.192 (-0.191 to +0.576)   2/6
+howler        6  0.112 → 0.103        -0.009 (-0.025 to +0.008)  2/6        -0.056 (-0.163 to +0.050)   2/6
+capybara      6  0.179 → 0.303        +0.124 (-0.020 to +0.267)  5/6        +0.099 (-0.151 to +0.348)   5/6
+tapir         1  0.165 → 0.225                           +0.061  1/1                           +0.192   1/1

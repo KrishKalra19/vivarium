@@ -1,0 +1,10 @@
+{
+  "name": "many-eyes-pilot4",
+  "about": "Pilot 4: does collective detection (alarm contagion) produce an evolved many-eyes effect? Predators present in both; alarm off vs on. Same seeds, setup and measurement window as pilot 3, whose no-predator runs are the no-predator control (with no predators nobody flees, so alarm has no effect). Prediction: food-adjusted vigilance slope negative with alarm on, flat with it off.",
+  "secs": 2400,
+  "every": 30,
+  "replicates": 4,
+  "seed0": 1000,
+  "base": { "mode": "brains", "costs": 1, "set": { "capScale": 1.6, "ethoFrom": 1500 } },
+  "conditions": [ { "name": "alarm-off" }, { "name": "alarm-on", "set": { "alarm": true } } ]
+}

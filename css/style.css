@@ -5,11 +5,12 @@
   --ink:#151F17;
   --ink-dim:#54654F;
   --line:rgba(21,31,23,.16);
-  --canopy:#3F8B4E;
+  --canopy:#2E6E3D;   /* AA: 4.6:1 on --surface (was #3F8B4E, 3.15:1); used as button text */
   --fruit:#E06B33;
   --soil:#B9AE95;
-  --accent:#1B6F80;
-  --danger:#B23F2C;
+  --accent:#17646F;   /* AA: 5.1:1 on --surface (was #1B6F80, 4.35:1) */
+  --on-accent:#ffffff;
+  --danger:#9E3526;   /* AA: 5.3:1 on --surface (was #B23F2C, 4.34:1) */
   --shadow:rgba(21,31,23,.14);
   --font-display:'Fraunces',Georgia,'Times New Roman',serif;
   --font-body:'Work Sans',-apple-system,Helvetica,Arial,sans-serif;
@@ -27,6 +28,7 @@
     --fruit:#FF9A55;
     --soil:#3B382E;
     --accent:#5FC6D8;
+    --on-accent:#05161a;
     --danger:#FF7A64;
     --shadow:rgba(0,0,0,.5);
   }
@@ -42,6 +44,7 @@
   --fruit:#EE8460;
   --soil:#3B382E;
   --accent:#5FC6D8;
+  --on-accent:#05161a;
   --danger:#FF7A64;
   --shadow:rgba(0,0,0,.5);
 }
@@ -80,7 +83,7 @@ button,select{font-family:inherit;}
 
 /* layout */
 .console{display:grid;grid-template-columns:minmax(0,1fr) 370px;gap:18px;align-items:start;}
-@media (max-width:1040px){ .console{grid-template-columns:1fr;} }
+@media (max-width:1040px){ .console{grid-template-columns:minmax(0,1fr);} }
 
 .field{display:flex;flex-direction:column;gap:10px;min-width:0;}
 .viewport{
@@ -177,7 +180,7 @@ button,select{font-family:inherit;}
 .roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:7px;}
 .chip{
   display:flex;align-items:center;gap:8px;padding:7px 10px;
-  border:1px solid var(--line);border-radius:11px;background:var(--surface);
+  border:1px solid var(--line);border-radius:11px;background:var(--surface);color:var(--ink);
   cursor:pointer;text-align:left;
 }
 .chip.dim{opacity:.45;}
@@ -201,6 +204,7 @@ button,select{font-family:inherit;}
 .panel[hidden]{display:none;}
 
 .group{display:flex;flex-direction:column;gap:9px;}
+.group[hidden]{display:none;}   /* .group's display:flex otherwise beats [hidden]: empty brain cards showed in Instinct mode */
 .group h3{
   font-family:var(--font-mono);font-size:10.5px;letter-spacing:.09em;
   text-transform:uppercase;color:var(--ink-dim);font-weight:600;
@@ -212,7 +216,7 @@ button,select{font-family:inherit;}
   padding:6px 11px;border-radius:9px;border:1px solid var(--line);
   background:var(--bg);color:var(--ink);font-size:12px;cursor:pointer;
 }
-.seg button.active{background:var(--accent);border-color:var(--accent);color:#05161a;font-weight:600;}
+.seg button.active{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600;}
 
 .slider-row{display:flex;flex-direction:column;gap:3px;}
 .slider-row .top{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;}
@@ -291,7 +295,7 @@ canvas.chart{width:100%;height:74px;display:block;}
 /* Evolved brains */
 .brain-canvas{width:100%;height:290px;display:block;margin-top:10px;}
 .brain-canvas[hidden]{display:none;}
-#turboBtn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#05161a;}
+#turboBtn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent);}
 #brainGroup .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin:0 4px 0 2px;vertical-align:middle;}
 #brainGroup.solo .mixed-only{display:none;}
 
@@ -340,3 +344,64 @@ canvas.chart{cursor:zoom-in;}
 .tour-btns .btn{padding:7px 12px;}
 .tour-launch{margin-top:8px;}
 @media (prefers-reduced-motion: reduce){ .tour-ring{transition:none;} }
+canvas.tree{width:100%;height:60px;display:block;}
+
+/* time-lapse bar under the map */
+.tl-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 0;}
+.tl-bar > .btn{flex:none;}
+.tl-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex:1;min-width:0;}
+.tl-ctl[hidden]{display:none;}
+.tl-ctl input[type=range]{flex:1;min-width:120px;}
+.tl-time{font-family:var(--font-mono);font-size:11px;color:var(--ink-dim);min-width:92px;}
+.tl-ctl select{font:inherit;font-size:12px;padding:4px 6px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);}
+.tl-bar.on > .btn{background:var(--accent);color:#05161a;}
+
+/* field-methods teaching mode */
+.fs-prompt{position:absolute;left:50%;bottom:58px;transform:translateX(-50%);z-index:5;width:min(560px,calc(100% - 24px));
+  background:color-mix(in srgb, var(--bg) 92%, transparent);border:1px solid var(--accent);border-radius:14px;padding:12px;
+  box-shadow:0 12px 30px -12px var(--shadow);backdrop-filter:blur(6px);}
+.fs-prompt[hidden]{display:none;}
+.fs-q{font-size:13px;margin-bottom:8px;}
+.fs-n{float:right;font-family:var(--font-mono);font-size:11px;color:var(--ink-dim);}
+.fs-buttons{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;}
+.fs-buttons kbd{font-family:var(--font-mono);font-size:10px;padding:0 4px;border:1px solid var(--line);border-radius:4px;margin-right:2px;}
+.fs-score{display:flex;gap:10px;margin:10px 0 4px;}
+.fs-score div{flex:1;text-align:center;padding:8px;border:1px solid var(--line);border-radius:10px;}
+.fs-score b{display:block;font-size:20px;font-family:var(--font-display);}
+.fs-score span{font-size:11px;color:var(--ink-dim);}
+.fs-table{width:100%;border-collapse:collapse;font-size:11.5px;margin:10px 0 4px;}
+.fs-table th,.fs-table td{border:1px solid var(--line);padding:4px 5px;text-align:center;}
+.fs-table th:first-child{text-align:left;}
+.fs-table td.diag{background:color-mix(in srgb, var(--accent) 18%, transparent);font-weight:600;}
+.fs-table td.off{background:color-mix(in srgb, var(--danger) 14%, transparent);}
+@media (max-width:640px){
+  /* field prompt: a compact strip at the top so the focal animal (centre) stays visible */
+  .fs-prompt{top:8px;bottom:auto;padding:7px 8px;border-radius:11px;}
+  .fs-q{font-size:11.5px;margin-bottom:5px;}
+  .fs-buttons{grid-template-columns:repeat(5,1fr);gap:4px;}
+  .fs-buttons .btn{padding:5px 1px;font-size:10.5px;text-align:center;white-space:nowrap;}
+  .fs-buttons .btn .sub{display:none;}
+  .fs-buttons kbd{display:none;}
+  /* time-lapse bar: button on its own row */
+  .tl-bar > .btn{width:100%;}
+  .tl-ctl{flex-basis:100%;}
+}
+
+.fs-scan{display:flex;flex-wrap:wrap;gap:8px;align-items:end;}
+.fs-scan label{display:flex;flex-direction:column;font-size:11px;color:var(--ink-dim);gap:3px;}
+.fs-scan input{width:84px;font:inherit;font-size:15px;padding:5px 7px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);}
+@media (min-width:641px){ #fsScanPrompt{bottom:8px;} }
+@media (max-width:640px){
+  /* scan: a taller map and a one-row prompt, so the whole circle fits below it */
+  .viewport.fs-scanning{aspect-ratio:auto;height:78vh;}
+  .fs-scan{display:grid;grid-template-columns:1fr 1fr auto auto;gap:6px;}
+  .fs-scan label{font-size:10px;justify-content:flex-end;}
+  .fs-scan input{width:100%;box-sizing:border-box;padding:4px 6px;}
+  .fs-scan .btn{padding:6px 7px;font-size:11px;}
+  .tabs{gap:1px;padding:4px 0;}
+  .tab{padding-left:3px;padding-right:3px;font-size:11px;min-width:0;}
+}
+.slider-row[hidden], #fsTrayOpts[hidden]{display:none;}
+.slider-row select{max-width:100%;min-width:0;}
+.fs-link{width:100%;box-sizing:border-box;font-family:var(--font-mono);font-size:11px;padding:5px 7px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);}
+.fs-link[hidden]{display:none;}

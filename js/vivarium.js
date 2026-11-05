@@ -15,6 +15,18 @@
      so a "fast agouti" is fast for an agouti, not fast for a jaguar. */
   var TRAITS = ['mass','speed','sense','metab'];
   var TRAIT_BAND = { mass:[0.55,1.7], speed:[0.6,1.5], sense:[0.55,1.6], metab:[0.7,1.35] };
+  /* Named subspecies that branch off as lineages drift (js/clades.js). */
+  var Clades = Ludus.clades.create(TRAITS, TRAIT_BAND, SPECIES);
+  /* A recording of the whole run for the time-lapse scrubber (js/timelapse.js). */
+  var TL = Ludus.timelapse.create({ every:5 });
+  var replay = { on:false, idx:0, playing:false, color:'species', acc:0 };
+  /* Subspecies colours: the root keeps the species colour, daughters take these in order. */
+  var CLADE_PAL = ['#e4572e','#2e86ab','#7bb662','#a23b72','#3bceac','#6c4ab6','#1d3557','#d1495b','#00798c','#8d6e63'];
+  function cladeColor(c){
+    if(!c || !c.depth) return c ? SPECIES[c.sid].color : '#888';
+    var own = Clades.all().filter(function(o){ return o.sid===c.sid && o.depth; });
+    return CLADE_PAL[own.indexOf(c) % CLADE_PAL.length];
+  }
 
   var ENERGY_PER_MASS = 9;       // energy capacity per kg
   var DRAIN_K = 0.22;            // metabolic constant, applied to mass^0.75 (Kleiber)
@@ -27,7 +39,7 @@
   var Brain = Ludus.brain;
   var BRAIN_IDS = SPECIES_IDS.slice();   // every species can carry a brain
   function layoutOf(id){ return Brain.forRole(SPECIES[id].role); }
-  var HEAD_DOWN_SENSE = 0.4, HEAD_DOWN_SPEED = 0.35;
+  var HEAD_DOWN_SPEED = 0.35;   // head-down threat detection is params.headDownSense (default 0.4; experiments vary it)
   var BREED_FLOOR = 0.45;        // brains choose when to breed, but never below this energy
   var TURN_RATE = 4.5;           // rad/s at full turn output
   var SUBSTEP = 1/30;            // largest simulated step, so fast-forward stays stable
@@ -38,13 +50,27 @@
   var HUNT = { lungeCost:10, missRest:15 };   // × drain per lunge; seconds after a miss
 
   /* --------------------------- helpers --------------------------- */
-  function randRange(lo,hi){ return lo + Math.random()*(hi-lo); }
+  /* The simulation has its own seeded generator, kept apart from Math.random, so
+     nothing the page does (camera director, 3D scenery, timing of frames) can shift
+     the random stream. Same seed + same settings = the same run, bit for bit.
+     UI-only code (3D hills and trees, the nature-cam director) keeps Math.random. */
+  function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a);
+    t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  var simSeed = (Math.random()*4294967296)>>>0, rand = mulberry32(simSeed);
+  function reseed(seed){ simSeed = seed>>>0; rand = mulberry32(simSeed); }
+  Ludus.rand = function(){ return rand(); };   // brain.js mutates through this
+  function randRange(lo,hi){ return lo + rand()*(hi-lo); }
   function clamp(v,lo,hi){ return v<lo?lo:(v>hi?hi:v); }
-  function triRand(){ return (Math.random()+Math.random()+Math.random()-1.5)/1.5; }
+  function triRand(){ return (rand()+rand()+rand()-1.5)/1.5; }
   function pow75(m){ return Math.pow(m,0.75); }
 
+  /* Choosiness: how wide a range of partners a female accepts (see findMate). Lower is
+     pickier. It is a gene of its own, outside TRAITS, so it never drives subspecies
+     splits; it only decides who mates with whom. */
+  var CHOOSY_BAND = [0.05, 1.0];
   function newGenome(){
-    return { mass:randRange(0.88,1.12), speed:randRange(0.88,1.12), sense:randRange(0.88,1.12), metab:randRange(0.92,1.08) };
+    return { mass:randRange(0.88,1.12), speed:randRange(0.88,1.12), sense:randRange(0.88,1.12), metab:randRange(0.92,1.08),
+             choosy:randRange(0.25,0.45) };
   }
   function mutate(g, rate){
     var out={};
@@ -53,6 +79,9 @@
       out[k]=clamp(g[k] + triRand()*rate*(band[1]-band[0]), band[0], band[1]);
     }
     if(g.lineage) out.lineage = g.lineage;
+    if(g.clade) out.clade = g.clade;
+    var ch = g.choosy==null ? CHOOSY : g.choosy;
+    out.choosy = clamp(ch + triRand()*rate*(CHOOSY_BAND[1]-CHOOSY_BAND[0]), CHOOSY_BAND[0], CHOOSY_BAND[1]);
     if(g.brain) out.brain = Brain.mutate(g.brain, rate);
     return out;
   }
@@ -68,7 +97,7 @@
   var idCounter = 1;
   var maxGeneration = 0;
   var simClock = 0;
-  var params = { mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
+  var params = { headDownSense:0.4, scanIntake:0, births:true, foliageTo:0, foodSense:1, pullClamp:-1, hybridPenalty:0, riverOffAt:0, alarm:false, alarmRate:0, ethoFrom:0, predators:true, capScale:1, traitCosts:false, sexual:false, arrivalGroup:4, mutationRate:0.07, growth:1.0, speed:1, paused:false, brainMode:'instinct', turbo:false, satiety:0.65 };
   var worldMode = 'instinct';   // the brain mode the current world was seeded with
   var events = { droughtUntil:0, mastUntil:0 };
   var selected = null;
@@ -107,26 +136,52 @@
 
   /* --------------------------- animals --------------------------- */
   function bodyMass(sp, genome){ return sp.mass*genome.mass; }
+  /* Population ceiling. capScale (experiments) raises it so that, e.g., capybara herds
+     are limited by food rather than pinned at a hard cap (cycle 13 pilot confound). */
+  function capOf(id){ return Math.round(SPECIES[id].cap*params.capScale); }
 
+  /* Trait costs (toggle; Phase 2). Without them every trait has an upside and almost no
+     downside, and a 2-hour run drove speed and metabolic efficiency to their caps in
+     most species. Each multiplier is exactly 1 for a baseline genome (all traits 1.0),
+     so the costs only bite as a trait moves away from its species' norm:
+       speed  locomotion is about half of field metabolism and its power grows ~v²:
+              drain × (0.5 + 0.5·speed²)
+       sense  neural tissue is expensive:                 drain × (0.9 + 0.1·sense²)
+       metab  a slower metabolism digests and powers muscle more slowly:
+              intake × metab^0.6, speed × metab^0.3 (intake × metab overshot: in a
+              1-hour test agoutis and howlers ran to the *high* metab cap instead)
+       mass   bigger bodies mature and breed more slowly (allometry ~ M^0.25):
+              minimum breeding age and breeding interval × mass^0.25
+     Costs are fixed at birth, so toggling affects animals born afterwards. */
+  function costsFor(genome){
+    if(!params.traitCosts) return { drain:1, intake:1, speed:1, life:1 };
+    var sp = genome.speed, se = genome.sense;
+    return { drain:(0.5 + 0.5*sp*sp)*(0.9 + 0.1*se*se), intake:Math.pow(genome.metab, 0.6),
+             speed:Math.pow(genome.metab, 0.3), life:Math.pow(genome.mass, 0.25) };
+  }
   function makeAnimal(id, genome, x, y, gen, energyFrac){
     var sp = SPECIES[id];
-    var mass = bodyMass(sp, genome);
+    var mass = bodyMass(sp, genome), cost = costsFor(genome);
     var maxEnergy = mass*ENERGY_PER_MASS;
     return {
       uid: idCounter++, sid:id, genome:genome,
-      x:x, y:y, vx:0, vy:0, heading:Math.random()*Math.PI*2,
+      x:x, y:y, vx:0, vy:0, heading:rand()*Math.PI*2,
       mass:mass, maxEnergy:maxEnergy, energy:maxEnergy*(energyFrac==null?0.6:energyFrac),
-      speed: sp.speed*genome.speed,
+      speed: sp.speed*genome.speed*cost.speed,
       sense: sp.sense*genome.sense,
-      drain: DRAIN_K*pow75(mass)*sp.metab*genome.metab,
-      intake: INTAKE_K*pow75(mass),
+      drain: DRAIN_K*pow75(mass)*sp.metab*genome.metab*cost.drain,
+      intake: INTAKE_K*pow75(mass)*cost.intake,
+      minAge: sp.repro.minAge*cost.life, repCd: sp.repro.cooldown*cost.life,
       radius: 2.5*Math.pow(mass,1/3),
       age:0, maxAge: sp.lifespan*randRange(0.85,1.15),
       gen:gen||0, cooldown:randRange(0,sp.repro.cooldown*0.5),
       huntCd:0, kills:0, strikes:0, dead:false,
+      // life-history bookkeeping (life table export)
+      born:simClock, origin:'arrival', mother:0, father:0, litters:0, children:0, birthClade:0, birthBank:0,
+      eth:new Uint16Array(9), ethF:new Uint16Array(2), gsum:0, gn:0,
       // What the animal is doing, recorded for the cameras and captions; never read by the model.
       state:'idle', target:null, lungeAt:-99, lastLunge:null, cause:null, killedBy:null,
-      ryaw:Math.random()*Math.PI*2, stride:Math.random(), alt:0,
+      ryaw:rand()*Math.PI*2, stride:rand(), alt:0,
       vigil: worldMode!=='instinct' && BRAIN_IDS.indexOf(id)>=0, headDown:false, wantBreed:false,
       bIn: genome.brain ? new Float32Array(Brain.forRole(sp.role).NI) : null,
       bHid: genome.brain ? new Float32Array(Brain.forRole(sp.role).NH) : null,
@@ -141,7 +196,7 @@
   var seedPool = null;   // { genomes:{ sid:[genome] }, generation, source }
   function brainGenome(id){
     var list = seedPool && seedPool.genomes[id];
-    if(list && list.length) return mutate(list[Math.floor(Math.random()*list.length)], params.mutationRate*0.3);
+    if(list && list.length) return mutate(list[Math.floor(rand()*list.length)], params.mutationRate*0.3);
     var g = newGenome();
     g.lineage = 'brain';
     g.brain = layoutOf(id).seed(null, SPECIES[id]);
@@ -155,7 +210,7 @@
   function bankGenome(id, g){
     var bank = BS[id].bank;
     if(bank.length < BANK_CAP) bank.push(g);
-    else bank[Math.floor(Math.random()*BANK_CAP)] = g;
+    else bank[Math.floor(rand()*BANK_CAP)] = g;
   }
 
   /* Genome for an animal arriving from outside (immigration, Release button).
@@ -168,18 +223,21 @@
       var o=animals[i];
       if(!o.dead && o.sid===id) pools[o.genome.lineage==='brain'?'brain':'instinct'].push(o);
     }
-    var pick = lineage || ((worldMode==='brains' || Math.random()<0.5) ? 'brain' : 'instinct');
+    var pick = lineage || ((worldMode==='brains' || rand()<0.5) ? 'brain' : 'instinct');
     var pool = pools[pick];
-    if(pool.length) return mutate(pool[Math.floor(Math.random()*pool.length)].genome, params.mutationRate);
+    if(pool.length) return mutate(pool[Math.floor(rand()*pool.length)].genome, params.mutationRate);
     if(pick==='brain'){
       var bank = BS[id].bank;
-      return bank.length ? mutate(bank[Math.floor(Math.random()*bank.length)], params.mutationRate) : brainGenome(id);
+      return bank.length ? mutate(bank[Math.floor(rand()*bank.length)], params.mutationRate) : brainGenome(id);
     }
     var g=newGenome(); g.lineage='instinct'; return g;
   }
 
   function spawn(id, x, y, gen, energyFrac, genome){
     var a = makeAnimal(id, genome||newGenome(), x, y, gen||0, energyFrac);
+    Clades.assign(id, a.genome);
+    a.birthClade = a.genome.clade || 0;
+    a.birthBank = RIVER.on ? bankOf(a.x, a.y) : 0;
     animals.push(a);
     counts[id] = (counts[id]||0)+1;
     if(a.gen>maxGeneration) maxGeneration=a.gen;
@@ -201,7 +259,7 @@
     fruitPatches = [];
     terrainVersion++;
     for(var p=0;p<P.patches;p++){
-      var px = Math.random()*world.w, py = Math.random()*world.h;
+      var px = rand()*world.w, py = rand()*world.h;
       var pr = P.patchRadius*randRange(0.6,1.3);
       fruitPatches.push({ x:px, y:py, r:pr });
       var cx0 = Math.max(0,Math.floor((px-pr)/CELL)), cx1 = Math.min(cols-1,Math.ceil((px+pr)/CELL));
@@ -218,6 +276,7 @@
       }
     }
     for(var j=0;j<n;j++) fruit[j] = fruitCap[j]*randRange(0.3,0.8);
+    buildWater();
   }
 
   function cellAt(x,y){
@@ -226,18 +285,64 @@
     return cy*cols+cx;
   }
 
+  /* River barrier (toggle in Controls). A meandering river splits the range
+     north to south. Rivers are a classic barrier for Amazonian animals (Wallace's
+     riverine-barrier hypothesis): agoutis, howlers and ocelots can't cross except at
+     rare fords; capybara, tapir, jaguar and anaconda swim it; harpies fly over. With
+     gene flow cut, each bank's population drifts on its own, which is what lets the
+     clade census see allopatric splits. */
+  var RIVER = { on:false, half:26, ford:0.002,   // ford: crossings per second of pushing at the bank
+                blocks:{ agouti:true, howler:true, ocelot:true } };
+  var water = null;   // Uint8Array per plant cell, 1 = river
+  function riverX(y){ return world.w*0.5 + 170*Math.sin(y/world.h*Math.PI*2.4 + 0.7) + 55*Math.sin(y*0.013); }
+  function bankOf(x, y){ return x < riverX(y) ? -1 : 1; }
+  function buildWater(){
+    water = new Uint8Array(cols*rows);
+    if(!RIVER.on) return;
+    for(var gy=0; gy<rows; gy++){
+      var rx = riverX((gy+0.5)*CELL);
+      for(var gx=0; gx<cols; gx++){
+        if(Math.abs((gx+0.5)*CELL - rx) < RIVER.half){ var k=gy*cols+gx; water[k]=1; foliage[k]=0; fruit[k]=0; fruitCap[k]=0; }
+      }
+    }
+  }
+  function setRiver(on){
+    RIVER.on = !!on;
+    if(!on){
+      // Let the old channel grow back (fruit trees don't return; that's fine).
+      buildWater();
+    } else buildWater();
+    terrainVersion++;
+    var btn = document.getElementById('riverBtn');
+    if(btn){ btn.setAttribute('aria-pressed', RIVER.on ? 'true' : 'false'); btn.classList.toggle('active', RIVER.on); }
+  }
+
   function growthMultiplier(){
     var m = params.growth;
     if(simClock < events.droughtUntil) m *= 0.2;
     return m;
   }
 
+  // Experiments (transplant tests): scale standing foliage and fruit once, so mean foliage
+  // becomes `target`, i.e. jump straight to another growth level's equilibrium landscape.
+  function rescaleFood(target){
+    params.foliageTo = 0;
+    var sum = 0; for(var i=0;i<foliage.length;i++) sum += foliage[i];
+    var k = sum > 0 ? target*foliage.length/sum : 1;
+    for(var j=0;j<foliage.length;j++){
+      if(water[j]) continue;
+      foliage[j] = Math.min(1, foliage[j]*k);
+      fruit[j] = Math.min(fruitCap[j], fruit[j]*k);
+    }
+    repaintPlants();
+  }
   function growPlants(dt){
     var gm = growthMultiplier();
     var fo = BIOME.plants.foliage.regrow*gm*dt;
     var fm = BIOME.plants.fruit.regrow*gm*(simClock<events.mastUntil?4:1)*dt;
     if(fo<=0 && fm<=0) return;
     for(var i=0;i<foliage.length;i++){
+      if(water[i] || (trayAt && trayAt[i] >= 0)) continue;
       var nut = 1 + nutrients[i]*0.9;
       var f = foliage[i];
       if(f<1) foliage[i] = f + fo*nut*(1-f);
@@ -299,6 +404,46 @@
     return best;
   }
 
+  /* Alarm contagion (toggle; cycle 16). The many-eyes effect depends on collective
+     detection: when one animal spots a predator and bolts, its neighbours react too, so
+     each can afford to look up less in a bigger group. Without it, a neighbour's
+     vigilance is worth nothing and only dilution is left (cycle 15). With params.alarm,
+     a herbivore that sees a conspecific fleeing within ALARM_R perceives that
+     neighbour's predator, even with its own head down. It feeds the same threat inputs,
+     so brain layouts and saved brains are unchanged. Off by default; it draws no random
+     numbers, so runs with it off are unchanged. */
+  var ALARM_R = 80;
+  var alarmStats = { own:0, alarm:0, graded:new Array(10).fill(0) };
+  /* Graded alarm (params.alarmRate > 0; cycle 20). Instant alarm (rate 0) saturates at one
+     neighbour, so group size can't matter (pilot 4). Graded: each fleeing first-hand detector
+     within ALARM_R passes the alarm at alarmRate per second, so with k of them the alarm
+     arrives at rate alarmRate*k: more watchers, faster warning. Once alarmed, an animal
+     keeps that threat for ALARM_HOLD seconds so it doesn't flicker between steps. */
+  var ALARM_HOLD = 1.5;
+  function perceivedThreat(a, mult, dt){
+    var own = nearestThreat(a, mult);
+    a.sawThreat = !!own;
+    if(own || !params.alarm){ if(own) alarmStats.own++; return own; }
+    if(params.alarmRate > 0 && a.alarmUntil > simClock && a.alarmThreat && !a.alarmThreat.dead){ alarmStats.alarm++; return a.alarmThreat; }
+    var best = null, bestD = ALARM_R*ALARM_R, k = 0;
+    forNearIn(sidBuckets[a.sid], a.x, a.y, ALARM_R, function(o){
+      // Only first-hand detectors raise the alarm. A version that let alarmed animals pass it on
+      // made pairs keep each other fleeing indefinitely (alarm detections ran 10x own sightings).
+      if(o===a || o.dead || o.sid!==a.sid || o.state!=='flee' || !o.sawThreat || !o.target || o.target.dead) return;
+      var dx=o.x-a.x, dy=o.y-a.y, d=dx*dx+dy*dy;
+      k++;
+      if(d<bestD){ bestD=d; best=o.target; }
+    });
+    if(best && params.alarmRate > 0){
+      // Poisson arrival: P(heard this step) = 1 - exp(-rate * k * dt)
+      if(rand() >= 1 - Math.exp(-params.alarmRate*k*(dt||SUBSTEP))) return null;
+      a.alarmUntil = simClock + ALARM_HOLD; a.alarmThreat = best;
+      alarmStats.graded[Math.min(k, 9)]++;
+    }
+    if(best) alarmStats.alarm++;
+    return best;
+  }
+
   /* Predators weigh how catchable a target is, not just how close it is —
      which is why jaguars mostly take capybara and leave adult tapir alone. */
   function nearestPrey(a){
@@ -350,23 +495,230 @@
     steer(a, (dx/d)*a.speed, (dy/d)*a.speed, 8, dt);
   }
   function wander(a, dt, factor){
-    a.heading += (Math.random()-0.5)*2.6*dt;
+    a.heading += (rand()-0.5)*2.6*dt;
     steer(a, Math.cos(a.heading)*a.speed*factor, Math.sin(a.heading)*a.speed*factor, 2.5, dt);
   }
   function move(a, dt){
+    var px = a.x, py = a.y;
     a.x += a.vx*dt; a.y += a.vy*dt;
+    if(RIVER.on && RIVER.blocks[a.sid] && bankOf(px, py) !== bankOf(a.x, a.y) && rand() > RIVER.ford*dt){
+      a.x = px; a.y = py; a.vx = -a.vx*0.5;
+    }
     if(a.x<0){ a.x=0; a.vx=-a.vx*0.5; }
     if(a.x>world.w){ a.x=world.w; a.vx=-a.vx*0.5; }
     if(a.y<0){ a.y=0; a.vy=-a.vy*0.5; }
     if(a.y>world.h){ a.y=world.h; a.vy=-a.vy*0.5; }
   }
 
+  /* Ethogram by scan sampling (Phase 2). Once per sim-second, the way a field observer
+     scans a group, every animal's current behaviour is recorded as one of ETHO, along
+     with its group size: conspecifics within GROUP_R px, itself included.
+       feed      head down eating (evolved-brain herbivores: can't watch while eating)
+       vigilant  head up and nearly still (< STILL of top speed): a scan, as field
+                 observers define vigilance (brain herbivores)
+       travel    head up and moving (brain herbivores). Until cycle 14 this counted
+                 as vigilant, so walking to food in a depleted herd looked like vigilance
+       forage    moving and eating; instinct herbivores, which have no head-down choice
+       flee      running from a predator
+       chase     predator moving at >=60% top speed and closing on its target
+       stalk     predator with a target that it isn't chasing
+       lurk      ambusher waiting with no target;  search: no target
+     Per animal the counts go into the life table; per species they make time budgets;
+     and for brain herbivores that are foraging (not fleeing) the feed-vs-vigilant
+     split is tallied by group size, the data behind the many-eyes test. */
+  var ETHO = ['feed','vigilant','forage','flee','chase','stalk','lurk','search','travel'];
+  /* Field-methods teaching mode (js/fieldstudy.js): hides the giveaways (caption, sensor
+     ring, threat line) and draws a posture cue on the focal animal instead, so the
+     observer has to judge behaviour from what an animal looks like. */
+  var fieldMode = false;
+  var fieldScan = null;   // { x, y, r, sid }: scan-sampling circle (Field tab, scan mode)
+  /* Feeding trays (Field tab, GUD exercise): cells filled with a known amount of foliage that
+     don't regrow while a trial runs, so what's left at the end is the giving-up density. */
+  var trays = null, trayAt = null;
+  function setTrays(list){
+    trays = null; trayAt = null;
+    if(!list || !list.length) return null;
+    trayAt = new Int32Array(cols*rows).fill(-1);
+    trays = [];
+    list.forEach(function(t){
+      var c = cellAt(t.x, t.y);
+      if(water[c] || trayAt[c] >= 0) return;
+      var amt = t.amount == null ? 1 : t.amount;
+      foliage[c] = amt; fruit[c] = 0;
+      trayAt[c] = trays.length;
+      trays.push({ x:(c % cols + 0.5)*CELL, y:(Math.floor(c/cols) + 0.5)*CELL, cell:c, zone:t.zone || '', start:amt, eaten:0, visitors:{}, firstVisit:null });
+    });
+    repaintPlants();
+    return trays.length;
+  }
+  function trayEat(a, cell){
+    var t = trays[trayAt[cell]];
+    if(!t.visitors[a.uid]) t.visitors[a.uid] = a.sid;
+    if(t.firstVisit == null) t.firstVisit = simClock;
+  }
+  function inScan(a){ if(!fieldScan || a.sid!==fieldScan.sid) return false; var dx=a.x-fieldScan.x, dy=a.y-fieldScan.y; return dx*dx+dy*dy <= fieldScan.r*fieldScan.r; }
+  var STILL = 0.25;   // vigilant = head up AND below this fraction of top speed
+  var GROUP_R = 60, GROUP_MAX = 30;
+  var etho = null;
+  /* Food under the animal at the scan, in 4 levels (diet-weighted plant energy, 0..~2).
+     Cycle 14 found the group-size pattern persists without predators; frugivores crowd
+     at rich fruit patches, so the analysis compares vigilance at equal food. */
+  var FOOD_EDGES = [0.15, 0.4, 0.8];   // bins: <0.15, 0.15–0.4, 0.4–0.8, ≥0.8
+  function foodBin(v){ return v < FOOD_EDGES[0] ? 0 : v < FOOD_EDGES[1] ? 1 : v < FOOD_EDGES[2] ? 2 : 3; }
+  function newEyes(){ return { feed:new Array(GROUP_MAX+1).fill(0), vigilant:new Array(GROUP_MAX+1).fill(0), travel:new Array(GROUP_MAX+1).fill(0) }; }
+  function newEtho(){
+    var e = { scans:0, budget:{}, eyes:{}, eyesFood:{} };
+    SPECIES_IDS.forEach(function(id){
+      e.budget[id] = new Array(ETHO.length).fill(0); e.eyes[id] = newEyes();
+      e.eyesFood[id] = [newEyes(), newEyes(), newEyes(), newEyes()];
+    });
+    return e;
+  }
+  function ethoState(a){
+    var st = a.state;
+    if(SPECIES[a.sid].role==='predator'){
+      // Scored from behaviour, not intent, the way an observer would: the sim's own
+      // 'chase' label means "locked on and moving", which brain predators are ~90% of the time.
+      var t = a.target;
+      if(t && !t.dead){
+        var dx = t.x-a.x, dy = t.y-a.y, d = Math.sqrt(dx*dx+dy*dy) || 1;
+        var v = Math.sqrt(a.vx*a.vx+a.vy*a.vy), closing = (a.vx*dx + a.vy*dy)/d;
+        if(v >= 0.6*a.speed && closing > 0.5*v) return 4;   // chase: fast and heading at it
+        return 5;                                           // stalk: has a target, not pursuing
+      }
+      return st==='lurk' ? 6 : 7;
+    }
+    if(st==='flee') return 3;
+    if(!a.vigil) return 2;
+    if(a.headDown) return 0;
+    return (a.vx*a.vx + a.vy*a.vy) < (STILL*a.speed)*(STILL*a.speed) ? 1 : 8;
+  }
+  function ethoScan(){
+    if(!etho) etho = newEtho();
+    // Per-animal counts always run (life table); the population tallies only from
+    // params.ethoFrom on, so an experiment can let brains evolve before measuring.
+    var tally = simClock >= params.ethoFrom;
+    if(tally) etho.scans++;
+    var R2 = GROUP_R*GROUP_R;
+    for(var i=0;i<animals.length;i++){
+      var a = animals[i];
+      if(a.dead) continue;
+      var k = ethoState(a), g = 0;
+      forNearIn(sidBuckets[a.sid], a.x, a.y, GROUP_R, function(o){
+        if(!o.dead && o.sid===a.sid){ var dx=o.x-a.x, dy=o.y-a.y; if(dx*dx+dy*dy <= R2) g++; }
+      });
+      if(g < 1) g = 1;   // newborns aren't in the hash until the next rebuild; count self
+      if(a.eth[k] < 65535) a.eth[k]++;
+      // feed/vigilant again, counting only scans where there is food to eat (>= the first food
+      // edge): head up on bare ground is "nothing to eat here", not a choice to scan.
+      if(k <= 1 && foodAt(SPECIES[a.sid], cellAt(a.x, a.y)) >= FOOD_EDGES[0] && a.ethF[k] < 65535) a.ethF[k]++;
+      a.gsum += g; a.gn++;
+      if(!tally) continue;
+      etho.budget[a.sid][k]++;
+      if(k <= 1 || k === 8){
+        var key = k===0 ? 'feed' : k===1 ? 'vigilant' : 'travel', gi = Math.min(g, GROUP_MAX);
+        etho.eyes[a.sid][key][gi]++;
+        etho.eyesFood[a.sid][foodBin(foodAt(SPECIES[a.sid], cellAt(a.x, a.y)))][key][gi]++;
+      }
+    }
+  }
+
+  /* Feeding bouts and giving-up densities (opt-in; marginal value theorem studies).
+     A bout starts when a herbivore takes food and ends when it hasn't eaten for BOUT_GAP s.
+     Its giving-up density (GUD) is the food left in the last cell it ate from, read when the
+     bout ends: the classic field measure of where a forager quits (Brown 1988). Bouts that end
+     because the animal fled or died are counted separately, since those aren't decisions to
+     leave (bouts under 1 s cut short by fleeing aren't counted at all: instinct animals graze while
+     they run). Because animals graze while drifting, a second measure records the food left in a
+     cell each time a feeding animal moves on to another cell ('moves', moveGud, moveHist).
+     Aggregated per species x lineage: counts, sums, and a GUD histogram (bins of
+     GUD_BIN), plus the habitat-wide intake rate (energy per animal-second) for comparison. */
+  var BOUT_GAP = 2, GUD_BIN = 0.02, GUD_BINS = 50, RISK_R = 200, PERC_S = 5;
+  var patches = null;
+  function newPatches(){ return { from:Math.max(simClock, params.ethoFrom), gap:BOUT_GAP, gudBin:GUD_BIN, by:{} }; }
+  function patchCell(sid, lin){
+    var k = sid+':'+lin, c = patches.by[k];
+    if(!c) c = patches.by[k] = { quit:0, fled:0, died:0, dur:0, food0:0, gud:0, eaten:0, hist:new Array(GUD_BINS).fill(0),
+                                 animalSecs:0, energy:0, moves:0, moveGud:0, moveHist:new Array(GUD_BINS).fill(0), hereSum:0, onFood:0, speedSum:0, riskQ:[0,0,0], riskGud:[0,0,0], percQ:[0,0], percGud:[0,0] };
+    return c;
+  }
+  function boutEat(a, sp, cell, avail, got){
+    var b = a.bout;
+    if(!b) b = a.bout = { t0:simClock, food0:avail, eaten:0, cell:cell, last:simClock };
+    else if(b.cell !== cell && simClock >= patches.from){
+      // moved on to a new cell while still feeding: the food left behind is a cell-level GUD
+      var c0 = patchCell(a.sid, a.genome.brain ? 'brain' : 'instinct'), left = foodAt(sp, b.cell);
+      c0.moves++; c0.moveGud += left; c0.moveHist[Math.min(GUD_BINS-1, Math.floor(left/GUD_BIN))]++;
+    }
+    b.eaten += got; b.cell = cell; b.last = simClock;
+    if(simClock >= patches.from) patchCell(a.sid, a.genome.brain ? 'brain' : 'instinct').energy += got;
+  }
+  function boutEnd(a, sp, how){
+    var b = a.bout; a.bout = null;
+    if(!b || simClock < patches.from) return;
+    var c = patchCell(a.sid, a.genome.brain ? 'brain' : 'instinct');
+    if(how !== 'quit'){ if(b.last - b.t0 >= 1) c[how]++; return; }   // sub-second bouts cut by fleeing aren't bouts
+    var gud = foodAt(sp, b.cell);
+    c.quit++; c.dur += b.last - b.t0; c.food0 += b.food0; c.gud += gud; c.eaten += b.eaten;
+    // Local risk at the moment of quitting: predators within RISK_R px (0, 1, 2+), for comparing
+    // giving-up densities in safe vs risky places within one world (Brown 1988).
+    var np = 0; forNearIn(predBuckets, a.x, a.y, RISK_R, function(o){ if(!o.dead){ var dx = o.x-a.x, dy = o.y-a.y; if(dx*dx+dy*dy <= RISK_R*RISK_R) np++; } });
+    var rk = Math.min(2, np); c.riskQ[rk]++; c.riskGud[rk] += gud;
+    // Perceived risk: did this animal itself sense a threat in the PERC_S seconds before quitting?
+    var pk = a.lastThreat != null && simClock - a.lastThreat <= PERC_S ? 1 : 0; c.percQ[pk]++; c.percGud[pk] += gud;
+    // How did it end? Food under the animal now (it may have walked on), whether that's still
+    // grazeable (>= first food edge: it stopped on food) or not (it walked off), and its speed.
+    var here = foodAt(sp, cellAt(a.x, a.y));
+    c.hereSum += here; if(here >= FOOD_EDGES[0]) c.onFood++;
+    c.speedSum += Math.sqrt(a.vx*a.vx + a.vy*a.vy)/Math.max(1, a.speed);
+    c.hist[Math.min(GUD_BINS-1, Math.floor(gud/GUD_BIN))]++;
+  }
+  function boutCheck(a, sp){
+    if(a.state === 'flee') boutEnd(a, sp, 'fled');
+    else if(simClock - a.bout.last > BOUT_GAP) boutEnd(a, sp, 'quit');
+  }
+  function patchTally(dt){
+    if(!patches || simClock < patches.from) return;
+    for(var i=0;i<animals.length;i++){
+      var a = animals[i];
+      if(a.dead || SPECIES[a.sid].role !== 'herbivore') continue;
+      patchCell(a.sid, a.genome.brain ? 'brain' : 'instinct').animalSecs += dt;
+    }
+  }
+
   var deathLog = {};
+  /* Life table (Phase 2): one row per animal, written when it dies (and for the living
+     on export). Opt-in, because a 2-hour run produces ~100k animals. Columns are
+     LIFE_COLS; parents are uids, so pedigrees can be rebuilt. "children" counts
+     offspring as either parent (mother = the breeder, father = the chosen mate). */
+  var LIFE_COLS = ['uid','species','origin','mother','father','generation','lineage','clade_at_birth','clade',
+    'born','died','age','cause','killer','killer_uid','bank_at_birth','x','y','mass_kg','speed','sense','metab_gene',
+    'mass_gene','speed_gene','sense_gene','choosy_gene','litters','children','kills','strikes',
+    'scans','scan_feed','scan_vigilant','scan_forage','scan_flee','scan_chase','scan_stalk','scan_lurk','scan_search','scan_travel','group_mean',
+    'scan_feed_food','scan_vigilant_food'];
+  var lifeRows = null;   // null = not recording
+  function lifeRow(a){
+    var g = a.genome, k = a.killedBy;
+    return [a.uid, a.sid, a.origin, a.mother, a.father, a.gen, g.brain ? 'brain' : 'instinct', a.birthClade, g.clade||0,
+      +a.born.toFixed(2), a.dead ? +simClock.toFixed(2) : '', +a.age.toFixed(2), a.dead ? a.cause : '',
+      k ? k.sid : '', k ? k.uid : '', a.birthBank, +a.x.toFixed(1), +a.y.toFixed(1), +a.mass.toFixed(3),
+      +a.speed.toFixed(2), +a.sense.toFixed(2), +g.metab.toFixed(4), +g.mass.toFixed(4), +g.speed.toFixed(4),
+      +g.sense.toFixed(4), g.choosy==null ? '' : +g.choosy.toFixed(4), a.litters, a.children, a.kills, a.strikes,
+      a.gn, a.eth[0], a.eth[1], a.eth[2], a.eth[3], a.eth[4], a.eth[5], a.eth[6], a.eth[7], a.eth[8], a.gn ? +(a.gsum/a.gn).toFixed(2) : '', a.ethF[0], a.ethF[1]];
+  }
+  function lifeCSV(){
+    var out = [LIFE_COLS.join(',')];
+    var rows = (lifeRows||[]).concat(animals.filter(function(a){ return !a.dead; }).map(lifeRow));
+    for(var i=0;i<rows.length;i++) out.push(rows[i].join(','));
+    return out.join('\n') + '\n';
+  }
   function die(a, cause, killer){
     if(a.dead) return;
     a.dead = true;
     a.cause = cause||'other';
     if(killer){ a.killedBy = killer; onKill(killer, a); }
+    if(lifeRows) lifeRows.push(lifeRow(a));
+    if(patches && a.bout) boutEnd(a, SPECIES[a.sid], 'died');
     counts[a.sid] = Math.max(0, (counts[a.sid]||0)-1);
     var k = a.sid+':'+(cause||'other');
     deathLog[k] = (deathLog[k]||0)+1;
@@ -388,18 +740,106 @@
     return n > limit;
   }
 
+  /* Sexual reproduction (toggle in Controls). A breeder needs an adult of its own
+     species and lineage within its species' mate radius. Among those it
+     prefers genetically similar partners: each candidate is weighted by
+     exp(-(d/σ)^2), σ = her own evolvable choosiness gene (default CHOOSY), d = band-normalised trait distance, and one is drawn by
+     that weight. Offspring take each trait from a random parent; brains cross over
+     a whole hidden neuron at a time, so co-adapted weights travel together. The
+     subspecies label (clade) passes down the mother's side, so a "hybrid" is a
+     mating whose parents carry different clades. */
+  var CHOOSY = 0.3;
+  /* Mate search radius per species, sized so that at its starting density about
+     three adults are in range: agoutis look ~110 px around them, jaguars ~480 px.
+     A fixed radius made rare predators unable to find mates and collapse. */
+  var MATE_RADIUS = {};
+  SPECIES_IDS.forEach(function(id){
+    var r = Math.sqrt(3*world.w*world.h/(Math.PI*SPECIES[id].start));
+    MATE_RADIUS[id] = clamp(r, 110, 600);
+  });
+  var mating = { matings:0, hybrids:0, unmated:0, rejected:0, inviable:0 };
+  function traitDist(g, h){
+    var s = 0;
+    for(var i=0;i<TRAITS.length;i++){ var k=TRAITS[i], b=TRAIT_BAND[k], d=(g[k]-h[k])/(b[1]-b[0]); s += d*d; }
+    return Math.sqrt(s);
+  }
+  var _mates = [], _w = [];
+  function findMate(a, sp){
+    _mates.length = 0; _w.length = 0;
+    var r = MATE_RADIUS[a.sid], r2 = r*r, tot = 0;
+    forNearIn(sidBuckets[a.sid], a.x, a.y, r, function(o){
+      if(o===a || o.dead || o.sid!==a.sid || o.age < o.minAge) return;
+      if((o.genome.lineage||'') !== (a.genome.lineage||'')) return;
+      var dx=o.x-a.x, dy=o.y-a.y;
+      if(dx*dx+dy*dy > r2) return;
+      if(RIVER.on && RIVER.blocks[a.sid] && bankOf(o.x, o.y) !== bankOf(a.x, a.y)) return;
+      var sg = a.genome.choosy || CHOOSY;
+      var d = traitDist(a.genome, o.genome), w = Math.exp(-(d/sg)*(d/sg));
+      _mates.push(o); _w.push(w); tot += w;
+    });
+    if(!_mates.length) return null;
+    var pick = rand()*tot, m = _mates.length-1;
+    for(var i=0;i<_mates.length;i++){ pick -= _w[i]; if(pick <= 0){ m = i; break; } }
+    // Choosiness has a price: she can turn down the best partner on offer and lose this
+    // breeding attempt. Without that cost, pickiness would be free and always win.
+    if(rand() > _w[m]){ mating.rejected++; return false; }
+    return _mates[m];
+  }
+  function crossBrain(wa, wb, lay){
+    var out = new Float32Array(wa.length), NI=lay.NI, NH=lay.NH, NO=lay.NO, W1=lay.W1, h, i, o;
+    for(h=0;h<NH;h++){
+      var src = rand()<0.5 ? wa : wb, row = h*(NI+1);
+      for(i=0;i<=NI;i++) out[row+i] = src[row+i];
+      for(o=0;o<NO;o++) out[W1+o*(NH+1)+h] = src[W1+o*(NH+1)+h];
+    }
+    for(o=0;o<NO;o++){ var b = W1+o*(NH+1)+NH; out[b] = (rand()<0.5 ? wa : wb)[b]; }
+    return out;
+  }
+  function recombine(a, m){
+    var g = a.genome, h = m.genome, out = {};
+    for(var i=0;i<TRAITS.length;i++){ var k=TRAITS[i]; out[k] = rand()<0.5 ? g[k] : h[k]; }
+    if(g.lineage) out.lineage = g.lineage;
+    if(g.clade) out.clade = g.clade;
+    out.choosy = rand()<0.5 ? (g.choosy||CHOOSY) : (h.choosy||CHOOSY);
+    if(g.brain) out.brain = (h.brain && h.brain.length===g.brain.length) ? crossBrain(g.brain, h.brain, layoutOf(a.sid)) : g.brain;
+    return out;
+  }
+
   function reproduce(a){
+    if(params.births === false) return;   // experiments: freeze the population (transplant tests)
     var sp=SPECIES[a.sid];
-    if(counts[a.sid] >= sp.cap) return;
-    if(sp.crowd && crowded(a, sp.crowd)){ a.cooldown = sp.repro.cooldown*0.4; return; }
+    if(counts[a.sid] >= capOf(a.sid)) return;
+    if(sp.crowd && crowded(a, sp.crowd)){ a.cooldown = a.repCd*0.4; return; }
+    var mate = null;
+    if(params.sexual){
+      mate = findMate(a, sp);
+      if(!mate){ if(mate===null) mating.unmated++; a.cooldown = a.repCd*0.25; return; }
+      mating.matings++;
+      if(mate.genome.clade !== a.genome.clade) mating.hybrids++;
+    }
     if(a.genome.brain) bankGenome(a.sid, a.genome);
     if(a.vigil){ var bacc=BS[a.sid].acc[lineageOf(a)]; bacc.breedS += a.energy/a.maxEnergy; bacc.breedN++; }
     var litter = sp.repro.litter;
     var share = a.energy*0.34;
     a.energy *= 0.42;
-    a.cooldown = sp.repro.cooldown;
-    for(var i=0;i<litter && counts[a.sid]+i<sp.cap;i++){
-      var child = spawn(a.sid, a.x+randRange(-14,14), a.y+randRange(-14,14), a.gen+1, 0, mutate(a.genome, params.mutationRate));
+    a.cooldown = a.repCd;
+    a.litters++;
+    /* Hybrid penalty (reinforcement experiment, cycle 21): offspring of parents from
+       different subspecies (clades) fail with probability hybridPenalty, a stand-in for
+       Dobzhansky-Muller incompatibility between diverged lineages. It's what gives
+       choosiness something to protect (cycle 8: without it, choosiness evolves away).
+       A first version scaled the penalty with trait distance instead; ordinary within-
+       population mates are ~0.15 apart, so ~35% of all offspring failed: outbreeding
+       depression, not a hybrid penalty. */
+    var inviable = 0;
+    if(mate && params.hybridPenalty > 0 && mate.genome.clade !== a.genome.clade) inviable = params.hybridPenalty;
+    for(var i=0;i<litter && counts[a.sid]+i<capOf(a.sid);i++){
+      if(inviable > 0 && rand() < inviable){ mating.inviable++; continue; }
+      var cx = a.x+randRange(-14,14), cy = a.y+randRange(-14,14);
+      if(RIVER.on && RIVER.blocks[a.sid] && bankOf(cx, cy) !== bankOf(a.x, a.y)){ cx = a.x; cy = a.y; }
+      var child = spawn(a.sid, cx, cy, a.gen+1, 0, mutate(mate ? recombine(a, mate) : a.genome, params.mutationRate));
+      child.origin = 'born'; child.mother = a.uid; child.father = mate ? mate.uid : 0;
+      a.children++; if(mate) mate.children++;
       child.energy = share/litter;
     }
   }
@@ -412,7 +852,7 @@
   /* Best food cell within sense range, scored by richness minus a walking
      penalty. Fills _food and returns true only if it beats `floor`. */
   function scanFood(a, sp, floor){
-    var found=false, bestScore=floor, r=a.sense;
+    var found=false, bestScore=floor, r=a.sense*params.foodSense;   // foodSense: experiments shrink how far food can be seen (default 1)
     var cw=CELL, cx=clamp(Math.floor(a.x/cw),0,cols-1), cy=clamp(Math.floor(a.y/cw),0,rows-1);
     var span=Math.max(1,Math.round(r/cw));
     for(var oy=-span;oy<=span;oy+=2){
@@ -433,7 +873,7 @@
   }
 
   function instinctHerbivore(a, sp, dt){
-    var threat = nearestThreat(a, a.headDown ? HEAD_DOWN_SENSE : 1);
+    var threat = perceivedThreat(a, a.headDown ? params.headDownSense : 1, dt);
     a.target = threat;
     var prev = a.state;
     a.state = threat ? 'flee' : 'forage';
@@ -475,7 +915,7 @@
   /* Brain locomotion: turn the body, then accelerate along it. A little heading
      noise stands in for wandering, and a wall turns the heading back inward. */
   function brainMove(a, turn, throttle, mult, dt){
-    a.heading += (turn*TURN_RATE + (Math.random()-0.5)*1.2)*dt;
+    a.heading += (turn*TURN_RATE + (rand()-0.5)*1.2)*dt;
     var ch=Math.cos(a.heading), sh=Math.sin(a.heading);
     if((a.x<=0 && ch<0) || (a.x>=world.w && ch>0)) a.heading = Math.PI - a.heading;
     if((a.y<=0 && sh<0) || (a.y>=world.h && sh>0)) a.heading = -a.heading;
@@ -485,10 +925,11 @@
 
   function brainHerbivore(a, sp, dt){
     var HB=Brain.herbivore, B=HB.I, inp=a.bIn, out=a.bOut, dx, dy, d;
-    var mult = a.headDown ? HEAD_DOWN_SENSE : 1;
+    var mult = a.headDown ? params.headDownSense : 1;
     var range = a.sense*sp.panic*mult;
-    var threat = nearestThreat(a, mult);
+    var threat = perceivedThreat(a, mult, dt);
     a.target = threat;
+    if(threat) a.lastThreat = simClock;   // observational: patch log's perceived-risk bins
     if(threat){
       dx=threat.x-a.x; dy=threat.y-a.y; d=Math.sqrt(dx*dx+dy*dy)||1;
       relDir(inp, B.tSin, a, dx, dy, d);
@@ -502,7 +943,8 @@
       if(scanFood(a, sp, 0)){ a.fx=_food.x; a.fy=_food.y; a.fs=_food.s; } else a.fs=0;
     }
     dx=a.fx-a.x; dy=a.fy-a.y; d=Math.sqrt(dx*dx+dy*dy);
-    if(a.fs>0 && d>CELL*0.5){ relDir(inp, B.fSin, a, dx, dy, d); inp[B.fPull]=clamp(a.fs,0,1); }
+    if(a.fs>0 && d>CELL*0.5){ relDir(inp, B.fSin, a, dx, dy, d); inp[B.fPull]=clamp(a.fs,0,1);
+      if(params.pullClamp >= 0) inp[B.fPull] = params.pullClamp; }   // experiments: food is seen (and steered to) but its quality isn't
     else { inp[B.fSin]=0; inp[B.fCos]=0; inp[B.fPull]=0; }
     inp[B.fHere] = clamp(foodAt(sp, cellAt(a.x,a.y)), 0, 1.5);
 
@@ -522,7 +964,7 @@
     inp[B.crowd] = Math.min(2, crowd/(sp.crowd||10));
     inp[B.energy] = a.energy/a.maxEnergy;
     inp[B.age] = Math.min(1, a.age/a.maxAge);
-    inp[B.canBreed] = (a.cooldown<=0 && a.age>=sp.repro.minAge && a.energy>=a.maxEnergy*BREED_FLOOR) ? 1 : 0;
+    inp[B.canBreed] = (a.cooldown<=0 && a.age>=a.minAge && a.energy>=a.maxEnergy*BREED_FLOOR) ? 1 : 0;
     inp[B.mem1] = a.mem0; inp[B.mem2] = a.mem1;
 
     HB.forward(a.genome.brain, inp, a.bHid, out);
@@ -549,17 +991,24 @@
     var wantFoliage = foliage[cell]*sp.diet.foliage;
     var wantFruit = fruit[cell]*sp.diet.fruit;
     var avail = wantFoliage + wantFruit;
-    if(avail > 0.01 && (!a.vigil || a.headDown)){
+    // Head-up animals don't eat, except that with params.scanIntake > 0 a *scanning* animal
+    // (head up and nearly still: the ethogram's 'vigilant') keeps that share of its intake,
+    // like an ungulate chewing a mouthful while it looks around. Default 0 = old behaviour.
+    var eatK = (!a.vigil || a.headDown) ? 1 : (params.scanIntake > 0 && ethoState(a) === 1 ? params.scanIntake : 0);
+    if(avail > 0.01 && eatK > 0){
       // Holling type II: intake saturates, so thinning vegetation really does
       // starve a herd instead of feeding it at full rate down to the last leaf.
       var response = avail/(0.35+avail);
-      var gain = a.intake*response*dt;
+      var gain = a.intake*response*dt*eatK;
       var fPart = wantFoliage/avail;
       var fEat = Math.min(foliage[cell], gain*fPart/BIOME.plants.foliage.energy);
       var rEat = Math.min(fruit[cell], gain*(1-fPart)/BIOME.plants.fruit.energy);
       foliage[cell] -= fEat; fruit[cell] -= rEat;
-      a.energy = Math.min(a.maxEnergy, a.energy + fEat*BIOME.plants.foliage.energy + rEat*BIOME.plants.fruit.energy);
+      a.energy = Math.min(a.maxEnergy, a.energy + fEat*BIOME.plants.foliage.energy + rEat*BIOME.plants.fruit.energy);   // keep this exact expression: float order is part of the fingerprint
+      if(patches) boutEat(a, sp, cell, avail, fEat*BIOME.plants.foliage.energy + rEat*BIOME.plants.fruit.energy);
+      if(trayAt && trayAt[cell] >= 0) trayEat(a, cell);
     }
+    if(patches && a.bout) boutCheck(a, sp);
 
     var sp2 = Math.sqrt(a.vx*a.vx+a.vy*a.vy)/Math.max(1,a.speed);
     a.energy -= (a.drain*(1+sp2*sp2*0.9))*dt;
@@ -568,7 +1017,7 @@
     if(a.energy<=0){ die(a,'starved'); return; }
     if(a.age>a.maxAge){ die(a,'age'); return; }
     var ready = a.genome.brain ? a.wantBreed : a.energy >= a.maxEnergy*sp.repro.threshold;
-    if(ready && a.cooldown<=0 && a.age>=sp.repro.minAge) reproduce(a);
+    if(ready && a.cooldown<=0 && a.age>=a.minAge) reproduce(a);
   }
 
   /* One discrete lunge, then a recovery window. Most hunts fail. */
@@ -578,7 +1027,7 @@
     if(costly) a.energy -= a.drain*HUNT.lungeCost;
     var massEdge = clamp(0.42*Math.pow(a.mass/prey.mass, 0.75), 0.08, 1.2);
     var odds = sp.catchSkill * (a.speed/(a.speed+prey.speed)) * massEdge * 1.5;
-    var hit = Math.random() < odds;
+    var hit = rand() < odds;
     a.lungeAt = simClock;
     a.strikes++;
     a.lastLunge = { hit:hit, sid:prey.sid, mass:prey.mass, t:simClock };
@@ -686,7 +1135,7 @@
     inp[I.ready] = a.huntCd<=0 ? 1 : 0;
     inp[I.energy] = a.energy/a.maxEnergy;
     inp[I.age] = Math.min(1, a.age/a.maxAge);
-    inp[I.canBreed] = (a.cooldown<=0 && a.age>=sp.repro.minAge && a.energy>=a.maxEnergy*BREED_FLOOR) ? 1 : 0;
+    inp[I.canBreed] = (a.cooldown<=0 && a.age>=a.minAge && a.energy>=a.maxEnergy*BREED_FLOOR) ? 1 : 0;
     inp[I.mem1] = a.mem0; inp[I.mem2] = a.mem1;
 
     PB.forward(a.genome.brain, inp, a.bHid, out);
@@ -722,11 +1171,24 @@
     if(a.energy<=0){ die(a,'starved'); return; }
     if(a.age>a.maxAge){ die(a,'age'); return; }
     var ready = a.genome.brain ? a.wantBreed : a.energy >= a.maxEnergy*sp.repro.threshold;
-    if(ready && a.cooldown<=0 && a.age>=sp.repro.minAge) reproduce(a);
+    if(ready && a.cooldown<=0 && a.age>=a.minAge) reproduce(a);
   }
 
   /* Small, slow trickle of dispersers from the wider forest. Without it a
      random trough at zero is permanent and the range goes silent forever. */
+  /* Arrivals from the wider forest. With sexual reproduction on, a lone arrival
+     can't breed, so a species that crashed to zero could never come back (seen in a
+     2-hour run: agoutis stuck at 1–2). Under mating they arrive as a small band. */
+  function arrive(id, genomeFn){
+    if(params.births === false) return;   // frozen population: no immigrants either
+    var n = params.sexual ? params.arrivalGroup : 1, x = rand()*world.w, y = rand()*world.h;
+    if(!params.predators && SPECIES[id].role==='predator') return;
+    for(var k=0;k<n && (counts[id]||0) < capOf(id);k++){
+      var ax = clamp(x + randRange(-20,20), 0, world.w), ay = clamp(y + randRange(-20,20), 0, world.h);
+      if(RIVER.on && RIVER.blocks[id] && bankOf(ax, ay) !== bankOf(x, y)){ ax = x; ay = y; }
+      spawn(id, ax, ay, maxGeneration, 0.6, genomeFn());
+    }
+  }
   function immigration(dt){
     // Mixed worlds: each lineage gets half the floor, so a crash can't hand
     // the range to whichever lineage happened to arrive first.
@@ -737,8 +1199,8 @@
           var o=animals[q];
           if(o.sid===bid && !o.dead){ if(o.genome.brain) nb++; else ni++; }
         }
-        if(nb<half && Math.random()<0.05*dt) spawn(bid, Math.random()*world.w, Math.random()*world.h, maxGeneration, 0.6, arrivalGenome(bid,'brain'));
-        if(ni<half && Math.random()<0.05*dt) spawn(bid, Math.random()*world.w, Math.random()*world.h, maxGeneration, 0.6, arrivalGenome(bid,'instinct'));
+        if(nb<half && rand()<0.05*dt) arrive(bid, function(){ return arrivalGenome(bid,'brain'); });
+        if(ni<half && rand()<0.05*dt) arrive(bid, function(){ return arrivalGenome(bid,'instinct'); });
       }
     }
     for(var i=0;i<SPECIES_IDS.length;i++){
@@ -751,9 +1213,7 @@
         for(var p=0;p<sp.prey.length;p++) preyTotal += counts[sp.prey[p]]||0;
         if(preyTotal < 25) continue;
       }
-      if(Math.random() < 0.05*dt){
-        spawn(id, Math.random()*world.w, Math.random()*world.h, maxGeneration, 0.6, arrivalGenome(id));
-      }
+      if(rand() < 0.05*dt) arrive(id, function(){ return arrivalGenome(id); });
     }
   }
 
@@ -769,7 +1229,12 @@
   function step(dt){
     var t = prof ? performance.now() : 0;
     simClock += dt;
+    // Secondary contact (experiments): the river dries up at riverOffAt sim-seconds.
+    if(RIVER.on && params.riverOffAt > 0 && simClock >= params.riverOffAt){ setRiver(false); repaintPlants();
+      logEvent({ text:'The river has dried up: the two banks meet again (secondary contact).' }); }
+    if(params.foliageTo > 0) rescaleFood(params.foliageTo);
     growPlants(dt);
+    patchTally(dt);
     if(prof) t = lap('plants', t);
     rebuildHash();
     recount();
@@ -792,15 +1257,17 @@
     recount();
 
     sampleAccum += dt;
-    if(sampleAccum >= 1){ sampleAccum = 0; sample(); }
+    if(sampleAccum >= 1 - 1e-9){ sampleAccum -= 1; sample(); }   // was '= 0': float drift made samples every ~1.033 s
     if(prof) lap('sample+cleanup', t);
   }
 
+  /* Fixed steps, whatever the frame rate: the same seed gives the same world on every machine
+     (the class link relies on this) and the same steps as the headless runs. */
+  var tickAcc = 0;
   function tick(dt){
     if(params.paused) return;
-    var total = dt*params.speed;
-    var n = Math.ceil(total/SUBSTEP - 1e-6);
-    for(var i=0;i<n;i++) step(total/n);
+    tickAcc += dt*params.speed;
+    while(tickAcc >= SUBSTEP - 1e-9){ step(SUBSTEP); tickAcc -= SUBSTEP; }
   }
 
   /* Turbo: as many fixed steps as fit in the frame budget. Returns sim seconds run. */
@@ -855,7 +1322,7 @@
     var drift=0, div=0, pairs=0, seed=SEEDS[id];
     for(var b=0;b<brains.length;b++) drift += Brain.distance(brains[b], seed);
     for(var p=0;p<30 && brains.length>1;p++){
-      var x=brains[Math.floor(Math.random()*brains.length)], y=brains[Math.floor(Math.random()*brains.length)];
+      var x=brains[Math.floor(rand()*brains.length)], y=brains[Math.floor(rand()*brains.length)];
       if(x!==y){ div += Brain.distance(x,y); pairs++; }
     }
     if(topGen >= st.lastGen+10){ st.lastGen = topGen - topGen%10; speciesMark(id, 'gen '+st.lastGen); }
@@ -888,7 +1355,7 @@
       }
       if(worldMode!=='instinct' && SPECIES[id].role==='predator'){
         // boom marker with hysteresis: near the cap, then re-armed once well below it
-        var bm = BS[id].mark, cap = SPECIES[id].cap;
+        var bm = BS[id].mark, cap = capOf(id);
         if(!bm.boom && counts[id] >= cap*0.9){ bm.boom = true; speciesMark(id, 'boom'); }
         else if(bm.boom && counts[id] < cap*0.5) bm.boom = false;
       }
@@ -914,6 +1381,12 @@
       push(BS[id].lineage.brain, lc[id].brain); push(BS[id].lineage.instinct, lc[id].instinct);
       if(worldMode!=='instinct') sampleBrainMetrics(id, lc[id].brain, lc[id].instinct);
     });
+    ethoScan();
+    TL.record(simClock, animals, SPECIES_IDS, { foliage:foliage, fruit:fruit, water:water });
+    Clades.update(animals, simClock).forEach(function(b){
+      logEvent({ sid:b.clade.sid, text:'New subspecies: '+b.clade.name+' ('+b.clade.common+') split from '+b.parent.name+
+        ' ('+Math.round(b.share*100)+'% of them, '+b.clade.n+' animals).' });
+    });
     brainTick();
     push(vegHistory.foliage, fSum/foliage.length*100);
     push(vegHistory.fruit, rCells? rSum/rCells*100 : 0);
@@ -929,25 +1402,35 @@
     }
     vegHistory={ foliage:[], fruit:[] };
     resetMetrics();
+    Clades.reset();
+    TL.reset();
+    if(replay.on) setReplay(false);
     sampleCount = 0;
   }
 
   /* --------------------------- world setup --------------------------- */
   function seedWorld(){
+    trays = null; trayAt = null;   // a new world ends any tray trial
     animals=[]; idCounter=1; maxGeneration=0; simClock=0; sampleAccum=0;
+    mating.matings = mating.hybrids = mating.unmated = mating.rejected = mating.inviable = 0;
+    if(lifeRows) lifeRows = [];
+    etho = newEtho();
+    alarmStats.own = alarmStats.alarm = 0; alarmStats.graded = new Array(10).fill(0);
+    deathLog = {};   // was never cleared, so deaths() carried counts over from the previous world
     worldMode = params.brainMode; autosaveAt = 0;
     events.droughtUntil=0; events.mastUntil=0;
     buildTerrain(); initHash(); resetHistory(); resetWatch();
     for(var i=0;i<SPECIES_IDS.length;i++){
       var id=SPECIES_IDS[i], sp=SPECIES[id];
       var brainy = worldMode!=='instinct' && BRAIN_IDS.indexOf(id)>=0;
+      if(!params.predators && sp.role==='predator') continue;   // predator-removal control
       for(var j=0;j<sp.start;j++){
         var g = null;
         if(brainy){
           if(worldMode==='brains' || j%2===0) g = brainGenome(id);
           else { g = newGenome(); g.lineage = 'instinct'; }
         }
-        spawn(id, Math.random()*world.w, Math.random()*world.h, 0, randRange(0.45,0.8), g);
+        spawn(id, rand()*world.w, rand()*world.h, 0, randRange(0.45,0.8), g).origin = 'founder';
       }
     }
     recount();
@@ -995,6 +1478,7 @@
     var d = plantImg.data;
     var C=theme.canopyRGB, F=theme.fruitRGB, S=theme.soilRGB;
     for(var i=0;i<foliage.length;i++){
+      if(water[i]){ var w=i*4; d[w]=74; d[w+1]=128; d[w+2]=150; d[w+3]=255; continue; }
       var f = foliage[i], fr = fruit[i];
       var r = S.r + (C.r-S.r)*f, g = S.g + (C.g-S.g)*f, b = S.b + (C.b-S.b)*f;
       if(fr>0.02){
@@ -1038,6 +1522,100 @@
     return { x: sx/camera.zoom + camera.x, y: sy/camera.zoom + camera.y };
   }
 
+  /* --------------------------- time-lapse replay --------------------------- */
+  var tlCanvas = document.createElement('canvas'), tlCtx = tlCanvas.getContext('2d'), tlImg = null, tlPainted = -1;
+  function paintReplayPlants(f){
+    if(!tlImg || tlCanvas.width!==cols || tlCanvas.height!==rows){
+      tlCanvas.width = cols; tlCanvas.height = rows; tlImg = tlCtx.createImageData(cols, rows);
+    }
+    var d = tlImg.data, C=theme.canopyRGB, F=theme.fruitRGB, S=theme.soilRGB;
+    for(var i=0;i<f.veg.length;i++){
+      var v = f.veg[i], o = i*4, r, g, b;
+      if(v===255){ r=74; g=128; b=150; }
+      else if(v>=200){ var t=(v-200)/54*0.92; r=C.r+(F.r-C.r)*t; g=C.g+(F.g-C.g)*t; b=C.b+(F.b-C.b)*t; }
+      else { var k=v/199; r=S.r+(C.r-S.r)*k; g=S.g+(C.g-S.g)*k; b=S.b+(C.b-S.b)*k; }
+      d[o]=r; d[o+1]=g; d[o+2]=b; d[o+3]=255;
+    }
+    tlCtx.putImageData(tlImg, 0, 0);
+  }
+  function drawReplay(){
+    var f = TL.at(replay.idx);
+    if(!f) return;
+    if(tlPainted !== replay.idx){ paintReplayPlants(f); tlPainted = replay.idx; }
+    var z = camera.zoom, dpr = view.dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle = theme.surface2; ctx.fillRect(0,0,view.w,view.h);
+    ctx.save(); ctx.scale(z,z); ctx.translate(-camera.x, -camera.y);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(tlCanvas, 0, 0, world.w, world.h);
+    var byClade = replay.color==='subspecies', focus = geneSpecies, cache = {};
+    var d = f.data;
+    for(var pass=0; pass<2; pass++){          // others first, focus species on top
+      for(var i=0;i<d.length;i+=4){
+        var sid = SPECIES_IDS[d[i+2]], sp = SPECIES[sid];
+        var isFocus = sid===focus;
+        if(byClade && (pass===1) !== isFocus) continue;
+        if(!byClade && pass===1) continue;
+        var col;
+        if(!byClade) col = sp.color;
+        else if(!isFocus) col = 'rgba(40,40,40,0.18)';
+        else col = cache[d[i+3]] || (cache[d[i+3]] = cladeColor(Clades.get(d[i+3])));
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.arc(d[i], d[i+1], Math.max(byClade && isFocus ? 3.2/z : 2.2, 2.5*Math.pow(sp.mass,1/3)), 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+  function showReplay(i){
+    replay.idx = Math.max(0, Math.min(TL.count()-1, i));
+    var f = TL.at(replay.idx);
+    var sl = document.getElementById('tlSlider');
+    if(sl){ sl.max = Math.max(0, TL.count()-1); sl.value = replay.idx; }
+    var lb = document.getElementById('tlTime');
+    if(lb && f) lb.textContent = fmtTime(f.t) + ' / ' + fmtTime(simClock);
+    renderCharts();
+  }
+  function setReplay(on){
+    replay.on = !!on && TL.count() > 1;
+    replay.playing = false;
+    if(replay.on){
+      if(viewMode==='3d') setViewMode('2d');
+      showReplay(0);
+      replay.playing = true;
+    }
+    tlPainted = -1;
+    syncReplayUI();
+    renderCharts();
+  }
+  function syncReplayUI(){
+    var bar = document.getElementById('tlBar');
+    if(!bar) return;
+    bar.classList.toggle('on', replay.on);
+    document.getElementById('tlCtl').hidden = !replay.on;
+    document.getElementById('tlBtn').textContent = replay.on ? 'Back to live' : 'Time-lapse';
+    document.getElementById('tlPlay').textContent = replay.playing ? '❚❚' : '▶';
+    document.querySelectorAll('#tlColor button').forEach(function(b){ b.classList.toggle('active', b.dataset.c===replay.color); });
+    var sel = document.getElementById('tlSpecies');
+    if(sel) sel.value = geneSpecies;
+  }
+
+  /* Posture cue for field mode: a head dot held out in front when the head is up, tucked
+     onto the muzzle when it's down. Facing follows motion, or the last heading when still. */
+  function drawPosture(a, r, z){
+    var vl = Math.sqrt(a.vx*a.vx+a.vy*a.vy), hx, hy;
+    if(vl > 2){ hx = a.vx/vl; hy = a.vy/vl; a.faceX = hx; a.faceY = hy; }
+    else if(a.faceX != null){ hx = a.faceX; hy = a.faceY; }
+    else { hx = Math.cos(a.heading); hy = Math.sin(a.heading); }
+    var down = a.headDown, d = down ? r*0.7 : r*1.55, hr = Math.max(1.2, r*(down ? 0.38 : 0.45));
+    if(!down){
+      ctx.beginPath(); ctx.strokeStyle = 'rgba(30,20,10,0.75)'; ctx.lineWidth = Math.max(0.8, r*0.22);
+      ctx.moveTo(a.x + hx*r*0.8, a.y + hy*r*0.8); ctx.lineTo(a.x + hx*d, a.y + hy*d); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.fillStyle = down ? 'rgba(40,25,10,0.9)' : '#3a2a18';
+    ctx.arc(a.x + hx*d, a.y + hy*d, hr, 0, Math.PI*2); ctx.fill();
+  }
   function draw(){
     var z = camera.zoom, dpr = view.dpr;
     ctx.setTransform(dpr,0,0,dpr,0,0);
@@ -1064,7 +1642,7 @@
     }
 
     var watched = follow.a;
-    if(watched && watched.target && !watched.target.dead){
+    if(!fieldMode && watched && watched.target && !watched.target.dead){
       ctx.save();
       ctx.setLineDash([6/z, 5/z]);
       ctx.strokeStyle = SPECIES[watched.sid].role==='predator' ? theme.danger : theme.accent;
@@ -1077,7 +1655,7 @@
     }
 
     var sa = selected && !selected.dead && selected.genome.brain ? selected : null;
-    if(sa) drawSensors(sa, z);
+    if(sa && !fieldMode) drawSensors(sa, z);
 
     for(var i=0;i<animals.length;i++){
       var a = animals[i];
@@ -1121,7 +1699,16 @@
         ctx.arc(a.x, a.y, r+6/z, 0, Math.PI*2);
         ctx.stroke();
       }
-      if(watched && watched.target===a){
+      if(fieldMode && fieldScan && inScan(a)) drawPosture(a, r, z);
+      if(fieldMode && !fieldScan && (selected===a || watched===a)){
+        drawPosture(a, r, z);
+        // focal marker: in brains mode every animal wears a brain ring, so the usual selection ring is lost
+        ctx.save(); ctx.setLineDash([5/z, 4/z]); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5/z;
+        ctx.beginPath(); ctx.arc(a.x, a.y, r + 14/z, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+        ctx.font = (12/z) + 'px sans-serif'; ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center';
+        ctx.fillText('focal', a.x, a.y - r - 18/z); ctx.textAlign = 'start';
+      }
+      if(!fieldMode && watched && watched.target===a){
         ctx.beginPath();
         ctx.strokeStyle = theme.danger;
         ctx.lineWidth = 2/z;
@@ -1130,6 +1717,28 @@
       }
     }
 
+    if(trays){
+      // Drawn at a fixed on-screen size (so they stay findable when zoomed out), dark halo
+      // under a coloured frame; the inner fill fades as the food is eaten.
+      ctx.save();
+      var hs = Math.max(CELL*0.8, 11/z);
+      trays.forEach(function(t){
+        var left = foliage[t.cell] / (t.start || 1);
+        ctx.lineWidth = 5/z; ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+        ctx.strokeRect(t.x - hs, t.y - hs, hs*2, hs*2);
+        ctx.lineWidth = 2.5/z; ctx.strokeStyle = t.zone === 'rich' ? '#ffd166' : '#8ecae6';
+        if(t.zone !== 'rich') ctx.setLineDash([5/z, 3/z]);   // poor trays dashed: not told apart by colour alone
+        ctx.strokeRect(t.x - hs, t.y - hs, hs*2, hs*2);
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.1 + 0.75*Math.max(0, Math.min(1, left))) + ')';
+        ctx.fillRect(t.x - hs*0.55, t.y - hs*0.55, hs*1.1, hs*1.1);
+      });
+      ctx.restore();
+    }
+    if(fieldMode && fieldScan){
+      ctx.save(); ctx.setLineDash([8/z, 6/z]); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5/z;
+      ctx.beginPath(); ctx.arc(fieldScan.x, fieldScan.y, fieldScan.r, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+    }
     var nowR = nowReal();
     for(var b=0;b<bursts.length;b++){
       var bu=bursts[b], k=(nowR-bu.t0)/0.9;
@@ -1146,7 +1755,7 @@
   /* What the selected brain animal is sensing: its threat radius (which shrinks
      while grazing head-down) and lines to the threat, food target and nearest kin. */
   function drawSensors(a, z){
-    var sp=SPECIES[a.sid], range = sp.role==='predator' ? a.sense : a.sense*sp.panic*(a.headDown?HEAD_DOWN_SENSE:1);
+    var sp=SPECIES[a.sid], range = sp.role==='predator' ? a.sense : a.sense*sp.panic*(a.headDown?params.headDownSense:1);
     ctx.save();
     ctx.lineWidth = 1.5/z;
     ctx.setLineDash([4/z, 4/z]);
@@ -1395,6 +2004,15 @@
     }
 
     var th = traitHistory[geneSpecies], col = SPECIES[geneSpecies].color;
+    var treeEl = document.getElementById('chartTree');
+    if(treeEl && treeEl.offsetParent){
+      Clades.drawTree(treeEl, geneSpecies, simClock, theme, col,
+        { cursor: replay.on && TL.at(replay.idx) ? TL.at(replay.idx).t : null, colorOf: replay.on && replay.color==='subspecies' ? cladeColor : null });
+      var lv = Clades.living(geneSpecies).length, all = Clades.all().filter(function(c){ return c.sid===geneSpecies; }).length;
+      document.getElementById('treeCaption').textContent = all > 1
+        ? lv+' living lineage'+(lv===1?'':'s')+' · '+(all-1)+' subspecies so far · width = population'
+        : 'no subspecies yet — lineages split once a group drifts far enough from the rest';
+    }
     drawChart(el.chartMass, [{data:th.mass, color:col}], SPECIES[geneSpecies].mass*0.5);
     drawChart(el.chartSpeed, [{data:th.speed, color:col}], SPECIES[geneSpecies].speed*0.5);
     drawChart(el.chartSense, [{data:th.sense, color:col}], SPECIES[geneSpecies].sense*0.5);
@@ -1540,7 +2158,7 @@
 
   /* --------------------------- interventions --------------------------- */
   function wildfire(){
-    var fx=Math.random()*world.w, fy=Math.random()*world.h, fr=Math.min(world.w,world.h)*0.28;
+    var fx=rand()*world.w, fy=rand()*world.h, fr=Math.min(world.w,world.h)*0.28;
     for(var gy=0; gy<rows; gy++){
       for(var gx=0; gx<cols; gx++){
         var wx=(gx+0.5)*CELL, wy=(gy+0.5)*CELL;
@@ -1555,7 +2173,7 @@
     for(var i=0;i<animals.length;i++){
       var a=animals[i];
       var d2=Math.sqrt((a.x-fx)*(a.x-fx)+(a.y-fy)*(a.y-fy));
-      if(d2<fr && Math.random() < 0.5*(1-d2/fr)) die(a);
+      if(d2<fr && rand() < 0.5*(1-d2/fr)) die(a);
     }
     animals = animals.filter(function(a){ return !a.dead; });
     recount();
@@ -1564,7 +2182,7 @@
   function poach(){
     for(var i=0;i<animals.length;i++){
       var a=animals[i];
-      if(a.mass>=45 && Math.random()<0.45) die(a);
+      if(a.mass>=45 && rand()<0.45) die(a);
     }
     animals = animals.filter(function(a){ return !a.dead; });
     recount();
@@ -1573,7 +2191,7 @@
   function disease(id){
     for(var i=0;i<animals.length;i++){
       var a=animals[i];
-      if(a.sid===id && Math.random()<0.6) die(a);
+      if(a.sid===id && rand()<0.6) die(a);
     }
     animals = animals.filter(function(a){ return !a.dead; });
     recount();
@@ -1586,7 +2204,7 @@
       else if(e==='mast') events.mastUntil = simClock+40;
       else if(e==='fire') wildfire();
       else if(e==='poach') poach();
-      else if(e==='reset'){ seedWorld(); defaultView(); repaintPlants(); }
+      else if(e==='reset'){ reseed((Math.random()*4294967296)>>>0); seedWorld(); defaultView(); repaintPlants(); }
     });
   });
 
@@ -1594,10 +2212,82 @@
     var id = document.getElementById('introSelect').value;
     var sp = SPECIES[id];
     var n = Math.max(4, Math.round(sp.start*0.25));
-    for(var i=0;i<n && (counts[id]||0)<sp.cap;i++){
-      spawn(id, Math.random()*world.w, Math.random()*world.h, maxGeneration, 0.65, arrivalGenome(id));
+    for(var i=0;i<n && (counts[id]||0)<capOf(id);i++){
+      spawn(id, rand()*world.w, rand()*world.h, maxGeneration, 0.65, arrivalGenome(id));
       recount();
     }
+  });
+  (function(){
+    var sel = document.getElementById('tlSpecies');
+    SPECIES_IDS.forEach(function(id){ var o=document.createElement('option'); o.value=id; o.textContent=SPECIES[id].name; sel.appendChild(o); });
+    sel.addEventListener('change', function(){ geneSpecies = sel.value; updateGeneSeg(); renderCharts(); });
+    document.getElementById('tlBtn').addEventListener('click', function(){ setReplay(!replay.on); });
+    document.getElementById('tlPlay').addEventListener('click', function(){
+      if(!replay.playing && replay.idx >= TL.count()-1) showReplay(0);
+      replay.playing = !replay.playing; syncReplayUI();
+    });
+    document.getElementById('tlSlider').addEventListener('input', function(e){ replay.playing = false; showReplay(+e.target.value); syncReplayUI(); });
+    document.querySelectorAll('#tlColor button').forEach(function(b){
+      b.addEventListener('click', function(){ replay.color = b.dataset.c; syncReplayUI(); renderCharts(); });
+    });
+    syncReplayUI();
+  })();
+  function setCosts(on){
+    params.traitCosts = !!on;
+    var b = document.getElementById('costBtn');
+    if(b){ b.setAttribute('aria-pressed', params.traitCosts ? 'true' : 'false'); b.classList.toggle('active', params.traitCosts); }
+  }
+  document.getElementById('costBtn').addEventListener('click', function(){
+    setCosts(!params.traitCosts);
+    logEvent({ text: params.traitCosts ? 'Trait costs on: speed and keen senses burn energy, thrifty metabolisms digest slowly, big bodies mature late. Applies to animals born from now on.'
+                                       : 'Trait costs off for animals born from now on.' });
+  });
+  // On a shared claude.ai page, page-started downloads are blocked; the viewer's "downloads" capability
+  // asks the viewer to confirm the save instead. Anywhere else, a normal download link.
+  function saveFile(name, data, type){
+    function plain(){
+      var url = URL.createObjectURL(new Blob([data], { type:type }));
+      var link = document.createElement('a'); link.href = url; link.download = name;
+      document.body.appendChild(link); link.click(); link.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    }
+    var c = window.claude;
+    if(c && typeof c.use === 'function') c.use('downloads').then(function(d){ if(d) d.save({ filename:name, data:data }).catch(function(){}); else plain(); }, plain);
+    else plain();
+  }
+  function download(name, text, type){ saveFile(name, text, type); }
+  function syncLifeUI(){
+    var b = document.getElementById('lifeRecBtn'), sub = document.getElementById('lifeRecSub');
+    if(!b) return;
+    b.setAttribute('aria-pressed', lifeRows ? 'true' : 'false'); b.classList.toggle('active', !!lifeRows);
+    sub.textContent = lifeRows ? 'recording · '+lifeRows.length+' deaths so far' : 'off · starts on the next reset so founders are included';
+  }
+  document.getElementById('lifeRecBtn').addEventListener('click', function(){
+    if(lifeRows){ lifeRows = null; }
+    else { lifeRows = []; reseed((Math.random()*4294967296)>>>0); seedWorld(); defaultView(); repaintPlants();
+           logEvent({ text:'Life table recording: the range was reset (seed '+simSeed+') so every animal is on record from birth.' }); }
+    syncLifeUI();
+  });
+  document.getElementById('lifeDlBtn').addEventListener('click', function(){
+    var stamp = 'vivarium-seed'+simSeed+'-t'+Math.round(simClock);
+    download(stamp+'-life.csv', lifeCSV(), 'text/csv');
+    download(stamp+'-manifest.json', JSON.stringify(window.Vivarium.manifest(), null, 2), 'application/json');
+  });
+  setInterval(syncLifeUI, 2000);
+  function setSexual(on){
+    params.sexual = !!on;
+    var b = document.getElementById('sexBtn');
+    if(b){ b.setAttribute('aria-pressed', params.sexual ? 'true' : 'false'); b.classList.toggle('active', params.sexual); }
+  }
+  document.getElementById('sexBtn').addEventListener('click', function(){
+    setSexual(!params.sexual);
+    logEvent({ text: params.sexual ? 'Sexual reproduction: animals now need a nearby mate, prefer similar partners, and mix traits.'
+                                   : 'Back to asexual reproduction: each parent clones itself with mutation.' });
+  });
+  document.getElementById('riverBtn').addEventListener('click', function(){
+    setRiver(!RIVER.on);
+    repaintPlants();
+    logEvent({ text: RIVER.on ? 'A river now splits the range. Agoutis, howlers and ocelots can only cross at rare fords.'
+                              : 'The river has dried up; the two banks are one range again.' });
   });
   document.getElementById('cullBtn').addEventListener('click', function(){
     disease(document.getElementById('cullSelect').value);
@@ -1636,12 +2326,7 @@
   document.getElementById('exportBrains').addEventListener('click', function(){
     var data = packBrains();
     if(!data){ note('No brain agoutis to export yet. Pick Mixed or Brains first.'); return; }
-    var blob = new Blob([JSON.stringify(data)], { type:'application/json' });
-    var link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'agouti-brains-gen'+data.generation+'.json';
-    document.body.appendChild(link); link.click(); link.remove();
-    setTimeout(function(){ URL.revokeObjectURL(link.href); }, 2000);
+    download('agouti-brains-gen'+data.generation+'.json', JSON.stringify(data), 'application/json');
   });
   document.getElementById('importBrains').addEventListener('click', function(){ document.getElementById('brainFile').click(); });
   document.getElementById('brainFile').addEventListener('change', function(){
@@ -1836,7 +2521,7 @@
     followAnimal(a, false);
     renderSpecimen();
     renderCaption();
-    document.querySelector('.tab[data-tab="specimen"]').click();
+    if(!fieldMode) document.querySelector('.tab[data-tab="specimen"]').click();   // the Specimen card would give the answers away
   }
 
   function huntScore(a){
@@ -1924,7 +2609,7 @@
     var card = document.getElementById('captionCard');
     var subj = follow.a || (follow.site ? follow.last : null);
     document.getElementById('viewHint').hidden = !!(subj || follow.auto);
-    if(!subj && !follow.auto){ card.hidden = true; return; }
+    if((!subj && !follow.auto) || fieldMode){ card.hidden = true; return; }
     card.hidden = false;
     var sw = document.getElementById('capSwatch'), who = document.getElementById('capWho');
     var uid = document.getElementById('capUid'), what = document.getElementById('capWhat');
@@ -1996,7 +2681,7 @@
       var btn = e.x==null ? '<span></span>'
         : '<button data-id="'+e.id+'">'+(e.pred && !e.pred.dead ? 'Follow' : 'Go to')+'</button>';
       return '<div class="log-item"><span class="t">'+fmtTime(e.t)+'</span>'+
-        '<span class="msg"><i style="background:'+SPECIES[e.sid].color+'"></i>'+e.text+'</span>'+btn+'</div>';
+        '<span class="msg"><i style="background:'+(e.sid ? SPECIES[e.sid].color : '#4a8096')+'"></i>'+e.text+'</span>'+btn+'</div>';
     }).join('');
   }
 
@@ -2300,6 +2985,7 @@
       if(builtVersion !== terrainVersion) rebuildWorld();
       var d = texImg.data;
       for(var i=0;i<foliage.length;i++){
+        if(water[i]){ var w=i*4; d[w]=64; d[w+1]=120; d[w+2]=146; d[w+3]=255; continue; }
         var f = foliage[i], fr = fruit[i], nu = Math.min(1, nutrients[i]*0.5);
         var r = SOIL.r + (LEAF.r-SOIL.r)*f, g = SOIL.g + (LEAF.g-SOIL.g)*f, b = SOIL.b + (LEAF.b-SOIL.b)*f;
         if(fr > 0.02){
@@ -2422,7 +3108,7 @@
       COL_FOOD.set(theme.fruit || '#e0a040');
       var y0 = heightAt(a.x, a.y) + a.alt + 0.4;
       var sp3 = SPECIES[a.sid];
-      var range = (sp3.role==='predator' ? a.sense : a.sense*sp3.panic*(a.headDown ? HEAD_DOWN_SENSE : 1))*S;
+      var range = (sp3.role==='predator' ? a.sense : a.sense*sp3.panic*(a.headDown ? params.headDownSense : 1))*S;
       vigilRing.visible = true;
       vigilRing.material.color.set(a.headDown ? 0xff5a44 : 0xffffff);
       vigilRing.position.set(toX(a.x), y0 - 0.25, toZ(a.y));
@@ -2600,14 +3286,21 @@
       var ran = turboTick();
       turboRate += ((dt>0 ? ran/dt : 0) - turboRate)*0.1;
       skipDraw = (++turboFrame % 4) !== 0;   // drawing is the other half of a frame
+    } else if(replay.on){
+      if(replay.playing){
+        replay.acc += dt;
+        if(replay.acc > 0.12){ replay.acc = 0; showReplay(replay.idx+1); if(replay.idx >= TL.count()-1) replay.playing = false; syncReplayUI(); }
+      }
     } else tick(dt);
-    watchTick(dt);
+    if(!replay.on) watchTick(dt);
     plantTimer += dt;
     if(skipDraw){
       // turbo paints every 4th frame only
     } else if(viewMode==='3d' && R3.ready){
       if(plantTimer > 0.25){ plantTimer=0; R3.repaint(); }
       R3.frame(dt);
+    } else if(replay.on){
+      drawReplay();
     } else {
       if(plantTimer > 0.2){ plantTimer=0; repaintPlants(); }
       follow2D(dt);
@@ -2634,7 +3327,81 @@
   /* Public API — handy for headless tuning runs from the console. */
   window.Vivarium = {
     step: function(dt){ step(dt); },
-    reset: function(){ seedWorld(); },
+    /* reset(seed): reseed the simulation's generator, then rebuild the world.
+       With no seed, a fresh random one is drawn (and reported by manifest()). */
+    reset: function(seed){ reseed(seed==null ? (Math.random()*4294967296)>>>0 : seed); seedWorld(); return simSeed; },
+    seed: function(){ return simSeed; },
+    /* Field-methods mode hooks (js/fieldstudy.js). */
+    /* Scan sampling: fieldScan({x,y,r,sid}) draws the circle and centres the map on it;
+       fieldScan(null) clears it. scanTruth() counts the brain animals of that species in the
+       circle with head down vs up (fleeing ones counted separately), and the same for the
+       whole population at this instant. */
+    fieldScan: function(o){
+      if(o === undefined) return fieldScan;
+      fieldScan = o;
+      if(o){ stopWatching(); selected = null; camera.zoom = Math.max(camera.zoom, o.zoom || 2.4);
+             camera.x = o.x - view.w/camera.zoom/2; camera.y = o.y - view.h/camera.zoom/2; clampCamera(); }
+      return fieldScan;
+    },
+    scanTruth: function(){
+      if(!fieldScan) return null;
+      var t = { down:0, up:0, flee:0, popDown:0, popUp:0 };
+      animals.forEach(function(a){
+        if(a.dead || a.sid!==fieldScan.sid || !a.vigil) return;
+        var fl = a.state==='flee', k = fl ? null : (a.headDown ? 'down' : 'up');
+        if(k) t[k==='down' ? 'popDown' : 'popUp']++;
+        if(inScan(a)){ if(fl) t.flee++; else t[k]++; }
+      });
+      return t;
+    },
+    /* Feeding trays: trays([{x,y,amount,zone}]) fills those cells and stops their regrowth;
+       trays(null) ends the trial (cells regrow normally again). trayState() reads each tray:
+       food left (the GUD), share eaten, visitors by species, time of first visit.
+       foodNear(x,y,r) = mean foliage within r px, for choosing rich vs poor surroundings. */
+    trays: function(list){ if(list === undefined) return trays ? trays.length : null; return setTrays(list); },
+    trayState: function(){
+      if(!trays) return null;
+      return trays.map(function(t){
+        var by = {}; Object.keys(t.visitors).forEach(function(u){ by[t.visitors[u]] = (by[t.visitors[u]]||0) + 1; });
+        return { x:t.x, y:t.y, zone:t.zone, start:t.start, left:+foliage[t.cell].toFixed(4), visitors:by,
+                 nVisitors:Object.keys(t.visitors).length, firstVisit:t.firstVisit };
+      });
+    },
+    worldSize: function(){ return { w:world.w, h:world.h }; },
+    foodNear: function(x, y, r){
+      var n = 0, sum = 0, R = Math.ceil(r/CELL), cx = Math.floor(x/CELL), cy = Math.floor(y/CELL);
+      for(var gy=cy-R; gy<=cy+R; gy++) for(var gx=cx-R; gx<=cx+R; gx++){
+        if(gx<0 || gy<0 || gx>=cols || gy>=rows) continue;
+        var dx=(gx+0.5)*CELL-x, dy=(gy+0.5)*CELL-y; if(dx*dx+dy*dy > r*r) continue;
+        var k = gy*cols+gx; if(water[k]) continue; sum += foliage[k]; n++;
+      }
+      return n ? sum/n : 0;
+    },
+    fieldMode: function(on){ if(on!=null){ fieldMode = !!on; if(on && follow.auto) setNatureCam(false); renderCaption(); } return fieldMode; },
+    truthState: function(uid){ var a = animals.find(function(x){ return x.uid===uid; }); return a && !a.dead ? ETHO[ethoState(a)] : null; },
+    animal: function(uid){ return animals.find(function(x){ return x.uid===uid; }) || null; },
+    ethoStates: ETHO,
+    /* Life table: lifeTable(true) starts recording (call before reset() to include the
+       founders' deaths); lifeTableCSV() returns every recorded death plus the living. */
+    lifeTable: function(on){ if(on!=null) lifeRows = on ? (lifeRows||[]) : null; return lifeRows ? lifeRows.length : null; },
+    lifeTableCSV: function(){ return lifeCSV(); },
+    patchLog: function(on){ if(on!=null) patches = on ? newPatches() : null; return patches; },
+    lifeColumns: LIFE_COLS,
+    /* Scan-sampled ethogram: { states, scans, groupRadius, budget:{sid:[counts per state]},
+       eyes:{sid:{feed:[by group size], vigilant:[by group size]}} } (group size capped at 30). */
+    ethogram: function(){ return { states:ETHO.slice(), scans:etho ? etho.scans : 0, groupRadius:GROUP_R,
+      from:params.ethoFrom, foodEdges:FOOD_EDGES.slice(),
+      budget:JSON.parse(JSON.stringify(etho ? etho.budget : {})), eyes:JSON.parse(JSON.stringify(etho ? etho.eyes : {})),
+      eyesFood:JSON.parse(JSON.stringify(etho ? etho.eyesFood : {})) }; },
+    /* Everything needed to reproduce a run: pass it to tools/vivarium-run.js or reset(). */
+    manifest: function(){
+      var tag = document.querySelector('script[src*="vivarium.js"]');
+      return { format:'vivarium-run', version:1, code: tag ? tag.getAttribute('src') : null,
+               seed:simSeed, world:worldMode, t:+simClock.toFixed(3),
+               toggles:{ river:RIVER.on, sexual:params.sexual, traitCosts:params.traitCosts, predators:params.predators, alarm:params.alarm },
+               params:{ headDownSense:params.headDownSense, scanIntake:params.scanIntake, births:params.births, foodSense:params.foodSense, pullClamp:params.pullClamp, hybridPenalty:params.hybridPenalty, riverOffAt:params.riverOffAt, alarmRate:params.alarmRate, ethoFrom:params.ethoFrom, capScale:params.capScale, mutationRate:params.mutationRate, growth:params.growth, satiety:params.satiety, arrivalGroup:params.arrivalGroup },
+               hunt:Object.assign({}, HUNT) };
+    },
     setPaused: function(v){ params.paused=v; },
     setActive: function(v){
       active = v !== false;
@@ -2650,6 +3417,35 @@
     },
     species: SPECIES,
     deaths: function(){ return Object.assign({}, deathLog); },
+    /* Time-lapse: replay(false) returns to live; replay(i, 'subspecies', sid) shows frame i. */
+    replay: function(i, color, sid){
+      if(i===false){ setReplay(false); return null; }
+      if(sid){ geneSpecies = sid; updateGeneSeg(); }
+      if(color) replay.color = color;
+      if(!replay.on) setReplay(true);
+      replay.playing = false;
+      showReplay(i==null ? TL.count()-1 : i); syncReplayUI(); drawReplay();
+      return { frames:TL.count(), idx:replay.idx, t:TL.at(replay.idx).t };
+    },
+    timelapse: TL,
+    /* Kill a fraction of one species (headless experiments, e.g. crash-recovery tests). */
+    cull: function(sid, frac){
+      animals.forEach(function(a){ if(a.sid===sid && rand() < (frac==null?1:frac)) die(a); });
+      animals = animals.filter(function(a){ return !a.dead; }); recount();
+      return counts[sid]||0;
+    },
+    traitCosts: function(on){ if(on!=null) setCosts(on); return params.traitCosts; },
+    sexual: function(on){ if(on!=null) setSexual(on); return params.sexual; },
+    mating: function(){ return Object.assign({}, mating); },
+    /* Threat detections per herbivore-step: own = sensed itself; alarm = only via a fleeing neighbour. */
+    alarmStats: function(){ return { own:alarmStats.own, alarm:alarmStats.alarm, graded:alarmStats.graded.slice() }; },
+    river: function(on){ if(on!=null){ setRiver(on); repaintPlants(); } return RIVER.on; },
+    bankOf: function(x, y){ return bankOf(x, y); },
+    clades: function(){ return Clades.all().map(function(c){
+      return { id:c.id, sid:c.sid, name:c.name, common:c.common, parent:c.parent, depth:c.depth, born:+c.born.toFixed(1),
+               died:c.died==null?null:+c.died.toFixed(1), n:c.n, peak:c.peak,
+               type:c.type.map(function(v){ return +v.toFixed(3); }) };
+    }); },
     animals: function(){ return animals; },
     follow: function(uid){
       var a = animals.find(function(x){ return x.uid===uid; });

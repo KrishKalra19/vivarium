@@ -1,0 +1,31 @@
+{
+  "name": "many-eyes-pilot6",
+  "about": "Pilot 6: raise the price of not looking. Pilots 3-5 found evolved vigilance stuck at 1-2% (a floor effect). Here head-down threat detection drops from 40% to 20% of normal range (headDownSense 0.2), with no alarm and with graded alarm (lambda 1/s). Same seeds and setup as pilots 4-5, whose 0.4 runs are the comparison. Predictions: baseline vigilance rises off the floor; a negative food-adjusted slope appears with graded alarm.",
+  "secs": 2400,
+  "every": 30,
+  "replicates": 4,
+  "seed0": 1000,
+  "base": {
+    "mode": "brains",
+    "costs": 1,
+    "set": {
+      "capScale": 1.6,
+      "ethoFrom": 1500,
+      "headDownSense": 0.2
+    }
+  },
+  "conditions": [
+    {
+      "name": "hd02-no-alarm"
+    },
+    {
+      "name": "hd02-graded-1",
+      "set": {
+        "alarm": true,
+        "alarmRate": 1
+      }
+    }
+  ],
+  "_code": "js/vivarium.js?v=31",
+  "_started": "2026-11-03T14:13:48.190Z"
+}

@@ -140,6 +140,45 @@ Past about 2,000 animals a frame no longer fits in 16 ms (60 fps), and it's the 
 
 ---
 
+### Evolution you can watch
+
+- **Subspecies.** When a group drifts far enough from the rest of its lineage it splits off as a named subspecies, with Latin trinomials for the direction it moved (*Dasyprocta punctata velox* is a swift agouti). **Genetics → Family tree** shows the branching over time, with line width for population and extinct lineages greyed out.
+- **River barrier** (Controls → Interventions). Agoutis, howlers and ocelots can't cross except at rare fords, so lineages split by bank (Wallace's riverine-barrier hypothesis).
+- **Sexual reproduction** (Controls). Breeders need a nearby mate and prefer similar partners through an evolvable **choosiness** gene; offspring mix both parents' traits and brains.
+- **Trait costs** (Controls). Speed, keen senses, a thrifty metabolism and size each carry a price, so traits stop running to their limits.
+- **Time-lapse** (under the map). Replay the whole run and colour animals by subspecies to watch a split happen.
+
+## Vivarium as a research instrument
+
+Runs are **bit-for-bit reproducible** from a seed: the simulation has its own seeded generator, separate from anything the page does. `Vivarium.manifest()` records everything needed to repeat a run.
+
+| tool | what it gives you |
+|---|---|
+| `tools/vivarium-run.js` | one headless run: census, trait means, a final-state fingerprint, charts and map, plus optional life table, ethogram and patch log; `--at` changes params mid-run (transplant designs) |
+| **Life table** (Census → Data, or `--lifetable 1`) | one CSV row per animal: parents, birth and death, cause and killer, subspecies, traits, offspring, kills, and time spent in each behaviour. Columns: `docs/life-table.md` |
+| **Ethogram** (`Vivarium.ethogram()`) | 1 Hz scan sampling of every animal (feed, vigilant, travel, flee, chase, stalk, lurk, search) with group size and food underfoot |
+| **Patch log** (`--patches 1`) | every feeding bout: giving-up density (food left where the animal quit), how the bout ended (fled, quit on food, walked off), speed at quitting, habitat intake rate |
+| `tools/experiment.js` | conditions × paired replicates from a JSON spec, run in parallel and resumable, into tidy CSVs. How-to: `docs/experiments.md` |
+| `tools/analyze_vigilance.py`, `tools/analyze_choosiness.py`, `tools/analyze_cohorts.py`, `tools/analyze_patches.py` | many-eyes, reinforcement, birth-cohort / selection-differential and giving-up-density analyses, with the replicate run as the unit of analysis |
+| `tools/probe-brains.js`, `tools/probe-quit.js` | edit one input of every evolved network at a time and read its decision: what the brains respond to |
+
+Experiment switches: predators on/off, population caps, alarm contagion (instant or graded), hybrid penalty, timed secondary contact, head-down detection, scan-while-chewing, births and immigration on/off, a one-off food-landscape rescale, food-sight range, hiding visible-food quality, a measurement window, and any `Vivarium.params` value through `--set`. Every switch defaults to off, and default runs stay bit-identical (checked by fingerprint after each change).
+
+**What it has been used for so far** (pilots; see the write-ups):
+- [`docs/mvt-findings.md`](docs/mvt-findings.md): **do evolved foragers follow the marginal value theorem?** Yes, qualitatively: giving-up densities rise with habitat quality in every species. The response is plastic (a transplant test), partly mechanical and partly evolved (an unevolved policy shows a noisy version; evolution makes it consistent), and an active departure from food that's still there. There is no extra caution under predation risk. The cue is unresolved: one input *can* drive leaving, but hiding it doesn't remove the effect.
+- [`docs/many-eyes-findings.md`](docs/many-eyes-findings.md): does evolved vigilance fall with group size? No, robustly, across seven pilots and evolvability and selection tests: these networks never evolve proactive scanning. Along the way, definitions, controls, food covariates and immortal-time bias each overturned a naive reading.
+- Reinforcement (`experiments/out/reinforcement-pilot/`): does a hybrid penalty make mate choice evolve to be pickier? Not with these costs: hybrids are too rare and choosiness too expensive.
+
+## Teaching field methods
+
+The **Field** tab is a practice range for behavioural observation, scored against ground truth no real field site can give you:
+- **Focal sampling**: follow one animal and record what it's doing at each sample point. Scored with % agreement, Cohen's κ, a confusion table, and observer error separated from sampling error.
+- **Scan sampling**: count heads up vs down in a circle. Scored for counting error and for placement error.
+- **Feeding trays**: predict, then set out trays of known food in rich and poor habitat and compare giving-up densities (Brown 1988), with confidence intervals and unvisited trays handled properly.
+- **Mark–recapture**: estimate population size (Lincoln–Petersen and Chapman) and see how a long gap between sessions breaks the closed-population assumption.
+
+**Teaching a class?** Start with [`docs/INSTRUCTOR-QUICKSTART.md`](docs/INSTRUCTOR-QUICKSTART.md): a class link gives every student the same world, one-page handouts (`docs/handouts/`), CSV downloads, and **`class.html`** to pool the class's results. Case studies on real research data are in `docs/case-studies/`. Full guide and discussion prompts: [`docs/teaching-field-methods.md`](docs/teaching-field-methods.md).
+
 ## Project layout
 
 ```
@@ -149,6 +188,9 @@ css/arena.css           the Arena's look
 js/species.js           Vivarium biome and species table
 js/bodies.js            low-poly 3D body plans, shared by both modes
 js/vivarium.js          ecosystem simulation, charts, Map and 3D views
+js/clades.js            subspecies census, Latin names and the family tree
+js/timelapse.js         compact recording of a run for the time-lapse scrubber
+js/fieldstudy.js        Field tab: focal and scan sampling scored against ground truth
 js/app.js               the Vivarium / Arena switch
 js/arena/roster.js      arena species and combat stats
 js/arena/tuning.js      generated Balanced-mode corrections
@@ -167,6 +209,11 @@ js/arena/results.js     victory, Play of the Game, highlights, recap, awards
 js/arena/lobby.js       roster, rules, odds and predictions
 js/arena/audio.js       sound, synthesised with the Web Audio API
 tools/arena-sim.js      headless balance runner
+tools/vivarium-run.js   headless Vivarium run (seeded, fingerprinted)
+tools/experiment.js     experiment runner: conditions × replicates → tidy CSVs
+tools/analyze_*.py      analyses for the experiments (stdlib only)
+experiments/            experiment specs, and committed results under out/
+docs/                   write-ups, column reference, teaching guide
 ```
 
 Everything is plain scripts sharing a `Ludus` namespace — still no build step.
@@ -182,6 +229,8 @@ for (let i = 0; i < 6000; i++) Vivarium.step(0.1);  // 600s of range time
 Vivarium.stats();         // { t, total, counts, foliage }
 Vivarium.deaths();        // death counts keyed by species:cause
 Vivarium.benchmark(240);  // ms per frame, simulation vs render
+Vivarium.reset(42);       // reseed the simulation's own generator and rebuild the world
+Vivarium.manifest();      // seed, toggles and params: everything needed to reproduce the run
 
 // Arena
 Ludus.ArenaEngine.create({ roster, seed, balanced: true }).runToEnd();  // a whole match, no rendering
@@ -202,8 +251,8 @@ Ludus.ArenaResults.debugFrame(0);  // draw a frame of Play of the Game
 - [ ] Touch controls for the Vivarium 3D view
 - [ ] Biome switcher (savanna, temperate forest, reef) for both modes
 - [ ] Pack hunters (giant otters here; lions or wild dogs on a savanna)
-- [ ] Sexual reproduction and lineage trees in the Vivarium
-- [ ] Save/load a run, and export population data as CSV
+- [x] Sexual reproduction and lineage trees in the Vivarium
+- [x] Export run data as CSV (life table, ethogram, experiments) and reproduce any run from its seed
 
 ## License
 

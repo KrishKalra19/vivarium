@@ -1,0 +1,10 @@
+{
+  "name": "many-eyes-pilot3",
+  "about": "Pilot 3: evolve-then-measure with the food covariate. 40 sim-min runs; vigilance is tallied only for the last 15 min (ethoFrom 1500) so brains have evolved ~25 min first. Each scan records the food level under the animal; the analysis reports a food-adjusted slope. Predators vs predator-removal control, caps x1.6, 4 paired replicates.",
+  "secs": 2400,
+  "every": 30,
+  "replicates": 4,
+  "seed0": 1000,
+  "base": { "mode": "brains", "costs": 1, "set": { "capScale": 1.6, "ethoFrom": 1500 } },
+  "conditions": [ { "name": "predators" }, { "name": "no-predators", "set": { "predators": false } } ]
+}

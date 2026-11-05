@@ -21,7 +21,8 @@
     document.getElementById('tagline').textContent = TAGLINES[mode];
     if(window.Vivarium) window.Vivarium.setActive(mode === 'vivarium');
     if(L.Arena) L.Arena.setActive(mode === 'arena');
-    try { history.replaceState(null, '', location.pathname + location.search + (mode === 'arena' ? '#arena' : '')); }
+    var hash = mode === 'arena' ? '#arena' : (location.hash === '#field' || /^#class-\d+-(instinct|mixed|brains)$/.test(location.hash)) ? location.hash : '';
+    try { history.replaceState(null, '', location.pathname + location.search + hash); }
     catch(e){ /* file:// in some browsers */ }
   }
 
@@ -29,6 +30,44 @@
     b.addEventListener('click', function(){ setMode(b.dataset.mode); });
   });
 
+  /* Class link: index.html?seed=1234&mode=brains#field starts every student on the same world.
+     Same order as tools/vivarium-run.js (reset, then brainMode, which reseeds from the stream),
+     so a link's starting world is the harness's world for that seed and mode. */
+  function applyClassLink(){
+    var V = window.Vivarium;
+    if(!V) return;
+    var q = new URLSearchParams(location.search), seed = q.get('seed'), mode = q.get('mode');
+    // Hash form #class-1234-brains: for hosts that pass only a plain #name to the page (e.g. a shared
+    // claude.ai page drops query strings). Same meaning as ?seed=1234&mode=brains#field.
+    var h = /^#class-(\d+)-(instinct|mixed|brains)$/.exec(location.hash);
+    if(h){ seed = h[1]; mode = h[2]; }
+    if(seed && /^\d+$/.test(seed) && +seed <= 4294967295) V.reset(+seed);
+    if(['instinct','mixed','brains'].indexOf(mode) >= 0 && mode !== V.brainMode()) V.brainMode(mode);
+    if(location.hash === '#field' || h){
+      document.querySelector('.tab[data-tab="field"]').click();
+      if(window.matchMedia('(max-width:1040px)').matches) document.querySelector('.rail').scrollIntoView();   // the rail sits under the map here
+    }
+  }
+  function classLink(){
+    var V = window.Vivarium;
+    return location.href.split(/[?#]/)[0] + '?seed=' + V.seed() + '&mode=' + V.brainMode() + '#field';
+  }
+  function copyClassLink(){
+    var link = classLink(), box = document.getElementById('fsLinkText'), note = document.getElementById('fsLinkNote');
+    var warn = window.Vivarium.brainMode() === 'instinct' ? ' This world is in Instinct mode: focal and scan samples need Mixed A/B or Brains (Controls → Behaviour).' : '';
+    box.value = link; box.hidden = false;
+    function done(ok){
+      note.textContent = (ok ? 'Copied.' : 'Couldn’t reach the clipboard here: copy the link from the box.') + warn +
+        ' On a shared claude.ai page, add #class-' + window.Vivarium.seed() + '-' + window.Vivarium.brainMode() + ' to the end of the page’s link instead.';
+      if(!ok) box.select();
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(function(){ done(true); }, function(){ done(false); });
+    else done(false);   // no clipboard API on file:// pages
+  }
+
   L.setMode = setMode;
   setMode(location.hash === '#arena' ? 'arena' : 'vivarium');
+  applyClassLink();
+  var copyBtn = document.getElementById('fsCopyLink');
+  if(copyBtn) copyBtn.addEventListener('click', copyClassLink);
 })(window.Ludus = window.Ludus || {});

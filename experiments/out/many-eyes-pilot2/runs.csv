@@ -1,0 +1,9 @@
+condition,replicate,seed,fingerprint,wall_s,sim_s,subspecies,page_errors,final_agouti,final_howler,final_capybara,final_tapir,final_ocelot,final_harpy,final_jaguar,final_anaconda
+predators,0,1000,3a356b49,280.5,900,10,0,184,77,1200,180,29,3,1,5
+predators,1,1001,3226dc87,221.5,900,9,0,121,97,1200,249,5,0,4,3
+predators,2,1002,acc99f4c,239.3,900,7,0,234,42,1200,257,38,0,5,5
+predators,3,1003,d712e77,227.1,900,9,0,791,230,1200,209,24,3,4,5
+no-predators,0,1000,47e53c65,298.3,900,4,0,886,1117,1200,183,0,0,0,0
+no-predators,1,1001,d8f0d21c,291.1,900,6,0,953,986,1200,195,0,0,0,0
+no-predators,2,1002,2a22cc98,314.2,900,7,0,898,974,1198,149,0,0,0,0
+no-predators,3,1003,b18894a1,298.1,900,2,0,886,1084,1200,181,0,0,0,0

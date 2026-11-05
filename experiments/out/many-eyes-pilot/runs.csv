@@ -1,0 +1,5 @@
+condition,replicate,seed,fingerprint,wall_s,sim_s,subspecies,page_errors,final_agouti,final_howler,final_capybara,final_tapir,final_ocelot,final_harpy,final_jaguar,final_anaconda
+brains,0,1000,970b0258,250.5,900,5,0,304,258,750,190,19,0,3,7
+brains,1,1001,fdb77a99,263.0,900,6,0,500,500,750,190,70,0,3,7
+brains,2,1002,7aa9cba4,263.7,900,5,0,769,881,750,190,41,8,2,3
+brains,3,1003,1bab73d3,251.1,900,6,0,542,486,750,190,96,1,4,3

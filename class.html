@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vivarium class results</title>
+<style>
+  :root{ --bg:#f4f5ef; --card:#ffffff; --ink:#1d2a22; --muted:#5b665e; --line:#d9ddd3; --accent:#1f6f8b; --good:#2f7d4a; --warn:#a1532a; }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#121714; --card:#1b221d; --ink:#e7ece6; --muted:#a3ada5; --line:#2e3a31; --accent:#6fb7d0; --good:#7fc79a; --warn:#e5a27a; color-scheme:dark; } }
+  :root[data-theme="dark"]{ --bg:#121714; --card:#1b221d; --ink:#e7ece6; --muted:#a3ada5; --line:#2e3a31; --accent:#6fb7d0; --good:#7fc79a; --warn:#e5a27a; color-scheme:dark; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main{ max-width:960px; margin:0 auto; padding:24px 16px 64px; }
+  h1{ font-size:1.6rem; margin:0 0 4px; } h2{ font-size:1.2rem; margin:28px 0 8px; } h3{ font-size:1rem; margin:18px 0 6px; }
+  p{ margin:6px 0; } .muted{ color:var(--muted); }
+  .drop{ border:2px dashed var(--line); border-radius:12px; padding:24px; text-align:center; background:var(--card); margin:16px 0; }
+  .drop.over{ border-color:var(--accent); }
+  .drop label{ display:inline-block; margin-top:8px; padding:8px 14px; border-radius:8px; background:var(--accent); color:#fff; cursor:pointer; font-weight:600; }
+  .drop input{ position:absolute; left:-9999px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin:12px 0; overflow-x:auto; }
+  .stats{ display:flex; flex-wrap:wrap; gap:12px; margin:8px 0; }
+  .stat{ flex:1 1 150px; border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .stat b{ display:block; font-size:1.4rem; } .stat span{ color:var(--muted); font-size:.85rem; }
+  table{ border-collapse:collapse; width:100%; font-size:.9rem; }
+  th, td{ border-bottom:1px solid var(--line); padding:6px 8px; text-align:right; white-space:nowrap; } th:first-child, td:first-child{ text-align:left; }
+  thead th{ color:var(--muted); font-weight:600; }
+  .note{ border-left:3px solid var(--warn); padding:6px 10px; margin:8px 0; color:var(--ink); }
+  button{ font:inherit; padding:6px 12px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
+  button:focus-visible, .drop label:focus-within{ outline:3px solid var(--accent); outline-offset:2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Vivarium class results</h1>
+  <p class="muted">Pool your students' Field-tab CSV downloads (focal, scan, trays or mark–recapture) and see the whole class's results. Everything stays in this browser: nothing is uploaded.</p>
+  <div class="drop" id="drop">
+    <p><b>Drop CSV files here</b>, as many as you like, of any method.</p>
+    <label>Choose files<input type="file" id="files" accept=".csv,text/csv" multiple></label>
+    <p class="muted" id="loaded">No files yet.</p>
+  </div>
+  <details class="card" id="pasteCard">
+    <summary><b>Or paste CSV text</b> (from a student's "Copy as CSV text" button)</summary>
+    <label for="pasteBox" class="muted">One student's CSV at a time, header row included.</label>
+    <textarea id="pasteBox" rows="5" style="width:100%;margin-top:6px;font:12px ui-monospace,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px"></textarea>
+    <p><button id="pasteAdd">Add pasted CSV</button> <span class="muted" id="pasteNote"></span></p>
+  </details>
+  <div id="out" aria-live="polite"></div>
+</main>
+<script>
+(function(){
+  "use strict";
+  // On a shared claude.ai page, page-started downloads are blocked; the viewer's "downloads" capability
+  // asks the viewer to confirm the save instead. Anywhere else, a normal download link.
+  function saveFile(name, data, type){
+    function plain(){
+      var url = URL.createObjectURL(new Blob([data], { type:type }));
+      var link = document.createElement('a'); link.href = url; link.download = name;
+      document.body.appendChild(link); link.click(); link.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    }
+    var c = window.claude;
+    if(c && typeof c.use === 'function') c.use('downloads').then(function(d){ if(d) d.save({ filename:name, data:data }).catch(function(){}); else plain(); }, plain);
+    else plain();
+  }
+  var rows = { focal:[], scan:[], trays:[], mr:[] }, seen = {}, log = [];
+  var $ = function(id){ return document.getElementById(id); };
+  var T = [12.71,4.30,3.18,2.78,2.57,2.45,2.36,2.31,2.26,2.23,2.20,2.18,2.16,2.14,2.13,2.12,2.11,2.10,2.09,2.09];
+  function tc(df){ return df < 1 ? null : df <= 20 ? T[df-1] : df <= 30 ? 2.05 : df <= 60 ? 2.01 : 1.98; }
+  function mean(a){ return a.reduce(function(s, x){ return s + x; }, 0)/a.length; }
+  // Mean with a 95% t interval across students/trials, clamped to the measure's possible range.
+  function ci(a, min, max){
+    if(a.length < 2) return { m:a.length ? a[0] : null, lo:null, hi:null, n:a.length };
+    var m = mean(a), sd = Math.sqrt(a.reduce(function(s, x){ return s + (x-m)*(x-m); }, 0)/(a.length-1)), h = tc(a.length-1)*sd/Math.sqrt(a.length);
+    var lo = m - h, hi = m + h;
+    if(min != null) lo = Math.max(min, lo); if(max != null) hi = Math.min(max, hi);
+    return { m:m, lo:lo, hi:hi, n:a.length };
+  }
+  function f2(x){ return x == null || isNaN(x) ? '—' : x.toFixed(2); }
+  function pc(x){ return x == null || isNaN(x) ? '—' : Math.round(x*100) + '%'; }
+  function ciTxt(c, fmt){ fmt = fmt || f2; return c.m == null ? '—' : fmt(c.m) + (c.lo != null ? ' (' + fmt(c.lo) + ' to ' + fmt(c.hi) + ')' : ''); }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]; }); }
+
+  function parse(text){
+    var lines = text.replace(/\r/g, '').split('\n').filter(function(l){ return l.trim() && l[0] !== '#'; });
+    if(!lines.length) return [];
+    var head = lines[0].split(',');
+    return lines.slice(1).map(function(l){ var v = l.split(','), o = {}; head.forEach(function(h, i){ o[h] = v[i] == null ? '' : v[i]; }); return o; });
+  }
+  function add(name, text){
+    var rs = parse(text), n = 0, skipped = 0;
+    rs.forEach(function(r){
+      var m = r.method;
+      if(!rows[m]){ skipped++; return; }
+      var key = m + '|' + r.run + '|' + (r.sample || r.scan || r.tray || '');
+      if(seen[key]){ skipped++; return; }   // the same file dropped twice
+      seen[key] = 1; rows[m].push(r); n++;
+    });
+    return { n:n, skipped:skipped };
+  }
+  function load(fileList){
+    var files = Array.prototype.slice.call(fileList), done = 0, msgs = [];
+    files.forEach(function(f){
+      var rd = new FileReader();
+      rd.onload = function(){
+        var r = add(f.name, rd.result); msgs.push(f.name + ': ' + r.n + ' rows' + (r.skipped ? ' (' + r.skipped + ' skipped: duplicates or not a Field CSV)' : ''));
+        if(++done === files.length){ log = log.concat(msgs); $('loaded').textContent = log.length + ' file(s) loaded: ' + log.join(' · '); render(); }
+      };
+      rd.readAsText(f);
+    });
+  }
+  function byRun(list){ var o = {}; list.forEach(function(r){ (o[r.run] = o[r.run] || []).push(r); }); return o; }
+  function seedNote(list){
+    var s = {}; list.forEach(function(r){ s[r.seed] = 1; }); var k = Object.keys(s);
+    return k.length > 1 ? '<p class="note">These files come from <b>' + k.length + ' different worlds</b> (seeds ' + esc(k.join(', ')) + '). Pooling is still fine for error rates, but students weren\'t watching the same animals.</p>' : '<p class="muted">All from one world (seed ' + esc(k[0]) + ').</p>';
+  }
+  function dl(name, list){
+    if(!list.length) return '';
+    var head = Object.keys(list[0]), csv = head.join(',') + '\n' + list.map(function(r){ return head.map(function(h){ return r[h]; }).join(','); }).join('\n') + '\n';
+    return '<p><button data-csv="' + encodeURIComponent(csv) + '" data-name="' + name + '">Download combined ' + name + '</button></p>';
+  }
+
+  function focal(){
+    var runs = byRun(rows.focal), K = ['feed','vigilant','travel','flee'], per = [], conf = {};
+    K.forEach(function(a){ conf[a] = {}; K.forEach(function(b){ conf[a][b] = 0; }); });
+    Object.keys(runs).forEach(function(id){
+      var rs = runs[id].filter(function(r){ return r.answer !== 'skip' && K.indexOf(r.answer) >= 0 && K.indexOf(r.truth) >= 0; });
+      if(!rs.length) return;
+      var po = rs.filter(function(r){ return r.answer === r.truth; }).length/rs.length, pe = 0;
+      K.forEach(function(k){ var a = rs.filter(function(r){ return r.answer === k; }).length/rs.length, t = rs.filter(function(r){ return r.truth === k; }).length/rs.length; pe += a*t; });
+      rs.forEach(function(r){ conf[r.truth][r.answer]++; });
+      per.push({ id:id, sp:rs[0].species, n:rs.length, po:po, k:pe < 1 ? (po-pe)/(1-pe) : null });
+    });
+    if(!per.length) return '';
+    var A = ci(per.map(function(p){ return p.po; }), 0, 1), Kc = ci(per.filter(function(p){ return p.k != null; }).map(function(p){ return p.k; }), -1, 1);
+    var h = '<h2>Focal sampling</h2><div class="card">' + seedNote(rows.focal) +
+      '<div class="stats"><div class="stat"><b>' + per.length + '</b><span>students / sessions</span></div>' +
+      '<div class="stat"><b>' + pc(A.m) + '</b><span>mean agreement with truth' + (A.lo != null ? ' (' + pc(A.lo) + '–' + pc(A.hi) + ')' : '') + '</span></div>' +
+      '<div class="stat"><b>' + f2(Kc.m) + '</b><span>mean Cohen\'s κ' + (Kc.lo != null ? ' (' + f2(Kc.lo) + '–' + f2(Kc.hi) + ')' : '') + '</span></div></div>';
+    h += '<h3>Whole-class confusion table</h3><table><thead><tr><th>truth ↓ / scored →</th>' + K.map(function(k){ return '<th>' + k + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      K.map(function(t){ return '<tr><th>' + t + '</th>' + K.map(function(a){ return '<td' + (a === t ? ' style="font-weight:700"' : '') + '>' + conf[t][a] + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>';
+    h += '<p class="muted">Bold = correct. The biggest off-diagonal cell is the class\'s shared confusion: a good place to agree an operational definition.</p>';
+    h += '<h3>Per session</h3><table><thead><tr><th>run</th><th>species</th><th>samples</th><th>agreement</th><th>κ</th></tr></thead><tbody>' +
+      per.map(function(p){ return '<tr><td>' + esc(p.id) + '</td><td>' + esc(p.sp) + '</td><td>' + p.n + '</td><td>' + pc(p.po) + '</td><td>' + f2(p.k) + '</td></tr>'; }).join('') + '</tbody></table>';
+    return h + dl('focal.csv', rows.focal) + '</div>';
+  }
+
+  function scan(){
+    var runs = byRun(rows.scan), per = [];
+    Object.keys(runs).forEach(function(id){
+      var rs = runs[id].filter(function(r){ return r.lost_count !== 'true' && r.down !== '' && r.up !== ''; });
+      if(!rs.length) return;
+      var sd = 0, sn = 0, td = 0, tn = 0, pd = 0, pn = 0, exact = 0, off = 0;
+      rs.forEach(function(r){
+        var d = +r.down, u = +r.up, D = +r.true_down, U = +r.true_up;
+        sd += d; sn += d + u; td += D; tn += D + U; pd += +r.pop_down; pn += +r.pop_down + +r.pop_up;
+        if(d === D && u === U) exact++; off += Math.abs(d-D) + Math.abs(u-U);
+      });
+      var mine = sn ? sd/sn : null, circ = tn ? td/tn : null, pop = pn ? pd/pn : null;
+      per.push({ id:id, sp:rs[0].species, n:rs.length, exact:exact/rs.length, off:off/rs.length, mine:mine, circ:circ, pop:pop,
+                 count:mine != null && circ != null ? mine - circ : null, place:circ != null && pop != null ? circ - pop : null });
+    });
+    if(!per.length) return '';
+    var C = ci(per.filter(function(p){ return p.count != null; }).map(function(p){ return p.count*100; }), -100, 100),
+        P = ci(per.filter(function(p){ return p.place != null; }).map(function(p){ return p.place*100; }), -100, 100);
+    var pp = function(x){ return (x >= 0 ? '+' : '') + x.toFixed(1); };
+    var h = '<h2>Scan sampling</h2><div class="card">' + seedNote(rows.scan) +
+      '<div class="stats"><div class="stat"><b>' + per.length + '</b><span>students / sessions</span></div>' +
+      '<div class="stat"><b>' + ciTxt(C, pp) + '</b><span>counting error: your share feeding − truth in your circles (percentage points, 95% CI across students)</span></div>' +
+      '<div class="stat"><b>' + ciTxt(P, pp) + '</b><span>placement error: truth in circles − whole population (pp)</span></div></div>';
+    h += '<p class="muted">Pooling the class averages away random counting error, so its interval should sit near 0. Placement error is the same bias in everyone\'s circles, so pooling doesn\'t remove it: if its interval excludes 0, the circles were systematically unrepresentative.</p>';
+    h += '<h3>Per session</h3><table><thead><tr><th>run</th><th>species</th><th>scans</th><th>exact</th><th>off / scan</th><th>yours</th><th>circles</th><th>population</th></tr></thead><tbody>' +
+      per.map(function(p){ return '<tr><td>' + esc(p.id) + '</td><td>' + esc(p.sp) + '</td><td>' + p.n + '</td><td>' + pc(p.exact) + '</td><td>' + f2(p.off) + '</td><td>' + pc(p.mine) + '</td><td>' + pc(p.circ) + '</td><td>' + pc(p.pop) + '</td></tr>'; }).join('') + '</tbody></table>';
+    return h + dl('scan.csv', rows.scan) + '</div>';
+  }
+
+  function trays(){
+    var runs = byRun(rows.trays), per = [], allR = [], allP = [];
+    Object.keys(runs).forEach(function(id){
+      var rs = runs[id], R = [], P = [], unv = 0;
+      rs.forEach(function(r){
+        if(+r.visitors > 0){ (r.zone === 'rich' ? R : P).push(+r.left); (r.zone === 'rich' ? allR : allP).push(+r.left); } else unv++;
+      });
+      per.push({ id:id, pred:rs[0].prediction, trial:rs[0].trial_s, R:R.length ? mean(R) : null, P:P.length ? mean(P) : null, nR:R.length, nP:P.length, unv:unv });
+    });
+    if(!per.length) return '';
+    var diffs = per.filter(function(p){ return p.R != null && p.P != null; }).map(function(p){ return p.R - p.P; }), D = ci(diffs);
+    var preds = {}; per.forEach(function(p){ preds[p.pred] = (preds[p.pred]||0) + 1; });
+    var sd = function(x){ return (x >= 0 ? '+' : '') + x.toFixed(3); };
+    var h = '<h2>Feeding trays (giving-up densities)</h2><div class="card">' + seedNote(rows.trays) +
+      '<div class="stats"><div class="stat"><b>' + per.length + '</b><span>trials</span></div>' +
+      '<div class="stat"><b>' + ciTxt(D, sd) + '</b><span>rich − poor mean GUD across trials (95% CI)</span></div>' +
+      '<div class="stat"><b>' + diffs.filter(function(d){ return d > 0; }).length + ' / ' + diffs.length + '</b><span>trials with more food left in rich habitat</span></div></div>';
+    h += '<p><b>Class verdict:</b> ' + (D.lo == null ? 'need at least 2 trials with visited trays in both habitats.' :
+      D.lo > 0 ? 'across trials, foragers left <b>more food in rich-habitat trays</b>, as the marginal value theorem predicts.' :
+      D.hi < 0 ? 'across trials, foragers left <b>more food in poor-habitat trays</b>, against the marginal value theorem\'s prediction.' :
+      (diffs.every(function(d){ return d > 0; }) || diffs.every(function(d){ return d < 0; }) ?
+        'every trial points the same way, but with ' + diffs.length + ' trials the interval still spans 0: run more trials before concluding.' :
+        'the trials disagree and the interval spans 0, so there\'s no clear difference yet. Single trials disagreeing is the replication lesson.')) + '</p>';
+    h += '<p class="muted">Predictions made: ' + Object.keys(preds).map(function(k){ return esc(k) + ' ' + preds[k]; }).join(', ') + '. The unit of analysis is the trial: trays within one trial share animals and a moment, so the interval is computed across trials, not across trays.</p>';
+    h += '<h3>Per trial</h3><table><thead><tr><th>run</th><th>trial s</th><th>prediction</th><th>GUD rich (n)</th><th>GUD poor (n)</th><th>rich − poor</th><th>unvisited</th></tr></thead><tbody>' +
+      per.map(function(p){ return '<tr><td>' + esc(p.id) + '</td><td>' + esc(p.trial) + '</td><td>' + esc(p.pred) + '</td><td>' + (p.R == null ? '—' : p.R.toFixed(3)) + ' (' + p.nR + ')</td><td>' + (p.P == null ? '—' : p.P.toFixed(3)) + ' (' + p.nP + ')</td><td>' + (p.R != null && p.P != null ? sd(p.R - p.P) : '—') + '</td><td>' + p.unv + '</td></tr>'; }).join('') + '</tbody></table>';
+    return h + dl('trays.csv', rows.trays) + '</div>';
+  }
+
+  function mr(){
+    var list = rows.mr.filter(function(r){ return +r.true_n2 > 0; });
+    if(!list.length) return '';
+    var errs = list.filter(function(r){ return r.student_estimate !== ''; }).map(function(r){ return (+r.student_estimate - +r.true_n2)/+r.true_n2*100; }),
+        ch = list.map(function(r){ return +r.chapman/+r.true_n2; });
+    var groups = {}; list.forEach(function(r){ var k = r.species + ', gap ' + r.gap_s + ' s, ' + r.placement; (groups[k] = groups[k] || []).push(+r.chapman/+r.true_n2); });
+    var E = ci(errs), C = ci(ch, 0);
+    var h = '<h2>Mark–recapture</h2><div class="card">' + seedNote(rows.mr) +
+      '<div class="stats"><div class="stat"><b>' + list.length + '</b><span>estimates</span></div>' +
+      '<div class="stat"><b>' + ciTxt(C) + '</b><span>Chapman estimate ÷ true population (1 = right on; 95% CI)</span></div>' +
+      '<div class="stat"><b>' + ciTxt(E, function(x){ return (x >= 0 ? '+' : '') + x.toFixed(0) + '%'; }) + '</b><span>students\' own estimates vs truth</span></div></div>';
+    h += '<h3>By setting</h3><table><thead><tr><th>setting</th><th>n</th><th>mean estimate ÷ truth</th><th>range</th></tr></thead><tbody>' +
+      Object.keys(groups).sort().map(function(k){ var g = groups[k]; return '<tr><td>' + esc(k) + '</td><td>' + g.length + '</td><td>' + f2(mean(g)) + '</td><td>' + f2(Math.min.apply(null, g)) + '–' + f2(Math.max.apply(null, g)) + '</td></tr>'; }).join('') + '</tbody></table>';
+    h += '<p class="muted">Compare settings: long gaps break the closed-population assumption (marked animals die, new ones are born) and push estimates up; few recaptures make single estimates jumpy even when they\'re right on average.</p>';
+    return h + dl('mark-recapture.csv', rows.mr) + '</div>';
+  }
+
+  function render(){
+    var h = focal() + scan() + trays() + mr();
+    $('out').innerHTML = h || '<p class="muted">No Field-tab rows found in those files.</p>';
+    Array.prototype.forEach.call(document.querySelectorAll('button[data-csv]'), function(b){
+      b.addEventListener('click', function(){
+        saveFile(b.getAttribute('data-name'), decodeURIComponent(b.getAttribute('data-csv')), 'text/csv');
+      });
+    });
+  }
+  $('files').addEventListener('change', function(e){ load(e.target.files); e.target.value = ''; });
+  $('pasteAdd').addEventListener('click', function(){
+    var t = $('pasteBox').value.trim();
+    if(!t){ $('pasteNote').textContent = 'Paste a CSV first.'; return; }
+    var r = add('pasted', t); log.push('pasted: ' + r.n + ' rows' + (r.skipped ? ' (' + r.skipped + ' skipped)' : ''));
+    $('loaded').textContent = log.length + ' file(s) loaded: ' + log.join(' · ');
+    $('pasteNote').textContent = r.n ? 'Added ' + r.n + ' rows.' : r.skipped ? 'Already added: those rows are in (duplicates skipped).' : 'No Field rows found: is the header row included?';
+    if(r.n) $('pasteBox').value = '';
+    render();
+  });
+  var d = $('drop');
+  ['dragenter','dragover'].forEach(function(t){ d.addEventListener(t, function(e){ e.preventDefault(); d.classList.add('over'); }); });
+  ['dragleave','drop'].forEach(function(t){ d.addEventListener(t, function(e){ e.preventDefault(); d.classList.remove('over'); }); });
+  d.addEventListener('drop', function(e){ if(e.dataTransfer && e.dataTransfer.files.length) load(e.dataTransfer.files); });
+  window.ClassResults = { add:function(name, text){ var r = add(name, text); render(); return r; }, rows:rows };
+})();
+</script>
+</body>
+</html>
